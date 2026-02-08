@@ -1,0 +1,368 @@
+.farm-modal-overlay {
+  background: radial-gradient(circle at top, rgba(55, 34, 96, 0.6), rgba(12, 8, 20, 0.75)) !important;
+}
+
+.farm-modal {
+  width: min(680px, 94vw) !important;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(245, 240, 255, 0.95)) !important;
+  border-radius: 28px !important;
+  padding: 26px !important;
+  box-shadow: 0 40px 120px rgba(9, 5, 20, 0.55) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+}
+
+.farm-modal::before {
+  content: '' !important;
+  position: absolute !important;
+  inset: -30% 10% auto 10% !important;
+  height: 220px !important;
+  background: radial-gradient(circle, rgba(121, 87, 255, 0.35), rgba(121, 87, 255, 0)) !important;
+  filter: blur(10px) !important;
+  opacity: 0.8 !important;
+}
+
+.farm-modal-title {
+  color: #2c1856 !important;
+  text-shadow: none !important;
+  font-size: 2.1rem !important;
+  margin-bottom: 10px !important;
+}
+
+.farm-modal-step {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 6px 6px 2px !important;
+  box-shadow: none !important;
+  gap: 16px !important;
+}
+
+.farm-modal-step-farm .farm-modal-title {
+  margin-bottom: 6px !important;
+}
+
+.farm-modal-farm-layout {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr) !important;
+  gap: 18px !important;
+  align-items: center !important;
+}
+
+.farm-modal-checkbox {
+  margin-top: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  font-size: 1rem !important;
+  color: #3d256f !important;
+  font-weight: 600 !important;
+}
+
+.farm-modal-checkbox input[type="checkbox"] {
+  width: 18px !important;
+  height: 18px !important;
+  accent-color: #6f4dff !important;
+  cursor: pointer !important;
+}
+
+.farm-modal-farm-hexagon {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.farm-modal-hexagon-title {
+  font-weight: 700 !important;
+  color: #3d256f !important;
+}
+
+.farm-modal-hexagon-hint {
+  font-size: 0.9rem !important;
+  color: rgba(90, 70, 140, 0.7) !important;
+  text-align: center !important;
+}
+
+.farm-modal-hint {
+  font-size: 0.85rem !important;
+  color: rgba(90, 70, 140, 0.7) !important;
+}
+
+.farm-modal-center-controls {
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+}
+
+.farm-modal-step-avatar {
+  gap: 18px !important;
+}
+
+.farm-modal-photo-options {
+  width: 100% !important;
+  display: flex !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+}
+
+.farm-modal-option {
+  padding: 10px 12px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(120, 90, 200, 0.2) !important;
+  background: #ffffff !important;
+  color: #3b1f71 !important;
+  font-weight: 700 !important;
+  box-shadow: 0 10px 20px rgba(40, 24, 90, 0.15) !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+  min-width: 140px !important;
+  font-size: 0.95rem !important;
+}
+
+.farm-modal-option:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 14px 26px rgba(40, 24, 90, 0.22) !important;
+}
+
+.farm-modal-option.active {
+  border-color: #7a58ff !important;
+  background: #efe9ff !important;
+}
+
+.farm-modal-label {
+  color: #3d256f !important;
+}
+
+.farm-modal-input,
+.farm-modal-select {
+  padding: 14px 16px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(120, 90, 200, 0.25) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: #2a1b4c !important;
+}
+
+.farm-modal-photo-preview {
+  width: 190px !important;
+  height: 190px !important;
+  border-radius: 50% !important;
+  border: 2px dashed rgba(120, 90, 200, 0.3) !important;
+  background: #f7f3ff !important;
+  box-shadow: 0 16px 34px rgba(30, 20, 60, 0.12) !important;
+  cursor: pointer !important;
+}
+
+.farm-modal-step-farm .farm-modal-hexagon-svg {
+  width: min(320px, 80vw) !important;
+  aspect-ratio: 1 / 1 !important;
+  display: grid !important;
+  place-items: center !important;
+  position: relative !important;
+}
+
+.farm-modal-step-farm .farm-hexagon {
+  width: 100% !important;
+  height: 100% !important;
+  filter: drop-shadow(0 18px 40px rgba(14, 8, 28, 0.35)) !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-site {
+  stroke: rgba(255, 255, 255, 0.7) !important;
+  stroke-width: 0.5 !important;
+  opacity: 0.9 !important;
+  transform: none !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-site:hover {
+  transform: none !important;
+  filter: brightness(1.08) !important;
+  opacity: 1 !important;
+}
+
+.farm-color-modal-overlay {
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(12, 8, 20, 0.45) !important;
+  display: grid !important;
+  place-items: center !important;
+  z-index: 1100 !important;
+  backdrop-filter: blur(6px) !important;
+}
+
+.farm-color-modal {
+  width: min(360px, 86vw) !important;
+  background: #ffffff !important;
+  border-radius: 20px !important;
+  padding: 18px !important;
+  border: 1px solid rgba(120, 90, 200, 0.18) !important;
+  box-shadow: 0 22px 50px rgba(20, 12, 40, 0.2) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 14px !important;
+  position: relative !important;
+}
+
+.farm-color-modal-title {
+  font-weight: 700 !important;
+  color: #2c1856 !important;
+  text-align: center !important;
+}
+
+.farm-color-swatch-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, 1fr) !important;
+  gap: 10px !important;
+}
+
+.farm-color-swatch {
+  width: 100% !important;
+  aspect-ratio: 1 / 1 !important;
+  border-radius: 12px !important;
+  border: 2px solid rgba(120, 90, 200, 0.25) !important;
+  cursor: pointer !important;
+  box-shadow: 0 8px 16px rgba(40, 24, 90, 0.12) !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+.farm-color-swatch:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 12px 22px rgba(40, 24, 90, 0.18) !important;
+}
+
+.farm-color-custom {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 12px !important;
+  font-weight: 600 !important;
+  color: #3d256f !important;
+}
+
+.farm-color-custom input[type="color"] {
+  width: 56px !important;
+  height: 40px !important;
+  border: none !important;
+  background: transparent !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+}
+
+.farm-color-modal-close {
+  position: absolute !important;
+  top: 10px !important;
+  right: 12px !important;
+  border: none !important;
+  background: transparent !important;
+  font-size: 1.4rem !important;
+  color: #6a4fd4 !important;
+  cursor: pointer !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core {
+  fill: #ffffff !important;
+  stroke: rgba(140, 110, 255, 0.8) !important;
+  stroke-width: 3 !important;
+  filter: drop-shadow(0 8px 18px rgba(120, 90, 220, 0.35)) !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core-media {
+  width: 26% !important;
+  height: 26% !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  display: grid !important;
+  place-items: center !important;
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core-emoji {
+  font-size: clamp(1.3rem, 2.2vw, 1.7rem) !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core-image {
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 50% !important;
+  overflow: hidden !important;
+  position: relative !important;
+  cursor: grab !important;
+  touch-action: none !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core-image.is-dragging {
+  cursor: grabbing !important;
+}
+
+.farm-modal-step-farm .farm-hexagon-core-image img {
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform-origin: center !important;
+  user-select: none !important;
+  pointer-events: none !important;
+  will-change: transform !important;
+}
+
+.farm-modal-photo-preview.is-drag-active {
+  border-color: #7a58ff !important;
+  box-shadow: 0 20px 40px rgba(86, 58, 168, 0.2) !important;
+  background: #efe9ff !important;
+}
+
+.farm-modal-photo-placeholder {
+  color: #7b6aa7 !important;
+}
+
+.farm-modal-btn {
+  padding: 14px 28px !important;
+  border-radius: 999px !important;
+  border: none !important;
+  background: linear-gradient(135deg, #6f4dff, #9a7bff) !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+  font-size: 1rem !important;
+  box-shadow: 0 16px 36px rgba(86, 58, 168, 0.35) !important;
+}
+
+.farm-modal-success {
+  color: #2e9f5b !important;
+  font-weight: 700 !important;
+  margin: 0 0 6px 0 !important;
+  text-align: center !important;
+}
+
+.farm-modal-btn.ghost {
+  background: #f4f0ff !important;
+  color: #6a4fd4 !important;
+  border: 1px solid rgba(120, 90, 200, 0.2) !important;
+  box-shadow: none !important;
+}
+
+.farm-modal-actions {
+  justify-content: center !important;
+}
+
+@media (max-width: 640px) {
+  .farm-modal-photo-options {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 780px) {
+  .farm-modal {
+    width: min(580px, 94vw) !important;
+  }
+
+  .farm-modal-farm-layout {
+    grid-template-columns: 1fr !important;
+  }
+
+  .farm-modal-step-farm .farm-modal-hexagon-svg {
+    width: min(280px, 78vw) !important;
+  }
+}

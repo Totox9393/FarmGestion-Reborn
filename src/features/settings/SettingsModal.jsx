@@ -1,0 +1,394 @@
+import { useEffect, useState } from 'react';
+import { Moon, Sun } from 'lucide-react';
+import { supabase } from '../authentification/supabaseClient';
+import Settings_ChangePassword from './Settings_ChangePassword';
+import Settings_ChangeEmail from './Settings_ChangeEmail';
+import Settings_ChangeAvatar from './Settings_ChangeAvatar';
+import './SettingsModal.css';
+
+const SECTIONS = {
+  account: 'Compte',
+  preferences: 'Préférences',
+  badges: 'Badges',
+  import: 'Importer',
+};
+
+function SettingsModal({ isOpen, onClose, user, profile }) {
+  const [activeSection, setActiveSection] = useState('account');
+  const [theme, setTheme] = useState(() => localStorage.getItem('farmgestion_theme') || 'dark');
+  const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [farmVisible, setFarmVisible] = useState(false);
+  const [farmId, setFarmId] = useState(null);
+  const [loadingPreferences, setLoadingPreferences] = useState(false);
+  const [savingNewsletter, setSavingNewsletter] = useState(false);
+  const [savingFarm, setSavingFarm] = useState(false);
+  const [copiedId, setCopiedId] = useState(false);
+  const isDark = theme === 'dark';
+  const themeClass =
+    theme === 'dark'
+      ? 'is-dark'
+      : theme === 'pastel'
+        ? 'is-pastel'
+        : theme === 'galactic'
+          ? 'is-galactic'
+          : theme === 'multicolor'
+            ? 'is-multicolor'
+            : 'is-light';
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveSection('account');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const savedTheme = localStorage.getItem('farmgestion_theme') || 'dark';
+      setTheme(savedTheme);
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !user) return;
+    let isMounted = true;
+    setLoadingPreferences(true);
+    (async () => {
+      try {
+        const { data: profileData } = await supabase
+          .from('users_profiles')
+          .select('receive_newsletter, farm_id')
+          .eq('id', user.id)
+          .maybeSingle();
+        if (!isMounted) return;
+        setNewsletterEnabled(Boolean(profileData?.receive_newsletter));
+        setFarmId(profileData?.farm_id || null);
+
+        if (profileData?.farm_id) {
+          const { data: farmData } = await supabase
+            .from('farms_list')
+            .select('visible')
+            .eq('id', profileData.farm_id)
+            .maybeSingle();
+          if (!isMounted) return;
+          setFarmVisible(Boolean(farmData?.visible));
+        } else {
+          setFarmVisible(false);
+        }
+      } finally {
+        if (isMounted) {
+          setLoadingPreferences(false);
+        }
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen, user]);
+
+  useEffect(() => {
+    localStorage.setItem('farmgestion_theme', theme);
+    window.dispatchEvent(new Event('farmgestion-theme-change'));
+  }, [theme]);
+
+  const handleNewsletterToggle = async () => {
+    if (!user || savingNewsletter) return;
+    const nextValue = !newsletterEnabled;
+    setNewsletterEnabled(nextValue);
+    setSavingNewsletter(true);
+    const { error } = await supabase
+      .from('users_profiles')
+      .update({ receive_newsletter: nextValue })
+      .eq('id', user.id);
+    if (error) {
+      console.error('Impossible de mettre à jour receive_newsletter', error);
+      setNewsletterEnabled(!nextValue);
+    }
+    setSavingNewsletter(false);
+  };
+
+  const handleFarmVisibilityToggle = async () => {
+    if (!farmId || savingFarm) return;
+    const nextValue = !farmVisible;
+    setFarmVisible(nextValue);
+    setSavingFarm(true);
+    const { error } = await supabase
+      .from('farms_list')
+      .update({ visible: nextValue })
+      .eq('id', farmId);
+    if (error) {
+      console.error('Impossible de mettre à jour la visibilité de la ferme', error);
+      setFarmVisible(!nextValue);
+    }
+    setSavingFarm(false);
+  };
+
+  const handleCopyId = async () => {
+    if (!user?.id) return;
+    try {
+      await navigator.clipboard.writeText(user.id);
+      setCopiedId(true);
+      setTimeout(() => setCopiedId(false), 2000);
+    } catch (error) {
+      console.error('Impossible de copier l\'ID', error);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="settings-overlay" role="dialog" aria-modal="true" onClick={onClose}>
+      <div
+        className={`settings-modal ${themeClass}`}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <header className="settings-header">
+          <div>
+            <p className="settings-subtitle">Paramètres</p>
+            <h2 className="settings-title">Préférences</h2>
+          </div>
+          <div className="settings-actions">
+            <button
+              type="button"
+              className="settings-theme-toggle"
+              onClick={() =>
+                setTheme((value) =>
+                  value === 'dark'
+                    ? 'pastel'
+                    : value === 'pastel'
+                      ? 'galactic'
+                      : value === 'galactic'
+                        ? 'multicolor'
+                        : value === 'multicolor'
+                          ? 'light'
+                          : 'dark'
+                )
+              }
+              aria-label="Changer de thème"
+              title="Changer de thème"
+            >
+              {isDark ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+            <button type="button" className="settings-close" onClick={onClose} aria-label="Fermer">
+              ×
+            </button>
+          </div>
+        </header>
+
+        <div className="settings-body">
+          <aside className="settings-sidebar">
+            <div className="settings-category">
+              <p className="settings-category-title">Compte</p>
+              <button
+                type="button"
+                className={`settings-link settings-link--account ${activeSection === 'account' ? 'active' : ''}`}
+                onClick={() => setActiveSection('account')}
+              >
+                <div className="settings-user">
+                  <div className="settings-user-avatar">
+                    {profile?.avatar_url ? (
+                      <img src={profile.avatar_url} alt="avatar" />
+                    ) : (
+                      <svg viewBox="0 0 24 24" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2-8 4.5V20h16v-1.5C20 16 16.42 14 12 14Z"
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="settings-user-info">
+                    <p className="settings-user-name">{profile?.username || 'Utilisateur'}</p>
+                  </div>
+                </div>
+              </button>
+              <button
+                type="button"
+                className={`settings-link ${activeSection === 'preferences' ? 'active' : ''}`}
+                onClick={() => setActiveSection('preferences')}
+              >
+                {SECTIONS.preferences}
+              </button>
+            </div>
+
+            <div className="settings-category">
+              <p className="settings-category-title">Autres</p>
+              <button
+                type="button"
+                className={`settings-link ${activeSection === 'badges' ? 'active' : ''}`}
+                onClick={() => setActiveSection('badges')}
+              >
+                {SECTIONS.badges}
+              </button>
+              <button
+                type="button"
+                className={`settings-link ${activeSection === 'import' ? 'active' : ''}`}
+                onClick={() => setActiveSection('import')}
+              >
+                {SECTIONS.import}
+              </button>
+            </div>
+          </aside>
+
+          <section className="settings-content">
+            {activeSection === 'account' && (
+              <div className="settings-section">
+                <h3 className="settings-section-title">Compte</h3>
+                <div className="settings-list">
+                  <Settings_ChangePassword user={user} />
+                  <Settings_ChangeEmail user={user} />
+                  <Settings_ChangeAvatar user={user} profile={profile} />
+                  <div className="settings-item settings-item--disabled">
+                    <div>
+                      <p className="settings-item-title">Signaler un bug</p>
+                      <p className="settings-item-subtitle">Rapportez un problème ou un dysfonctionnement.</p>
+                    </div>
+                    <button type="button" className="settings-action" disabled>Signaler</button>
+                  </div>
+                  <div className="settings-item">
+                    <div>
+                      <p className="settings-item-title">ID utilisateur</p>
+                      <p className="settings-item-subtitle mono">{user?.id || '—'}</p>
+                    </div>
+                    <button type="button" className="settings-action" onClick={handleCopyId}>
+                      {copiedId ? 'Copié !' : 'Copier'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'preferences' && (
+              <div className="settings-section">
+                <h3 className="settings-section-title">Préférences</h3>
+                <div className="settings-list">
+                  <div className="settings-item settings-theme-item">
+                    <div>
+                      <p className="settings-item-title">Thème</p>
+                      <p className="settings-item-subtitle">Choisissez l’ambiance visuelle de l’interface.</p>
+                    </div>
+                    <select
+                      className="settings-select"
+                      value={theme}
+                      onChange={(event) => setTheme(event.target.value)}
+                      aria-label="Sélecteur de thème"
+                    >
+                      <option value="dark">Sombre</option>
+                      <option value="pastel">Rose pastel</option>
+                      <option value="galactic">Galactique bleu</option>
+                      <option value="multicolor">Multicolore</option>
+                      <option value="light">Clair</option>
+                    </select>
+                  </div>
+                  <div className="settings-toggle">
+                    <div>
+                      <p className="settings-item-title">Ferme publique</p>
+                      <p className="settings-item-subtitle">
+                        {farmId
+                          ? 'Rendez votre ferme visible dans la communauté.'
+                          : 'Associez une ferme pour configurer cette option.'}
+                      </p>
+                    </div>
+                    <label className={`settings-switch ${savingFarm ? 'is-busy' : ''}`}>
+                      <input
+                        type="checkbox"
+                        onChange={handleFarmVisibilityToggle}
+                        checked={farmVisible}
+                        disabled={!farmId || savingFarm || loadingPreferences}
+                      />
+                      <span className="settings-slider" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle">
+                    <div>
+                      <p className="settings-item-title">Recevoir du bétail</p>
+                      <p className="settings-item-subtitle">Autorisez les dons et transferts de bétail.</p>
+                    </div>
+                    <label className="settings-switch">
+                      <input type="checkbox" disabled />
+                      <span className="settings-slider" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle">
+                    <div>
+                      <p className="settings-item-title">Recevoir des demandes d’amis</p>
+                      <p className="settings-item-subtitle">Activez les invitations sociales.</p>
+                    </div>
+                    <label className="settings-switch">
+                      <input type="checkbox" disabled />
+                      <span className="settings-slider" />
+                    </label>
+                  </div>
+                  <div className="settings-toggle">
+                    <div>
+                      <p className="settings-item-title">Newsletters</p>
+                      <p className="settings-item-subtitle">Recevez les dernières nouveautés par e-mail.</p>
+                    </div>
+                    <label className={`settings-switch ${savingNewsletter ? 'is-busy' : ''}`}>
+                      <input
+                        type="checkbox"
+                        onChange={handleNewsletterToggle}
+                        checked={newsletterEnabled}
+                        disabled={savingNewsletter || loadingPreferences}
+                      />
+                      <span className="settings-slider" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'badges' && (
+              <div className="settings-section">
+                <h3 className="settings-section-title">Badges</h3>
+                <div className="settings-list">
+                  <div className="settings-item">
+                    <div>
+                      <p className="settings-item-title">Gestion des badges</p>
+                      <p className="settings-item-subtitle">Badges de fermes et de bétails.</p>
+                    </div>
+                    <button type="button" className="settings-action">Gérer</button>
+                  </div>
+                  <div className="settings-item">
+                    <div>
+                      <p className="settings-item-title">Boutique</p>
+                      <p className="settings-item-subtitle">Accédez aux packs et récompenses.</p>
+                    </div>
+                    <button type="button" className="settings-action">Ouvrir</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {activeSection === 'import' && (
+              <div className="settings-section">
+                <h3 className="settings-section-title">Importer</h3>
+                <div className="settings-list">
+                  <div className="settings-item">
+                    <div>
+                      <p className="settings-item-title">Importer le design d’une ferme</p>
+                      <p className="settings-item-subtitle">Ajoutez un modèle de ferme depuis un fichier externe.</p>
+                    </div>
+                    <button type="button" className="settings-action">Importer</button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default SettingsModal;
