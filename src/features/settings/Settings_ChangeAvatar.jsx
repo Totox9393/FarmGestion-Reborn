@@ -32,16 +32,7 @@ function Settings_ChangeAvatar({ user, profile: profileProp }) {
   const roleHierarchy = ['ADMIN', 'MODERATION', 'VIP'];
   const normalizedRole = (profile?.role || '').trim().toUpperCase();
   const canUseAvatar = roleHierarchy.includes(normalizedRole);
-  
-  // Debug logging
-  useEffect(() => {
-    console.log('Settings_ChangeAvatar Debug:', {
-      profileRole: profile?.role,
-      normalizedRole,
-      canUseAvatar,
-      profile: profile ? { id: profile.id, role: profile.role, username: profile.username } : null,
-    });
-  }, [profile?.role, normalizedRole, canUseAvatar]);
+
 
   // Avatar source
   const [avatarSource, setAvatarSource] = useState('none');

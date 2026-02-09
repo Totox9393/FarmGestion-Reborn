@@ -24,6 +24,8 @@ const buildBaseQuery = ({ search, sort }) => {
   let query = supabase
     .from('betails')
     .select(PUBLIC_BETAIL_FIELDS.join(', '))
+    .is('farm_id', null)
+    .is('owner_id', null)
     .limit(BETAILS_PAGE_SIZE)
 
   if (search?.length >= 2) {
@@ -42,6 +44,22 @@ const buildBaseQuery = ({ search, sort }) => {
   }
 
   return query
+}
+
+export const purchaseBetail = async ({ betailId }) => {
+  if (!betailId) {
+    throw new Error('Betail id manquant')
+  }
+
+  const { data, error } = await supabase.rpc('purchase_betail_reborn', {
+    p_betail_id: betailId,
+  })
+
+  if (error) {
+    throw error
+  }
+
+  return data
 }
 
 const applyCursor = ({ query, cursor, sort }) => {

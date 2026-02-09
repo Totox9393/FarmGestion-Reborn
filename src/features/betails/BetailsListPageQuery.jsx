@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Heart } from 'lucide-react'
-import { useAuthorsMap, useBetailDetails, useBetailsList } from './hooks'
+import {
+  useAuthorsMap,
+  useBetailDetails,
+  useBetailsList,
+  usePurchaseBetail,
+  useUserFarmId,
+} from './hooks'
 import { useAuth } from '../authentification/AuthContext'
 import './BetailsListPage.css'
+import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -23,12 +30,21 @@ const getThumbnailUrl = (url) => {
   return url
 }
 
-function BetailCard({ betail, authorName, currentUserId }) {
+function BetailCard({
+  betail,
+  authorName,
+  currentUserId,
+  canPurchase,
+  isPurchasing,
+  onPurchase,
+  purchaseDisabledReason,
+}) {
   const [isFlipped, setIsFlipped] = useState(false)
   const { data: details, isFetching } = useBetailDetails(betail.id, isFlipped)
   const isOwner = Boolean(currentUserId) && betail.author_id === currentUserId
   const createdAt = details?.created_at || betail.created_at
   const comment = details?.comments || 'Aucun commentaire pour ce bétail.'
+  const isBuyDisabled = !canPurchase || isPurchasing
 
   const handleToggle = () => {
     setIsFlipped((prev) => !prev)
@@ -43,7 +59,7 @@ function BetailCard({ betail, authorName, currentUserId }) {
 
   return (
     <article
-      className={`betail-card ${isFlipped ? 'is-flipped' : ''}`}
+      className={`betail-card ${isFlipped ? 'is-flipped' : ''} ${isPurchasing ? 'is-purchasing' : ''}`}
       onClick={handleToggle}
       onKeyDown={handleKeyDown}
       role="button"
@@ -51,6 +67,11 @@ function BetailCard({ betail, authorName, currentUserId }) {
       aria-pressed={isFlipped}
     >
       <div className="betail-card-inner">
+        {isPurchasing && (
+          <div className="betail-card-overlay" aria-live="polite">
+            Achat en cours...
+          </div>
+        )}
         <div className="betail-card-face betail-card-front">
           <button
             type="button"
@@ -99,9 +120,14 @@ function BetailCard({ betail, authorName, currentUserId }) {
               <button
                 type="button"
                 className="betail-buy"
-                onClick={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onPurchase?.(betail.id)
+                }}
+                disabled={isBuyDisabled}
+                title={isBuyDisabled ? purchaseDisabledReason : 'Acheter ce bétail'}
               >
-                Acheter
+                {isPurchasing ? 'Achat...' : 'Acheter'}
               </button>
             )}
           </div>
@@ -117,6 +143,11 @@ function BetailsListPageQuery() {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortMode, setSortMode] = useState('recent')
+  const [purchasingId, setPurchasingId] = useState(null)
+  const purchaseAudio = useMemo(() => new Audio(purchaseSound), [])
+
+  const { data: farmId } = useUserFarmId(user?.id)
+  const purchaseMutation = usePurchaseBetail()
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -171,6 +202,58 @@ function BetailsListPageQuery() {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
+  }
+
+  const getPurchaseDisabledReason = () => {
+    if (!user?.id) return 'Connectez-vous pour acheter.'
+    if (!farmId) return 'Vous devez avoir une ferme pour acheter.'
+    return ''
+  }
+
+  const formatPurchaseError = (error) => {
+    const rawMessage = error?.message || ''
+    if (rawMessage.includes('daily_limit_reached')) {
+      return 'Limite quotidienne atteinte (10 achats).'
+    }
+    if (rawMessage.includes('already_sold_or_invalid')) {
+      return 'Ce bétail vient d\'etre acheté.'
+    }
+    if (rawMessage.includes('no_farm')) {
+      return 'Vous devez avoir une ferme pour acheter.'
+    }
+    if (rawMessage.includes('not_authenticated')) {
+      return 'Veuillez vous connecter pour acheter.'
+    }
+    return 'Impossible d\'acheter ce bétail pour le moment.'
+  }
+
+  const handlePurchase = (betailId) => {
+    if (!user?.id || !farmId || purchaseMutation.isPending) return
+    setPurchasingId(betailId)
+    purchaseMutation.mutate(
+      { betailId },
+      {
+        onSuccess: () => {
+          purchaseAudio.currentTime = 0
+          purchaseAudio.play().catch(() => {})
+          window.dispatchEvent(
+            new CustomEvent('farmgestion-toast', {
+              detail: { type: 'success', message: 'Bétail acheté avec succès.' },
+            })
+          )
+        },
+        onError: (error) => {
+          window.dispatchEvent(
+            new CustomEvent('farmgestion-toast', {
+              detail: { type: 'error', message: formatPurchaseError(error) },
+            })
+          )
+        },
+        onSettled: () => {
+          setPurchasingId(null)
+        },
+      },
+    )
   }
 
   return (
@@ -237,6 +320,10 @@ function BetailsListPageQuery() {
               betail={betail}
               authorName={getAuthorName(betail)}
               currentUserId={user?.id}
+              canPurchase={Boolean(user?.id && farmId)}
+              isPurchasing={purchasingId === betail.id && purchaseMutation.isPending}
+              onPurchase={handlePurchase}
+              purchaseDisabledReason={getPurchaseDisabledReason()}
             />
           ))}
         </div>
