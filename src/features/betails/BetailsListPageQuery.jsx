@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Heart } from 'lucide-react'
+import { AlertTriangle, Heart } from 'lucide-react'
 import {
   useAuthorsMap,
   useBetailDetails,
@@ -13,6 +13,7 @@ import './BetailsListPage.css'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 
 const formatFrenchDate = (value) => {
   if (!value) return 'Date inconnue'
@@ -30,107 +31,73 @@ const getThumbnailUrl = (url) => {
   return url
 }
 
+const getResourceFrameUrl = (filename) => {
+  if (!SUPABASE_URL) return ''
+  return `${SUPABASE_URL}/storage/v1/object/public/ressources/${filename}`
+}
+
 function BetailCard({
   betail,
   authorName,
-  currentUserId,
-  canPurchase,
+  isSelected,
   isPurchasing,
-  onPurchase,
-  purchaseDisabledReason,
+  onSelect,
 }) {
-  const [isFlipped, setIsFlipped] = useState(false)
-  const { data: details, isFetching } = useBetailDetails(betail.id, isFlipped)
-  const isOwner = Boolean(currentUserId) && betail.author_id === currentUserId
-  const createdAt = details?.created_at || betail.created_at
-  const comment = details?.comments || 'Aucun commentaire pour ce bétail.'
-  const isBuyDisabled = !canPurchase || isPurchasing
-
-  const handleToggle = () => {
-    setIsFlipped((prev) => !prev)
+  const handleSelect = () => {
+    onSelect?.(betail.id)
   }
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      handleToggle()
+      handleSelect()
     }
   }
 
   return (
     <article
-      className={`betail-card ${isFlipped ? 'is-flipped' : ''} ${isPurchasing ? 'is-purchasing' : ''}`}
-      onClick={handleToggle}
+      className={`betail-card ${isSelected ? 'is-selected' : ''} ${isPurchasing ? 'is-purchasing' : ''}`}
+      onClick={handleSelect}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
-      aria-pressed={isFlipped}
+      aria-pressed={isSelected}
     >
-      <div className="betail-card-inner">
-        {isPurchasing && (
-          <div className="betail-card-overlay" aria-live="polite">
-            Achat en cours...
-          </div>
-        )}
-        <div className="betail-card-face betail-card-front">
-          <button
-            type="button"
-            className="betail-like"
-            aria-label={`Like ${betail.name}`}
-            onClick={(event) => event.stopPropagation()}
-          >
-            <Heart size={16} />
-            <span>{betail.like_count ?? 0}</span>
-          </button>
-          <div className="betail-avatar">
-            {betail.avatar_url ? (
-              <img
-                src={getThumbnailUrl(betail.avatar_url)}
-                alt={betail.name}
-                loading="lazy"
-                decoding="async"
-                fetchPriority="low"
-                onLoad={(event) => event.currentTarget.classList.add('is-loaded')}
-                onError={(event) => event.currentTarget.classList.add('is-loaded')}
-              />
-            ) : (
-              <span>{betail.name?.[0]?.toUpperCase() || '?'}</span>
-            )}
-          </div>
-          <div className="betail-info">
-            <h3 className="betail-name">{betail.name}</h3>
-            <p className="betail-matricule">{betail.matricule}</p>
-            <p className="betail-race">{betail.age ?? '—'} ans</p>
-            <p className="betail-race">Par {authorName}</p>
-          </div>
+      {isPurchasing && (
+        <div className="betail-card-overlay" aria-live="polite">
+          Achat en cours...
         </div>
-
-        <div className="betail-card-face betail-card-back">
-          <div className="betail-back-header">
-            <h3 className="betail-back-title">{betail.name}</h3>
-            <span className="betail-back-date">{formatFrenchDate(createdAt)}</span>
-          </div>
-          <div className="betail-back-comments" aria-live="polite">
-            {isFetching ? 'Chargement du commentaire...' : comment}
-          </div>
-          <div className="betail-back-actions">
-            {isOwner ? (
-              <span className="betail-back-owner">Il s'agit de votre creation</span>
-            ) : (
-              <button
-                type="button"
-                className="betail-buy"
-                onClick={(event) => {
-                  event.stopPropagation()
-                  onPurchase?.(betail.id)
-                }}
-                disabled={isBuyDisabled}
-                title={isBuyDisabled ? purchaseDisabledReason : 'Acheter ce bétail'}
-              >
-                {isPurchasing ? 'Achat...' : 'Acheter'}
-              </button>
-            )}
-          </div>
+      )}
+      <div className="betail-card-surface">
+        <button
+          type="button"
+          className="betail-like"
+          aria-label={`Like ${betail.name}`}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <Heart size={16} />
+          <span>{betail.like_count ?? 0}</span>
+        </button>
+        <div className="betail-avatar">
+          {betail.avatar_url ? (
+            <img
+              src={getThumbnailUrl(betail.avatar_url)}
+              alt={betail.name}
+              loading="lazy"
+              decoding="async"
+              fetchPriority="low"
+              onLoad={(event) => event.currentTarget.classList.add('is-loaded')}
+              onError={(event) => event.currentTarget.classList.add('is-loaded')}
+            />
+          ) : (
+            <span>{betail.name?.[0]?.toUpperCase() || '?'}</span>
+          )}
+        </div>
+        <div className="betail-info">
+          <h3 className="betail-name">{betail.name}</h3>
+          <p className="betail-matricule">{betail.matricule}</p>
+          <p className="betail-race">{betail.age ?? '—'} ans</p>
+          <p className="betail-race">Par {authorName}</p>
         </div>
       </div>
     </article>
@@ -143,6 +110,7 @@ function BetailsListPageQuery() {
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortMode, setSortMode] = useState('recent')
+  const [selectedBetailId, setSelectedBetailId] = useState(null)
   const [purchasingId, setPurchasingId] = useState(null)
   const purchaseAudio = useMemo(() => new Audio(purchaseSound), [])
 
@@ -177,6 +145,14 @@ function BetailsListPageQuery() {
   )
 
   const { data: authors = [] } = useAuthorsMap(authorIds)
+  const selectedBetail = useMemo(
+    () => betails.find((item) => item.id === selectedBetailId) ?? null,
+    [betails, selectedBetailId],
+  )
+  const { data: selectedDetails, isFetching: isFetchingSelectedDetails } = useBetailDetails(
+    selectedBetailId,
+    Boolean(selectedBetailId),
+  )
 
   const authorMap = useMemo(
     () =>
@@ -197,11 +173,32 @@ function BetailsListPageQuery() {
   const isInitialLoading = isLoading
   const hasError = status === 'error'
   const errorMessage = hasError ? error?.message || 'Erreur de chargement. Réessaie plus tard.' : ''
+  const selectedCreatedAt = selectedDetails?.created_at || selectedBetail?.created_at
+  const selectedComment = selectedDetails?.comments || 'Aucun commentaire pour ce bétail.'
+  const selectedAuthorName = selectedBetail ? getAuthorName(selectedBetail) : 'Auteur inconnu'
+  const selectedAvatarFrameUrl = useMemo(() => getResourceFrameUrl('cadre_betail1.png'), [])
+  const matriculeFrameUrl = useMemo(() => getResourceFrameUrl('cadre_matricule.png'), [])
+  const hasShortComment = !selectedDetails?.comments || selectedDetails.comments.length <= 300
+  const panelDecorUrl = useMemo(() => getResourceFrameUrl('littlebernie.png'), [])
+  const isSelectedOwner = Boolean(selectedBetail && user?.id && selectedBetail.author_id === user.id)
+  const canPurchase = Boolean(user?.id && farmId)
+  const isSelectedPurchasing = Boolean(
+    selectedBetail && purchasingId === selectedBetail.id && purchaseMutation.isPending,
+  )
+  const isSelectedBuyDisabled = !canPurchase || isSelectedPurchasing
 
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
       fetchNextPage()
     }
+  }
+
+  const handleSelectBetail = (betailId) => {
+    setSelectedBetailId((prev) => (prev === betailId ? null : betailId))
+  }
+
+  const handleClosePanel = () => {
+    setSelectedBetailId(null)
   }
 
   const getPurchaseDisabledReason = () => {
@@ -256,95 +253,249 @@ function BetailsListPageQuery() {
     )
   }
 
+  useEffect(() => {
+    if (!selectedBetailId) return
+    const handleEscape = (event) => {
+      if (event.key === 'Escape') {
+        setSelectedBetailId(null)
+      }
+    }
+    window.addEventListener('keydown', handleEscape)
+    return () => window.removeEventListener('keydown', handleEscape)
+  }, [selectedBetailId])
+
+  useEffect(() => {
+    if (!selectedBetailId || isInitialLoading) return
+    const stillVisible = betails.some((item) => item.id === selectedBetailId)
+    if (!stillVisible) {
+      setSelectedBetailId(null)
+    }
+  }, [betails, isInitialLoading, selectedBetailId])
+
   return (
     <div className="betails-page">
-      <header className="betails-header">
-        <div>
-          <p className="betails-eyebrow">Registre</p>
-          <h1 className="betails-title">Bétails disponibles</h1>
-          <p className="betails-subtitle">{stats}</p>
-        </div>
-        <div className="betails-actions">
-          <button type="button" className="betails-back" onClick={() => navigate('/home')}>
-            ← Retour au tableau de bord
-          </button>
-        </div>
-      </header>
+      <div className={`betails-layout ${selectedBetail ? 'has-panel' : ''}`}>
+        <main className="betails-column-main betails-main">
+          <header className="betails-header">
+            <div>
+              <p className="betails-eyebrow">Registre</p>
+              <h1 className="betails-title">Bétails disponibles</h1>
+              <p className="betails-subtitle">{stats}</p>
+            </div>
+            <div className="betails-actions">
+              <button type="button" className="betails-back" onClick={() => navigate('/home')}>
+                ← Retour au tableau de bord
+              </button>
+            </div>
+          </header>
 
-      <section className="betails-filters">
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="betails-search">
-            Recherche
-          </label>
-          <input
-            id="betails-search"
-            className="filter-input"
-            placeholder="Nom ou matricule..."
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
+          <section className="betails-filters">
+            <div className="filter-group">
+              <label className="filter-label" htmlFor="betails-search">
+                Recherche
+              </label>
+              <input
+                id="betails-search"
+                className="filter-input"
+                placeholder="Nom ou matricule..."
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+              />
+            </div>
 
-        <div className="filter-group">
-          <label className="filter-label" htmlFor="betails-sort">
-            Tri
-          </label>
-          <select
-            id="betails-sort"
-            className="filter-select"
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value)}
-          >
-            <option value="recent">Les plus récents</option>
-            <option value="popular">Les plus aimés</option>
-          </select>
-        </div>
-      </section>
+            <div className="filter-group">
+              <label className="filter-label" htmlFor="betails-sort">
+                Tri
+              </label>
+              <select
+                id="betails-sort"
+                className="filter-select"
+                value={sortMode}
+                onChange={(event) => setSortMode(event.target.value)}
+              >
+                <option value="recent">Les plus récents</option>
+                <option value="popular">Les plus aimés</option>
+              </select>
+            </div>
+          </section>
 
-      {hasError && <p className="betails-error">{errorMessage}</p>}
+          {hasError && <p className="betails-error">{errorMessage}</p>}
 
-      {isInitialLoading ? (
-        <div className="betails-loading">
-          <div className="loader-dots" aria-hidden="true">
-            {LOADER_DOTS.map((dot) => (
-              <div className="dot" key={dot} />
-            ))}
-          </div>
-          <p>Chargement en cours…</p>
-        </div>
-      ) : (
-        <div className="betails-grid">
-          {betails.map((betail) => (
-            <BetailCard
-              key={betail.id}
-              betail={betail}
-              authorName={getAuthorName(betail)}
-              currentUserId={user?.id}
-              canPurchase={Boolean(user?.id && farmId)}
-              isPurchasing={purchasingId === betail.id && purchaseMutation.isPending}
-              onPurchase={handlePurchase}
-              purchaseDisabledReason={getPurchaseDisabledReason()}
-            />
-          ))}
-        </div>
-      )}
+          {isInitialLoading ? (
+            <div className="betails-loading">
+              <div className="loader-dots" aria-hidden="true">
+                {LOADER_DOTS.map((dot) => (
+                  <div className="dot" key={dot} />
+                ))}
+              </div>
+              <p>Chargement en cours…</p>
+            </div>
+          ) : (
+            <>
+              <div className="betails-content">
+                <div className="betails-grid">
+                  {betails.map((betail) => (
+                    <BetailCard
+                      key={betail.id}
+                      betail={betail}
+                      authorName={getAuthorName(betail)}
+                      isSelected={selectedBetailId === betail.id}
+                      isPurchasing={purchasingId === betail.id && purchaseMutation.isPending}
+                      onSelect={handleSelectBetail}
+                    />
+                  ))}
+                </div>
 
-      {!isInitialLoading && hasNextPage && (
-        <div className="betails-footer">
-          <button
-            type="button"
-            className="betails-load-more"
-            onClick={handleLoadMore}
-            disabled={isFetchingNextPage}
-          >
-            {isFetchingNextPage ? 'Chargement...' : 'Charger plus'}
-          </button>
-        </div>
-      )}
+                {!betails.length && !hasError && (
+                  <p className="betails-empty">Aucun bétail trouvé.</p>
+                )}
+              </div>
 
-      {!isInitialLoading && !betails.length && !hasError && (
-        <p className="betails-empty">Aucun bétail trouvé.</p>
-      )}
+              {hasNextPage && (
+                <div className="betails-footer">
+                  <button
+                    type="button"
+                    className="betails-load-more"
+                    onClick={handleLoadMore}
+                    disabled={isFetchingNextPage}
+                  >
+                    {isFetchingNextPage ? 'Chargement...' : 'Charger plus'}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+        </main>
+
+        <aside className="betails-column-panel" aria-hidden={!selectedBetail}>
+          {selectedBetail && (
+            <section className="betail-details-panel betails-panel" aria-live="polite">
+              <header className="betail-details-header">
+                <h2 className="betail-details-title">Détails du bétail</h2>
+                <div className="betail-details-actions">
+                  <button
+                    type="button"
+                    className="betail-details-close betail-details-report"
+                    aria-label="Signaler ce bétail"
+                    title="Signaler ce bétail"
+                  >
+                    <AlertTriangle size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    className="betail-details-close"
+                    onClick={handleClosePanel}
+                    aria-label="Fermer les détails"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </header>
+
+              <div className="betail-details-body">
+                <div className="betail-details-identity">
+                  <div className="betail-avatar-frame-wrap">
+                    <span className="betail-avatar-sparkle betail-avatar-sparkle--1" aria-hidden="true" />
+                    <span className="betail-avatar-sparkle betail-avatar-sparkle--2" aria-hidden="true" />
+                    <span className="betail-avatar-sparkle betail-avatar-sparkle--3" aria-hidden="true" />
+                    <span className="betail-avatar-sparkle betail-avatar-sparkle--4" aria-hidden="true" />
+                    {selectedAvatarFrameUrl && (
+                      <img
+                        className="betail-avatar-frame"
+                        src={selectedAvatarFrameUrl}
+                        alt=""
+                        aria-hidden="true"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
+                    <div className="betail-avatar betail-avatar--panel">
+                      {selectedBetail.avatar_url ? (
+                        <img
+                          src={getThumbnailUrl(selectedBetail.avatar_url)}
+                          alt={selectedBetail.name}
+                          loading="lazy"
+                          decoding="async"
+                          fetchPriority="low"
+                          onLoad={(event) => event.currentTarget.classList.add('is-loaded')}
+                          onError={(event) => event.currentTarget.classList.add('is-loaded')}
+                        />
+                      ) : (
+                        <span>{selectedBetail.name?.[0]?.toUpperCase() || '?'}</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="betail-info betail-info--panel">
+                    <h3 className="betail-back-title">{selectedBetail.name}</h3>
+                    <div className="betail-matricule-frame-wrap">
+                      {matriculeFrameUrl && (
+                        <img
+                          className="betail-matricule-frame"
+                          src={matriculeFrameUrl}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                        />
+                      )}
+                      <p className="betail-matricule betail-matricule--panel">{selectedBetail.matricule}</p>
+                    </div>
+
+                    <div className="betail-panel-meta" aria-label="Informations du bétail">
+                      <div className="betail-panel-meta-item">
+                        <span className="betail-panel-meta-label">Âge</span>
+                        <span className="betail-panel-meta-value">{selectedBetail.age ?? '—'} ans</span>
+                      </div>
+                      <div className="betail-panel-meta-item">
+                        <span className="betail-panel-meta-label">Auteur</span>
+                        <span className="betail-panel-meta-value">{selectedAuthorName}</span>
+                      </div>
+                      <div className="betail-panel-meta-item">
+                        <span className="betail-panel-meta-label">Créé le</span>
+                        <span className="betail-panel-meta-value">{formatFrenchDate(selectedCreatedAt)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="betail-back-comments">
+                  {isFetchingSelectedDetails ? 'Chargement du commentaire...' : selectedComment}
+                </div>
+
+                <div className="betail-back-actions">
+                  {isSelectedOwner ? (
+                    <span className="betail-back-owner">Il s'agit de votre creation</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="betail-buy"
+                      onClick={() => handlePurchase(selectedBetail.id)}
+                      disabled={isSelectedBuyDisabled}
+                      title={isSelectedBuyDisabled ? getPurchaseDisabledReason() : 'Acheter ce bétail'}
+                    >
+                      {isSelectedPurchasing ? 'Achat...' : 'Acheter'}
+                    </button>
+                  )}
+                  {hasShortComment && panelDecorUrl && (
+                    <img
+                      className="betail-panel-decor"
+                      src={panelDecorUrl}
+                      alt=""
+                      aria-hidden="true"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(event) => {
+                        event.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                </div>
+              </div>
+            </section>
+          )}
+        </aside>
+      </div>
     </div>
   )
 }

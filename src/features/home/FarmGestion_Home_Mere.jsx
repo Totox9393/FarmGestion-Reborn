@@ -386,7 +386,7 @@ function FarmGestion_Home_Mere() {
           <div className="home-card__content">
             <p>Nom de la ferme : <strong>{farm?.name || 'Non renseignée'}</strong></p>
             <p>Statut : <strong>{farm?.state || 'À définir'}</strong></p>
-            <p>Ta ferme est prête. Tu pourras bientôt suivre les parcelles, stocks et équipes.</p>
+            <p>Ta ferme est prête. Tu pourras bientôt suivre les betails, stocks et équipes.</p>
             <div className="home-stats">
               <div className="home-stat">
                 <span className="home-stat__value">1</span>
