@@ -1,17 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { signInWithEmail } from './authApi';
-import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
 import './LoginModal.css';
 import miloHello from '../../assets/img/milo_hello2.png';
 
-function LoginModal({ isOpen, onClose, onOpenRegister, onLoginSuccess }) {
+function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLoginSuccess }) {
   const emailInputRef = useRef(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     if (!isOpen) return;
@@ -130,7 +128,14 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onLoginSuccess }) {
             </button>
           </form>
           <div className="login-modal-links">
-            <button type="button" className="login-modal-link">
+            <button
+              type="button"
+              className="login-modal-link"
+              onClick={() => {
+                onClose?.();
+                onForgotPassword?.();
+              }}
+            >
               Mot de passe oublié
             </button>
             <button

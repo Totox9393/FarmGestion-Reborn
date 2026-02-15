@@ -6,6 +6,7 @@ import BetailMaker from './features/betails/BetailMaker';
 import BetailsListPage from './features/betails/BetailsListPageQuery';
 import FarmGestion_Home_Mere from './features/home/FarmGestion_Home_Mere';
 import PrivateRoute from './features/authentification/PrivateRoute';
+import ResetPasswordPage from './features/authentification/ResetPasswordPage';
 import { AuthProvider } from './features/authentification/AuthContext';
 import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
@@ -94,6 +95,7 @@ function AppRoutes() {
           }
         />
         <Route path="/rules" element={<RulesPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route
           path="/home"
           element={

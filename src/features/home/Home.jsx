@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import './Home.css';
 import logo from '../../assets/FarmGestion.png';
 import orphImage from '../../assets/img/orph.png';
@@ -32,6 +32,7 @@ function Home() {
   const [isFlash, setIsFlash] = React.useState(false);
   const authFlowRef = React.useRef();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const miloImages = [
     milo1,
@@ -122,6 +123,16 @@ function Home() {
       }
     })();
   }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('auth') !== 'login') return;
+    authFlowRef.current?.openLogin?.();
+    params.delete('auth');
+    const nextSearch = params.toString();
+    const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
+    window.history.replaceState({}, '', nextUrl);
+  }, [location.pathname, location.search]);
 
   return (
     <div className="home">

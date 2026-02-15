@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '../authentification/supabaseClient';
 import './Home_Block3_Count.css';
 import betail1 from '../../assets/img/betails/bétails1.jpeg';
 import betail2 from '../../assets/img/betails/bétails2.jpg';
@@ -109,7 +111,18 @@ function HomeBlock3Count() {
   const [isVisible, setIsVisible] = useState(false);
   const animationRef = useRef(null);
 
-  const targetValue = 1284;
+  const { data: countData } = useQuery({
+    queryKey: ['betails-total-count'],
+    queryFn: async () => {
+      const { count } = await supabase
+        .from('betails')
+        .select('id', { count: 'exact', head: true });
+      return count || 0;
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  const targetValue = countData ?? 0;
   const duration = 1800;
 
   useEffect(() => {
@@ -172,7 +185,7 @@ function HomeBlock3Count() {
         <p className="home-block3-eyebrow">Statistiques de FarmGestion</p>
         <h2 className="home-block3-title">Total de bétail</h2>
         <p className="home-block3-subtitle">
-          Un aperçu en temps réel (bientôt relié aux données)
+          Un aperçu en temps réel du nombre de bétails recensés sur la plateforme.
         </p>
       </div>
 

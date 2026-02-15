@@ -2,6 +2,7 @@ import { useState, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RegisterModal from './RegisterModal';
 import LoginModal from './LoginModal';
+import PasswordModal from './PasswordModal';
 import FarmCreationStepper from '../farms/FarmCreationStepper';
 import { useAuth } from './AuthContext';
 import { supabase } from './supabaseClient';
@@ -11,6 +12,7 @@ const AuthFlowManager = forwardRef((props, ref) => {
   const navigate = useNavigate();
   const [showRegister, setShowRegister] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showFarmStepper, setShowFarmStepper] = useState(false);
   const [pendingFarmCheck, setPendingFarmCheck] = useState(false);
 
@@ -56,6 +58,7 @@ const AuthFlowManager = forwardRef((props, ref) => {
   useImperativeHandle(ref, () => ({
     openLogin: () => setShowLogin(true),
     openRegister: () => setShowRegister(true),
+    openForgotPassword: () => setShowPasswordModal(true),
     openFarmCreation: () => setShowFarmStepper(true),
   }));
 
@@ -70,7 +73,14 @@ const AuthFlowManager = forwardRef((props, ref) => {
       <LoginModal
         isOpen={showLogin}
         onClose={() => setShowLogin(false)}
+        onOpenRegister={() => { setShowLogin(false); setShowRegister(true); }}
+        onForgotPassword={() => { setShowLogin(false); setShowPasswordModal(true); }}
         onLoginSuccess={handleLoginSuccess}
+      />
+      <PasswordModal
+        isOpen={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+        onOpenLogin={() => { setShowPasswordModal(false); setShowLogin(true); }}
       />
       <FarmCreationStepper
         isOpen={showFarmStepper}
