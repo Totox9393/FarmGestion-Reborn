@@ -19,6 +19,7 @@ dist-ssr
 .env*.local
 
 .md
+.sql
 
 # Editor directories and files
 .vscode/*

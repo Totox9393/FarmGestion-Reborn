@@ -38,3 +38,33 @@ create table public.users_profiles (
   constraint users_profiles_id_fkey foreign KEY (id) references auth.users (id) on delete CASCADE
 ) TABLESPACE pg_default;
 ```
+
+## Table `public.betails`
+
+```sql
+create table public.betails (
+  id uuid not null default gen_random_uuid (),
+  matricule text not null,
+  name text not null,
+  avatar_url text null,
+  farm_id bigint null,
+  farm_site text null,
+  age integer null,
+  premium boolean not null default false,
+  comments text null,
+  author_id uuid not null,
+  owner_id uuid null,
+  created_at timestamp with time zone not null default now(),
+  like_count integer not null default 0,
+  purchased_at timestamp with time zone null,
+  equipped_badges jsonb null,
+  pinned boolean not null default false,
+  archived boolean not null default false,
+  constraint betails_pkey primary key (id),
+  constraint betails_matricule_key unique (matricule),
+  constraint betails_matricule_unique unique (matricule),
+  constraint betails_author_id_fkey foreign KEY (author_id) references auth.users (id) on delete CASCADE,
+  constraint betails_farm_id_fkey foreign KEY (farm_id) references farms_list (id) on delete set null,
+  constraint betails_owner_id_fkey foreign KEY (owner_id) references auth.users (id) on delete set null
+) TABLESPACE pg_default;
+```

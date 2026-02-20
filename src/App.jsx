@@ -4,6 +4,7 @@ import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-route
 import Home from './features/home/Home';
 import BetailMaker from './features/betails/BetailMaker';
 import BetailsListPage from './features/betails/BetailsListPageQuery';
+import MyBetailsPageQuery from './features/betails/MyBetailsPageQuery';
 import FarmGestion_Home_Mere from './features/home/FarmGestion_Home_Mere';
 import PrivateRoute from './features/authentification/PrivateRoute';
 import ResetPasswordPage from './features/authentification/ResetPasswordPage';
@@ -112,6 +113,16 @@ function AppRoutes() {
             <PrivateRoute>
               <AuthenticatedLayout>
                 <BetailsListPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/mes-betails"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <MyBetailsPageQuery />
               </AuthenticatedLayout>
             </PrivateRoute>
           }

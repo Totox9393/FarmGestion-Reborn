@@ -50,6 +50,25 @@ function Navigation_Bar() {
     };
   }, [user]);
 
+  useEffect(() => {
+    const handleBalanceUpdate = (event) => {
+      const updatedUserId = event?.detail?.userId;
+      const updatedMoney = Number(event?.detail?.money);
+
+      if (!user?.id || updatedUserId !== user.id || !Number.isFinite(updatedMoney)) {
+        return;
+      }
+
+      setProfile((prev) => ({
+        ...(prev || {}),
+        money: updatedMoney,
+      }));
+    };
+
+    window.addEventListener('farmgestion-balance-updated', handleBalanceUpdate);
+    return () => window.removeEventListener('farmgestion-balance-updated', handleBalanceUpdate);
+  }, [user?.id]);
+
   // Ferme les menus quand on change de page
   useEffect(() => {
     setIsMenuOpen(false);
@@ -129,7 +148,7 @@ function Navigation_Bar() {
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
                     <button className="nav-dropdown-item" onClick={() => go('/betail-maker')}><PlusCircle size={16} /> Créer un bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/betail-register')}><ClipboardList size={16} /> Registre du bétail</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/mes-bétails')}><ListChecks size={16} /> Mes bétails</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/mes-betails')}><ListChecks size={16} /> Mes bétails</button>
                   </Popover.Panel>
                 </Transition>
               </>

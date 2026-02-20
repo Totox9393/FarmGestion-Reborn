@@ -1,4 +1,5 @@
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
@@ -23,6 +24,13 @@ import gupna8 from '../../assets/img/gupna/gupna8.png';
 import gupna9 from '../../assets/img/gupna/gupna9.png';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const BETAILS_CACHE_TTL_MS = 15000;
+const betailsCache = {
+  timestamp: 0,
+  latest: [],
+  top: [],
+  authorMap: {}
+};
 
 const mockBetails = [
   { id: 1, name: 'Marguerite', matricule: 'BT-7539', race: '⭐ Premium', img: betail1, likes: 24 },
@@ -43,9 +51,9 @@ function FarmGestion_Home_Mere() {
   const [loading, setLoading] = useState(true);
   const [latestBetails, setLatestBetails] = useState([]);
   const [authorMap, setAuthorMap] = useState({});
+  const [topBetailsData, setTopBetailsData] = useState([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
-  const authorMapRef = useRef({});
 
   const normalizeAvatar = (url) => {
     if (!url) return betail1;
@@ -86,48 +94,114 @@ function FarmGestion_Home_Mere() {
       });
   }, [user]);
 
-  const fetchLatestBetails = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('betails')
-      .select('id, name, matricule, avatar_url, like_count, created_at, author_id')
-      .order('created_at', { ascending: false })
-      .limit(8);
-    if (error) {
+  const fetchBetailsData = useCallback(async () => {
+    const now = Date.now();
+    if (now - betailsCache.timestamp < BETAILS_CACHE_TTL_MS) {
+      setLatestBetails(betailsCache.latest);
+      setTopBetailsData(betailsCache.top);
+      setAuthorMap(betailsCache.authorMap);
+      return;
+    }
+
+    const [latestResponse, topResponse] = await Promise.all([
+      supabase
+        .from('betails')
+        .select('id, name, matricule, avatar_url, like_count, created_at, author_id')
+        .order('created_at', { ascending: false })
+        .limit(8),
+      supabase
+        .from('betails')
+        .select('id, name, matricule, avatar_url, like_count, author_id')
+        .order('like_count', { ascending: false })
+        .limit(3)
+    ]);
+
+    if (latestResponse.error || topResponse.error) {
       setLatestBetails([]);
+      setTopBetailsData([]);
       setAuthorMap({});
       return;
     }
-    const betails = data || [];
-    setLatestBetails(betails);
-    const authorIds = [...new Set(betails.map((item) => item.author_id).filter(Boolean))];
+
+    const latest = latestResponse.data || [];
+    const top = topResponse.data || [];
+    setLatestBetails(latest);
+    setTopBetailsData(top);
+
+    const authorIds = [...new Set([...latest, ...top].map((item) => item.author_id).filter(Boolean))];
     if (!authorIds.length) {
       setAuthorMap({});
+      betailsCache.timestamp = now;
+      betailsCache.latest = latest;
+      betailsCache.top = top;
+      betailsCache.authorMap = {};
       return;
     }
-    const { data: authorsData } = await supabase
+
+    const { data: authorsData, error: authorsError } = await supabase
       .from('users_profiles')
       .select('id, username')
       .in('id', authorIds);
+
+    if (authorsError) {
+      setAuthorMap({});
+      betailsCache.timestamp = now;
+      betailsCache.latest = latest;
+      betailsCache.top = top;
+      betailsCache.authorMap = {};
+      return;
+    }
+
     const nextMap = (authorsData || []).reduce((acc, author) => {
       acc[author.id] = author.username;
       return acc;
     }, {});
     setAuthorMap(nextMap);
+    betailsCache.timestamp = now;
+    betailsCache.latest = latest;
+    betailsCache.top = top;
+    betailsCache.authorMap = nextMap;
   }, []);
 
   useEffect(() => {
-    fetchLatestBetails();
-  }, [fetchLatestBetails]);
+    fetchBetailsData();
+  }, [fetchBetailsData]);
 
-  useEffect(() => {
-    authorMapRef.current = authorMap;
-  }, [authorMap]);
+  const { data: farmStats = {}, isLoading: isLoadingFarmStats } = useQuery({
+    queryKey: ['home', 'farm-stats', user?.id, profile?.farm_id],
+    queryFn: async () => {
+      try {
+        if (!user?.id || !profile?.farm_id) return { farmId: null, farmState: null, betailCount: 0, farmName: null }
+
+        const [farmRes, countRes] = await Promise.all([
+          supabase.from('farms_list').select('id,name,state').eq('id', profile.farm_id).maybeSingle(),
+          supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id),
+        ])
+
+        const farmObj = farmRes?.data ?? null
+        const count = typeof countRes?.count === 'number' ? countRes.count : 0
+
+        return {
+          farmId: farmObj?.id ?? profile.farm_id ?? null,
+          farmState: farmObj?.state ?? null,
+          betailCount: count,
+          farmName: farmObj?.name ?? null,
+        }
+      } catch (err) {
+        // Ne pas jeter pour éviter une erreur 500 côté UI ; retourner des valeurs sûres
+        return { farmId: profile?.farm_id ?? null, farmState: null, betailCount: 0, farmName: null }
+      }
+    },
+    enabled: !!user?.id && !!profile?.farm_id,
+    staleTime: 15_000,
+    cacheTime: 60_000,
+  })
 
   // Refresh periodically instead of realtime to avoid websocket errors
   useEffect(() => {
-    const intervalId = setInterval(fetchLatestBetails, 15000);
+    const intervalId = setInterval(fetchBetailsData, 15000);
     return () => clearInterval(intervalId);
-  }, [fetchLatestBetails]);
+  }, [fetchBetailsData]);
 
   const initial = useMemo(() => (profile?.username ? profile.username[0]?.toUpperCase() : '?'), [profile]);
 
@@ -155,8 +229,15 @@ function FarmGestion_Home_Mere() {
   const prevSlide = () => setCarouselIndex(prev => Math.max(prev - 1, 0));
 
   const topBetails = useMemo(
-    () => [...carouselBetails].sort((a, b) => (b.likes || 0) - (a.likes || 0)).slice(0, 3),
-    [carouselBetails]
+    () => topBetailsData.map((betail) => ({
+      id: betail.id,
+      name: betail.name,
+      matricule: betail.matricule,
+      author: authorMap[betail.author_id] || 'Auteur inconnu',
+      img: normalizeAvatar(betail.avatar_url),
+      likes: betail.like_count ?? 0,
+    })),
+    [topBetailsData, authorMap]
   );
 
   const roleInfo = useMemo(() => {
@@ -381,19 +462,20 @@ function FarmGestion_Home_Mere() {
         <div className="home-card">
           <div className="home-card__header">
             <span className="home-chip purple">Ferme</span>
-            <span className="home-chip soft">Statut</span>
+            <span className="home-chip soft">{farmStats.farmState ?? farm?.state ?? '—'}</span>
           </div>
           <div className="home-card__content">
-            <p>Nom de la ferme : <strong>{farm?.name || 'Non renseignée'}</strong></p>
-            <p>Statut : <strong>{farm?.state || 'À définir'}</strong></p>
+            <p>Ferme: <strong>{farmStats.farmName ?? farm?.name ?? '—'}</strong></p>
+            <p>Bétails : <strong>{typeof farmStats.betailCount === 'number' ? farmStats.betailCount : '—'}</strong></p>
+            <p>Statut : <strong>{farmStats.farmState ?? farm?.state ?? '—'}</strong></p>
             <p>Ta ferme est prête. Tu pourras bientôt suivre les betails, stocks et équipes.</p>
             <div className="home-stats">
               <div className="home-stat">
-                <span className="home-stat__value">1</span>
-                <span className="home-stat__label">Ferme</span>
+                <span className="home-stat__value">{farmStats.farmId ?? profile?.farm_id ?? '—'}</span>
+                <span className="home-stat__label">Ferme ID</span>
               </div>
               <div className="home-stat">
-                <span className="home-stat__value">—</span>
+                <span className="home-stat__value">{typeof farmStats.betailCount === 'number' ? farmStats.betailCount : '—'}</span>
                 <span className="home-stat__label">Bétails</span>
               </div>
               <div className="home-stat">

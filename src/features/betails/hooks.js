@@ -6,6 +6,13 @@ import {
   fetchBetailDetails,
   BETAILS_QUERY_KEY,
   purchaseBetail,
+  fetchMyBetailsPage,
+  previewBetailPremiumUpgrade,
+  upgradeBetailToPremium,
+  updateBetailComment,
+  toggleBetailPremium,
+  toggleBetailPinned,
+  toggleBetailArchived,
 } from './betailsApi'
 import { supabase } from '../authentification/supabaseClient'
 
@@ -98,5 +105,107 @@ export function usePurchaseBetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['betails'] })
     },
+  })
+}
+
+export function useMyBetailsList({ userId, farmId = null, search = '', sort = 'recent', filter = 'all' }) {
+  const trimmedSearch = search?.trim?.() ?? ''
+
+  return useInfiniteQuery({
+    queryKey: BETAILS_QUERY_KEY.myList({ userId, search: trimmedSearch, sort, filter, farmId }),
+    queryFn: ({ pageParam }) =>
+      fetchMyBetailsPage({
+        userId,
+        farmId,
+        search: trimmedSearch,
+        sort,
+        filter,
+        page: pageParam,
+      }),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage) => lastPage.nextPage,
+    enabled: Boolean(userId),
+    keepPreviousData: true,
+  })
+}
+
+const updateCachedMyBetailInPages = (oldData, betailId, patch) => {
+  if (!oldData?.pages) return oldData
+  return {
+    ...oldData,
+    pages: oldData.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) =>
+        item.id === betailId
+          ? {
+              ...item,
+              ...patch,
+            }
+          : item,
+      ),
+    })),
+  }
+}
+
+export function useUpdateBetailComment() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ betailId, comment, userId }) => updateBetailComment({ betailId, comment, userId }),
+    onSuccess: (_data, variables) => {
+      queryClient.setQueriesData({ queryKey: ['betails', 'my-list', variables.userId] }, (oldData) =>
+        updateCachedMyBetailInPages(oldData, variables.betailId, { comments: variables.comment ?? '' }),
+      )
+      queryClient.invalidateQueries({ queryKey: ['betails', 'detail', variables.betailId] })
+    },
+  })
+}
+
+export function useUpgradeBetailPremium() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ betailId }) => upgradeBetailToPremium({ betailId }),
+    onSuccess: (data, variables) => {
+      queryClient.setQueriesData({ queryKey: ['betails', 'my-list'] }, (oldData) =>
+        updateCachedMyBetailInPages(oldData, variables.betailId, { premium: true }),
+      )
+
+      queryClient.invalidateQueries({ queryKey: ['betails', 'detail', variables.betailId] })
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] })
+
+      return data
+    },
+  })
+}
+
+export function usePreviewBetailPremiumUpgrade() {
+  return useMutation({
+    mutationFn: ({ betailId }) => previewBetailPremiumUpgrade({ betailId }),
+  })
+}
+
+const createToggleMutation = (mutationFn, fieldName) => {
+  return function useToggleMutation() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+      mutationFn,
+      onSuccess: (_data, variables) => {
+        queryClient.setQueriesData({ queryKey: ['betails', 'my-list', variables.userId] }, (oldData) =>
+          updateCachedMyBetailInPages(oldData, variables.betailId, { [fieldName]: variables.nextValue }),
+        )
+      },
+    })
+  }
+}
+
+export const useToggleBetailPremium = createToggleMutation(toggleBetailPremium, 'premium')
+export const useToggleBetailPinned = createToggleMutation(toggleBetailPinned, 'pinned')
+export const useToggleBetailArchived = createToggleMutation(toggleBetailArchived, 'archived')
+
+export function useUpdateBetailBadges() {
+  return useMutation({
+    mutationFn: async () => ({ ok: true }),
   })
 }
