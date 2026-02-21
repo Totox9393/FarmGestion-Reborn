@@ -11,6 +11,7 @@ import ResetPasswordPage from './features/authentification/ResetPasswordPage';
 import { AuthProvider } from './features/authentification/AuthContext';
 import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
+import FarmPage from './features/farms/FarmPage';
 import './App.css';
 
 function AppRoutes() {
@@ -123,6 +124,16 @@ function AppRoutes() {
             <PrivateRoute>
               <AuthenticatedLayout>
                 <MyBetailsPageQuery />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/farm/:id"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <FarmPage />
               </AuthenticatedLayout>
             </PrivateRoute>
           }

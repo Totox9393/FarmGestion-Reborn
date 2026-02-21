@@ -96,6 +96,20 @@ function Navigation_Bar() {
     navigate(path);
   };
 
+  const goMyFarm = () => {
+    const farmId = profile?.farm_id;
+    if (!farmId) {
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: { type: 'error', message: 'Aucune ferme liée à ton profil.' },
+        })
+      );
+      go('/home');
+      return;
+    }
+    go(`/farm/${farmId}`);
+  };
+
   const formattedMoney = useMemo(() => {
     const value = Number(profile?.money ?? 0);
     return new Intl.NumberFormat('fr-FR', {
@@ -173,7 +187,7 @@ function Navigation_Bar() {
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
                     <button className="nav-dropdown-item" onClick={() => go('/farms-actives')}><Factory size={16} /> Fermes actives</button>
                     <button className="nav-dropdown-item" onClick={() => go('/gestion-commandes')}><Truck size={16} /> Gestion des commandes</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/ma-ferme')}>
+                    <button className="nav-dropdown-item" onClick={goMyFarm}>
                       <HomeIcon size={16} /> Ma ferme {farm?.name ? `- ${farm.name}` : '- Non renseignée'}
                     </button>
                   </Popover.Panel>
@@ -257,3 +271,4 @@ function Navigation_Bar() {
 }
 
 export default Navigation_Bar;
+

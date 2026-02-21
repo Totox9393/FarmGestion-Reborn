@@ -571,7 +571,11 @@ function MyBetailsPageQuery() {
               <button type="button" className="betails-back" onClick={() => navigate('/home')}>
                 ← Retour au tableau de bord
               </button>
-              <button type="button" className="betails-back" onClick={() => navigate('/ma-ferme')}>
+              <button
+                type="button"
+                className="betails-back"
+                onClick={() => (farmId ? navigate(`/farm/${farmId}`) : navigate('/home'))}
+              >
                 Aller à Ma ferme
               </button>
             </div>
