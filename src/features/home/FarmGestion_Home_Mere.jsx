@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { ChevronLeft, ChevronRight, Heart, Crown } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Heart, Crown, CalendarDays } from 'lucide-react';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
 
@@ -25,12 +25,50 @@ import gupna9 from '../../assets/img/gupna/gupna9.png';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const BETAILS_CACHE_TTL_MS = 15000;
+const PARIS_TIMEZONE = 'Europe/Paris';
+const WEEK_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
 const betailsCache = {
   timestamp: 0,
   latest: [],
   top: [],
   authorMap: {}
 };
+
+const getWeekStart = (value) => {
+  const date = value instanceof Date ? new Date(value) : new Date(value);
+  const weekDay = date.getDay();
+  const mondayOffset = weekDay === 0 ? -6 : 1 - weekDay;
+  date.setDate(date.getDate() + mondayOffset);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const getDateKeyInParis = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('fr-FR', {
+    timeZone: PARIS_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
+  const day = parts.find((part) => part.type === 'day')?.value;
+  if (!year || !month || !day) return '';
+  return `${year}-${month}-${day}`;
+};
+
+const buildWeeklyShippingPlaceholder = () =>
+  Array.from({ length: 7 }, (_, index) => ({
+    id: `weekday-${index}`,
+    label: WEEK_LABELS[index],
+    dayNumber: '--',
+    avatars: [],
+    count: 0,
+    hasShipping: false,
+    isToday: false,
+  }));
 
 const mockBetails = [
   { id: 1, name: 'Marguerite', matricule: 'BT-7539', race: '⭐ Premium', img: betail1, likes: 24 },
@@ -55,12 +93,115 @@ function FarmGestion_Home_Mere() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
 
+  const weeklyShippingQuery = useQuery({
+    queryKey: ['home', 'weekly-shipping', user?.id],
+    queryFn: async () => {
+      try {
+        if (!user?.id) {
+          return { days: buildWeeklyShippingPlaceholder(), total: 0 };
+        }
+
+        const weekStart = getWeekStart(new Date());
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 7);
+
+        const { data: shippingRows, error: shippingError } = await supabase
+          .from('shipping')
+          .select('id, betail_id, scheduled_for, status, scheduled_by_uuid')
+          .gte('scheduled_for', weekStart.toISOString())
+          .lt('scheduled_for', weekEnd.toISOString())
+          .order('scheduled_for', { ascending: true });
+
+        if (shippingError || !Array.isArray(shippingRows) || shippingRows.length === 0) {
+          return { days: buildWeeklyShippingPlaceholder(), total: 0 };
+        }
+
+        const betailIds = [...new Set(shippingRows.map((row) => row.betail_id).filter(Boolean))];
+        let betailMap = new Map();
+        if (betailIds.length) {
+          const { data: betailsRows, error: betailsError } = await supabase
+            .from('betails')
+            .select('id, name, avatar_url, owner_id')
+            .in('id', betailIds);
+
+          if (!betailsError && Array.isArray(betailsRows)) {
+            betailMap = new Map(betailsRows.map((row) => [row.id, row]));
+          }
+        }
+
+        const visibleRows = shippingRows.filter((row) => {
+          const betail = betailMap.get(row.betail_id);
+          return row.scheduled_by_uuid === user.id || betail?.owner_id === user.id;
+        });
+
+        const groupedByDay = new Map();
+        visibleRows.forEach((row) => {
+          const key = getDateKeyInParis(row.scheduled_for);
+          if (!key) return;
+          if (!groupedByDay.has(key)) groupedByDay.set(key, []);
+          groupedByDay.get(key).push(row);
+        });
+
+        const todayKey = getDateKeyInParis(new Date());
+
+        const days = Array.from({ length: 7 }, (_, index) => {
+          const date = new Date(weekStart);
+          date.setDate(weekStart.getDate() + index);
+          const key = getDateKeyInParis(date);
+          const rows = groupedByDay.get(key) || [];
+          const unique = [];
+          const seen = new Set();
+          rows.forEach((row) => {
+            const betail = betailMap.get(row.betail_id);
+            const uniq = row.betail_id || row.id;
+            if (seen.has(uniq)) return;
+            seen.add(uniq);
+            unique.push({
+              id: uniq,
+              name: betail?.name || 'Bétail',
+              avatarUrl: betail?.avatar_url || '',
+            });
+          });
+
+          return {
+            id: key || `weekday-${index}`,
+            label: WEEK_LABELS[index],
+            dayNumber: new Intl.DateTimeFormat('fr-FR', { day: '2-digit', timeZone: PARIS_TIMEZONE }).format(date),
+            avatars: unique,
+            count: rows.length,
+            hasShipping: rows.length > 0,
+            isToday: key === todayKey,
+          };
+        });
+
+        return { days, total: visibleRows.length };
+      } catch {
+        return { days: buildWeeklyShippingPlaceholder(), total: 0 };
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+    placeholderData: { days: buildWeeklyShippingPlaceholder(), total: 0 },
+  });
+
   const normalizeAvatar = (url) => {
     if (!url) return betail1;
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     const clean = url.startsWith('/') ? url : `/storage/v1/object/public/betails/${url}`;
     return `${supabaseUrl}${clean}`;
   };
+
+  const currentMonthLabel = useMemo(
+    () =>
+      new Intl.DateTimeFormat('fr-FR', {
+        month: 'long',
+        timeZone: PARIS_TIMEZONE,
+      }).format(new Date()),
+    []
+  );
 
   const handleImgError = (e) => {
     e.currentTarget.onerror = null;
@@ -446,18 +587,65 @@ function FarmGestion_Home_Mere() {
       </div>
 
       <div className="home-grid">
-        <div className="home-card">
-          <div className="home-card__header">
-            <span className="home-chip green">Profil</span>
-            <span className="home-chip soft">Compte actif</span>
+        <button type="button" className="home-card home-card--shipping-week" onClick={() => navigate('/gce')}>
+          <div className="home-meeting-card" aria-label="Expéditions de la semaine">
+            <div className="home-meeting-card__header">
+              <h3 className="home-meeting-card__title">Expéditions semaine</h3>
+              <span className="home-meeting-card__date-selector">
+                <span>{currentMonthLabel}</span>
+                <CalendarDays size={14} />
+              </span>
+            </div>
+
+            <div className="home-meeting-card__calls-info">
+              <CalendarDays size={15} />
+              <span>{weeklyShippingQuery.data?.total || 0} expédition{(weeklyShippingQuery.data?.total || 0) > 1 ? 's' : ''} cette semaine</span>
+            </div>
+
+            <div className="home-meeting-card__date-nav-and-indicators" aria-hidden="true">
+              <div className="home-meeting-card__date-nav-container">
+                {(weeklyShippingQuery.data?.days || []).map((day) => (
+                  <div
+                    key={day.id}
+                    className={`home-meeting-card__day-item${day.isToday ? ' is-active' : ''}`}
+                    title={day.count > 0 ? `${day.count} expédition${day.count > 1 ? 's' : ''}` : 'Aucune expédition'}
+                  >
+                    <span className="home-meeting-card__day-number">{day.dayNumber}</span>
+                    <span className="home-meeting-card__day-name">{day.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="home-meeting-card__indicator-container">
+                <span className="home-meeting-card__indicator-line" />
+                {(weeklyShippingQuery.data?.days || []).map((day) => (
+                  <span
+                    key={`${day.id}-indicator`}
+                    className={`home-meeting-card__indicator-dot${day.hasShipping ? ' is-active' : ''}`}
+                    title={day.count > 0 ? `${day.count} expédition${day.count > 1 ? 's' : ''}` : 'Aucune expédition'}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="home-meeting-card__open-hint">Ouvrir le GCE</div>
           </div>
-          <div className="home-card__content">
-            <p><strong>UID :</strong> {user.id}</p>
-            <p><strong>Email :</strong> {user.email}</p>
-            <p><strong>Pseudo :</strong> {profile.username}</p>
-            <p><strong>Ferme liée :</strong> {profile.farm_id || 'Aucune'}</p>
+
+          <div className="home-weekly-ship__avatars-row" aria-hidden="true">
+            {(weeklyShippingQuery.data?.days || []).map((day) => (
+              <div key={`${day.id}-avatars`} className="home-weekly-ship__avatars-cell">
+                <span className="home-weekly-ship__avatars">
+                  {day.avatars.slice(0, 3).map((avatar) => (
+                    <span key={avatar.id} className="home-weekly-ship__avatar" title={avatar.name}>
+                      {avatar.avatarUrl ? <img src={avatar.avatarUrl} alt="" loading="lazy" decoding="async" /> : <span>{avatar.name[0]?.toUpperCase() || '?'}</span>}
+                    </span>
+                  ))}
+                  {day.avatars.length > 3 ? <span className="home-weekly-ship__avatar is-more">+{day.avatars.length - 3}</span> : null}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
+        </button>
 
         <div className="home-card">
           <div className="home-card__header">

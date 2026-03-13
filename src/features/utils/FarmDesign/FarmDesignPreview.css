@@ -26,10 +26,15 @@
 
 .farm-design-preview__site {
   opacity: 0.94;
-  transition: opacity 0.2s ease;
+  transition: opacity 0.2s ease, fill 0.22s ease;
 }
 
 .farm-design-preview__site:hover {
+  opacity: 1;
+}
+
+.farm-design-preview__site.is-hovered,
+.farm-design-preview__site.is-selected {
   opacity: 1;
 }
 
@@ -38,16 +43,30 @@
   cursor: pointer;
 }
 
-.farm-design-preview__site.is-clickable:focus-visible,
-.farm-design-preview__media.is-clickable:focus-visible {
-  outline: 2px solid rgba(122, 91, 255, 0.9);
-  outline-offset: 2px;
+.farm-design-preview__site.is-clickable:focus,
+.farm-design-preview__site.is-clickable:focus-visible {
+  outline: none;
 }
 
 .farm-design-preview__core {
   fill: transparent;
   stroke: var(--farm-design-core-stroke);
   stroke-width: 1.5;
+}
+
+.farm-design-preview__site-hint {
+  font-size: 2.7px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(16, 10, 34, 0.28);
+  stroke-width: 0.4px;
+  stroke-linejoin: round;
+  opacity: 0.92;
 }
 
 .farm-design-preview__media {

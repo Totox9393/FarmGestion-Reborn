@@ -9,6 +9,10 @@ import {
   fetchMyBetailsPage,
   previewBetailPremiumUpgrade,
   upgradeBetailToPremium,
+  previewBetailAgeGrowth,
+  growBetailAge,
+  previewBetailShippingSchedule,
+  confirmBetailShippingSchedule,
   updateBetailComment,
   toggleBetailPremium,
   toggleBetailPinned,
@@ -71,6 +75,28 @@ export function useUserFarmId(userId) {
         throw error
       }
       return data?.farm_id ?? null
+    },
+    enabled: Boolean(userId),
+    staleTime: USER_PROFILE_STALE,
+  })
+}
+
+export function useUserRole(userId) {
+  return useQuery({
+    queryKey: ['user-role', userId],
+    queryFn: async () => {
+      if (!userId) return ''
+      const { data, error } = await supabase
+        .from('users_profiles')
+        .select('role, role_ingame')
+        .eq('id', userId)
+        .maybeSingle()
+      if (error) {
+        throw error
+      }
+      const role = String(data?.role || '').trim()
+      const roleIngame = String(data?.role_ingame || '').trim()
+      return [role, roleIngame].filter(Boolean).join(' ')
     },
     enabled: Boolean(userId),
     staleTime: USER_PROFILE_STALE,
@@ -182,6 +208,89 @@ export function useUpgradeBetailPremium() {
 export function usePreviewBetailPremiumUpgrade() {
   return useMutation({
     mutationFn: ({ betailId }) => previewBetailPremiumUpgrade({ betailId }),
+  })
+}
+
+export function usePreviewBetailAgeGrowth() {
+  return useMutation({
+    mutationFn: ({ betailId }) => previewBetailAgeGrowth({ betailId }),
+  })
+}
+
+export function useGrowBetailAge() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ betailId }) => growBetailAge({ betailId, dryRun: false }),
+    onSuccess: (data, variables) => {
+      const newAge = Number(data?.new_age)
+      if (Number.isFinite(newAge)) {
+        queryClient.setQueriesData({ queryKey: ['betails', 'my-list'] }, (oldData) =>
+          updateCachedMyBetailInPages(oldData, variables.betailId, { age: newAge }),
+        )
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['betails', 'detail', variables.betailId] })
+      queryClient.invalidateQueries({ queryKey: ['user-profile'] })
+    },
+  })
+}
+
+export function usePreviewBetailShippingSchedule() {
+  return useMutation({
+    mutationFn: ({
+      betailId,
+      requestedDate = null,
+      manualChoice = false,
+      note = null,
+      estimatedGain = null,
+      minDaysAhead = 7,
+      maxDaysAhead = 60,
+      allowReassign = false,
+    }) =>
+      previewBetailShippingSchedule({
+        betailId,
+        requestedDate,
+        manualChoice,
+        note,
+        estimatedGain,
+        minDaysAhead,
+        maxDaysAhead,
+        allowReassign,
+      }),
+  })
+}
+
+export function useConfirmBetailShippingSchedule() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({
+      betailId,
+      requestedDate = null,
+      manualChoice = false,
+      note = null,
+      estimatedGain = null,
+      minDaysAhead = 7,
+      maxDaysAhead = 60,
+      allowReassign = true,
+    }) =>
+      confirmBetailShippingSchedule({
+        betailId,
+        requestedDate,
+        manualChoice,
+        note,
+        estimatedGain,
+        minDaysAhead,
+        maxDaysAhead,
+        allowReassign,
+      }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['shipping'] })
+      queryClient.invalidateQueries({ queryKey: ['shipping', 'gce-calendar'] })
+      queryClient.invalidateQueries({ queryKey: ['betails', 'my-list'] })
+      queryClient.invalidateQueries({ queryKey: ['betails', 'detail', variables.betailId] })
+    },
   })
 }
 

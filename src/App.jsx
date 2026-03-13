@@ -12,6 +12,8 @@ import { AuthProvider } from './features/authentification/AuthContext';
 import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
 import FarmPage from './features/farms/FarmPage';
+import ShopPage from './features/boutique/ShopPage';
+import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
 import './App.css';
 
 function AppRoutes() {
@@ -134,6 +136,26 @@ function AppRoutes() {
             <PrivateRoute>
               <AuthenticatedLayout>
                 <FarmPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/boutique"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <ShopPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/gce"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <GCEPage />
               </AuthenticatedLayout>
             </PrivateRoute>
           }

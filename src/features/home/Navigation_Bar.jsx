@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { PlusCircle, ClipboardList, ListChecks, Factory, Truck, Home as HomeIcon, HelpCircle } from 'lucide-react';
+import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, HelpCircle } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
@@ -186,7 +186,7 @@ function Navigation_Bar() {
                 >
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
                     <button className="nav-dropdown-item" onClick={() => go('/farms-actives')}><Factory size={16} /> Fermes actives</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/gestion-commandes')}><Truck size={16} /> Gestion des commandes</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/gce')}><CalendarDays size={16} /> GCE</button>
                     <button className="nav-dropdown-item" onClick={goMyFarm}>
                       <HomeIcon size={16} /> Ma ferme {farm?.name ? `- ${farm.name}` : '- Non renseignée'}
                     </button>

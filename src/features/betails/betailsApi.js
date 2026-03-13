@@ -65,11 +65,79 @@ const MY_BETAILS_FIELDS_MINIMAL = [
   'farm_id',
 ]
 
-const normalizeMyBetail = (item) => ({
-  ...item,
-  pinned: Boolean(item?.pinned),
-  archived: Boolean(item?.archived),
-})
+const normalizeMyBetail = (item) => {
+  const shippingStatus = String(item?.shipping_status || '').toLowerCase()
+  const shippingEstimatedGain = Number(item?.shipping_estimated_gain)
+  return {
+    ...item,
+    pinned: Boolean(item?.pinned),
+    archived: Boolean(item?.archived),
+    shipping_status: item?.shipping_status || null,
+    shipping_scheduled_for: item?.shipping_scheduled_for || null,
+    shipping_estimated_gain: Number.isFinite(shippingEstimatedGain) ? shippingEstimatedGain : null,
+    is_shipping_scheduled: shippingStatus === 'scheduled' || Boolean(item?.is_shipping_scheduled),
+  }
+}
+
+const attachShippingScheduleFlags = async (items) => {
+  if (!Array.isArray(items) || !items.length) return []
+
+  const betailIds = items
+    .map((item) => item?.id)
+    .filter((id) => typeof id === 'string' && id.length)
+
+  if (!betailIds.length) {
+    return items.map(normalizeMyBetail)
+  }
+
+  try {
+    let { data, error } = await supabase
+      .from('shipping')
+      .select('betail_id, status, scheduled_for, estimated_gain')
+      .in('betail_id', betailIds)
+
+    if (error && isMissingColumnError(error)) {
+      const fallback = await supabase
+        .from('shipping')
+        .select('betail_id, status, scheduled_for')
+        .in('betail_id', betailIds)
+      data = fallback.data
+      error = fallback.error
+    }
+
+    if (error) {
+      throw error
+    }
+
+    const shippingByBetailId = new Map()
+    ;(data ?? []).forEach((entry) => {
+      const betailId = entry?.betail_id
+      if (!betailId) return
+
+      const status = String(entry?.status || '').toLowerCase()
+      const previous = shippingByBetailId.get(betailId)
+      const previousStatus = String(previous?.status || '').toLowerCase()
+
+      if (status === 'scheduled' || previousStatus !== 'scheduled') {
+        shippingByBetailId.set(betailId, entry)
+      }
+    })
+
+    return items.map((item) => {
+      const shippingEntry = shippingByBetailId.get(item.id)
+      const shippingStatus = String(shippingEntry?.status || '').toLowerCase()
+      return normalizeMyBetail({
+        ...item,
+        shipping_status: shippingEntry?.status || null,
+        shipping_scheduled_for: shippingEntry?.scheduled_for || null,
+        shipping_estimated_gain: shippingEntry?.estimated_gain ?? null,
+        is_shipping_scheduled: shippingStatus === 'scheduled',
+      })
+    })
+  } catch {
+    return items.map(normalizeMyBetail)
+  }
+}
 
 const isMissingColumnError = (error) => {
   const code = error?.code || ''
@@ -283,9 +351,10 @@ export const fetchMyBetailsPage = async ({
   }
 
   const items = (data ?? []).map(normalizeMyBetail)
+  const itemsWithShipping = await attachShippingScheduleFlags(items)
   const hasMore = items.length === MY_BETAILS_PAGE_SIZE
   return {
-    items,
+    items: itemsWithShipping,
     nextPage: hasMore ? page + 1 : undefined,
   }
 }
@@ -349,6 +418,119 @@ export const previewBetailPremiumUpgrade = async ({ betailId }) => {
 
   return data
 }
+
+export const growBetailAge = async ({ betailId, dryRun = false }) => {
+  if (!betailId) {
+    throw new Error('Betail id manquant')
+  }
+
+  const { data, error } = await supabase.rpc('grow_betail_age_reborn', {
+    p_betail_id: betailId,
+    p_dry_run: Boolean(dryRun),
+  })
+
+  if (error) {
+    throw error
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error('Réponse croissance invalide')
+  }
+
+  return data
+}
+
+export const previewBetailAgeGrowth = async ({ betailId }) => growBetailAge({ betailId, dryRun: true })
+
+export const scheduleBetailShipping = async ({
+  betailId,
+  requestedDate = null,
+  manualChoice = false,
+  note = null,
+  estimatedGain = null,
+  dryRun = true,
+  minDaysAhead = 7,
+  maxDaysAhead = 60,
+  allowReassign = false,
+}) => {
+  if (!betailId) {
+    throw new Error('Betail id manquant')
+  }
+
+  const normalizedRequestedDate = typeof requestedDate === 'string' && requestedDate.trim().length
+    ? requestedDate.trim()
+    : null
+  const normalizedNote = typeof note === 'string' && note.trim().length ? note.trim() : null
+  const normalizedEstimatedGain = Number.isFinite(Number(estimatedGain))
+    ? Math.max(0, Math.round(Number(estimatedGain)))
+    : null
+
+  const { data, error } = await supabase.rpc('schedule_shipping_reborn', {
+    p_betail_id: betailId,
+    p_requested_date: normalizedRequestedDate,
+    p_manual_choice: Boolean(manualChoice),
+    p_notes: normalizedNote,
+    p_estimated_gain: normalizedEstimatedGain,
+    p_dry_run: Boolean(dryRun),
+    p_min_days_ahead: Number(minDaysAhead) || 7,
+    p_max_days_ahead: Number(maxDaysAhead) || 60,
+    p_allow_reassign: Boolean(allowReassign),
+  })
+
+  if (error) {
+    throw error
+  }
+
+  if (!data || typeof data !== 'object') {
+    throw new Error('Réponse planification expédition invalide')
+  }
+
+  return data
+}
+
+export const previewBetailShippingSchedule = async ({
+  betailId,
+  requestedDate = null,
+  manualChoice = false,
+  note = null,
+  estimatedGain = null,
+  minDaysAhead = 7,
+  maxDaysAhead = 60,
+  allowReassign = false,
+}) =>
+  scheduleBetailShipping({
+    betailId,
+    requestedDate,
+    manualChoice,
+    note,
+    estimatedGain,
+    dryRun: true,
+    minDaysAhead,
+    maxDaysAhead,
+    allowReassign,
+  })
+
+export const confirmBetailShippingSchedule = async ({
+  betailId,
+  requestedDate = null,
+  manualChoice = false,
+  note = null,
+  estimatedGain = null,
+  minDaysAhead = 7,
+  maxDaysAhead = 60,
+  allowReassign = true,
+}) =>
+  scheduleBetailShipping({
+    betailId,
+    requestedDate,
+    manualChoice,
+    note,
+    estimatedGain,
+    dryRun: false,
+    minDaysAhead,
+    maxDaysAhead,
+    allowReassign,
+  })
 
 const updateBetailFlag = async ({ betailId, userId, field, value }) => {
   if (!betailId || !userId) {

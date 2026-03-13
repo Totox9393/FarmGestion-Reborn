@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Archive, Heart, Pin, Star } from 'lucide-react'
+import { Archive, CalendarClock, Heart, Pin, Star } from 'lucide-react'
 import {
   useAuthorsMap,
   useBetailDetails,
@@ -8,15 +8,21 @@ import {
   useToggleBetailArchived,
   useToggleBetailPinned,
   usePreviewBetailPremiumUpgrade,
+  usePreviewBetailAgeGrowth,
+  useGrowBetailAge,
+  usePreviewBetailShippingSchedule,
+  useConfirmBetailShippingSchedule,
   useUpgradeBetailPremium,
   useUpdateBetailComment,
   useUserFarmId,
+  useUserRole,
 } from './hooks'
 import { useAuth } from '../authentification/AuthContext'
 import badgesManifest from '../../assets/manifest.json'
 import premiumSuccessSound from '../../assets/sounds/GOCHISOU_7.WAV'
 import pinInSound from '../../assets/sounds/pinin_005.ogg'
 import pinOutSound from '../../assets/sounds/pinout_006.ogg'
+import MyBetailsShippingPanel from './MyBetailsShippingPanel'
 import './BetailsListPage.css'
 import './MyBetailsPage.css'
 
@@ -63,9 +69,16 @@ const getThumbnailUrl = (url) => {
   return url
 }
 
-const getResourceFrameUrl = (filename) => {
+const getResourceFrameUrl = (filename, options = {}) => {
   if (!SUPABASE_URL) return ''
-  return `${SUPABASE_URL}/storage/v1/object/public/ressources/${filename}`
+  const baseUrl = `${SUPABASE_URL}/storage/v1/object/public/ressources/${filename}`
+  const { width, height, quality } = options || {}
+  const params = new URLSearchParams()
+  if (Number.isFinite(width) && width > 0) params.set('width', String(Math.round(width)))
+  if (Number.isFinite(height) && height > 0) params.set('height', String(Math.round(height)))
+  if (Number.isFinite(quality) && quality > 0) params.set('quality', String(Math.round(quality)))
+  const query = params.toString()
+  return query ? `${baseUrl}?${query}` : baseUrl
 }
 
 const normalizeEquippedBadges = (value) => {
@@ -108,7 +121,17 @@ const isMissingColumnError = (error) => {
   return code === '42703' || message.includes('column')
 }
 
+const isBetailShippingScheduled = (betail) => {
+  const status = String(betail?.shipping_status || '').toLowerCase()
+  return status === 'scheduled' || Boolean(betail?.is_shipping_scheduled)
+}
+
 function MyBetailCard({ betail, authorName, isSelected, onSelect }) {
+  const isShippingScheduled = isBetailShippingScheduled(betail)
+  const shippingDateLabel = betail?.shipping_scheduled_for
+    ? formatFrenchDate(betail.shipping_scheduled_for)
+    : ''
+
   const handleSelect = () => onSelect?.(betail.id)
 
   const handleKeyDown = (event) => {
@@ -120,7 +143,7 @@ function MyBetailCard({ betail, authorName, isSelected, onSelect }) {
 
   return (
     <article
-      className={`betail-card ${isSelected ? 'is-selected' : ''} ${betail.archived ? 'is-archived' : ''} ${betail.pinned ? 'is-pinned' : ''}`}
+      className={`betail-card ${isSelected ? 'is-selected' : ''} ${betail.archived ? 'is-archived' : ''} ${betail.pinned ? 'is-pinned' : ''} ${isShippingScheduled ? 'is-shipping-scheduled' : ''}`}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       role="button"
@@ -177,6 +200,14 @@ function MyBetailCard({ betail, authorName, isSelected, onSelect }) {
               <span className="my-betail-tooltip" role="tooltip">Archivé</span>
             </span>
           )}
+          {isShippingScheduled && (
+            <span className="my-betail-icon-wrap" tabIndex={0}>
+              <CalendarClock size={15} className="my-betail-icon is-shipping-scheduled" />
+              <span className="my-betail-tooltip" role="tooltip">
+                {shippingDateLabel ? `Expédition prévue: ${shippingDateLabel}` : 'Expédition déjà programmée'}
+              </span>
+            </span>
+          )}
         </div>
       </div>
     </article>
@@ -195,10 +226,14 @@ function MyBetailsPageQuery() {
   const [commentDraft, setCommentDraft] = useState('')
   const [premiumAnimationPhase, setPremiumAnimationPhase] = useState('idle')
   const [premiumConfirmState, setPremiumConfirmState] = useState(null)
+  const [isShippingPanelOpen, setIsShippingPanelOpen] = useState(false)
+  const [shippingTarget, setShippingTarget] = useState(null)
   const premiumAnimationTimeoutRef = useRef(null)
+  const shippingPanelTimeoutRef = useRef(null)
   const panelRef = useRef(null)
 
   const { data: farmId } = useUserFarmId(user?.id)
+  const { data: userRole = '' } = useUserRole(user?.id)
 
   const {
     data,
@@ -219,6 +254,10 @@ function MyBetailsPageQuery() {
   const commentMutation = useUpdateBetailComment()
   const premiumPreviewMutation = usePreviewBetailPremiumUpgrade()
   const premiumUpgradeMutation = useUpgradeBetailPremium()
+  const growthPreviewMutation = usePreviewBetailAgeGrowth()
+  const growBetailAgeMutation = useGrowBetailAge()
+  const previewShippingScheduleMutation = usePreviewBetailShippingSchedule()
+  const confirmShippingScheduleMutation = useConfirmBetailShippingSchedule()
   const togglePinnedMutation = useToggleBetailPinned()
   const toggleArchivedMutation = useToggleBetailArchived()
 
@@ -275,10 +314,29 @@ function MyBetailsPageQuery() {
 
   const selectedAvatarFrameUrl = useMemo(() => getResourceFrameUrl('cadre_betail1.png'), [])
   const matriculeFrameUrl = useMemo(() => getResourceFrameUrl('cadre_matricule.png'), [])
+  const shippingMascotUrl = useMemo(
+    () => getResourceFrameUrl('milo_demon.png', { width: 360, height: 360, quality: 78 }),
+    [],
+  )
+  const shippingDecorUrls = useMemo(() => {
+    const gupna = Array.from({ length: 9 }, (_, index) =>
+      getResourceFrameUrl(`gupna${index + 1}.png`, { width: 128, height: 128, quality: 66 }),
+    ).filter(Boolean)
+
+    return {
+      gupna,
+      coins: getResourceFrameUrl('coins.png', { width: 180, height: 180, quality: 72 }),
+    }
+  }, [])
   const selectedAuthorName = selectedBetail ? getAuthorName(selectedBetail) : 'Auteur inconnu'
   const selectedCreatedAt = selectedDetails?.created_at || selectedBetail?.created_at
   const selectedPurchasedAt = selectedDetails?.purchased_at || selectedBetail?.purchased_at
   const selectedComment = selectedDetails?.comments ?? selectedBetail?.comments ?? ''
+  const selectedIsShippingScheduled = isBetailShippingScheduled(selectedBetail)
+  const selectedShippingLockReason = 'Bétail verrouillé: expédition déjà programmée.'
+  const selectedShippingScheduledDate = selectedBetail?.shipping_scheduled_for
+    ? formatFrenchDate(selectedBetail.shipping_scheduled_for)
+    : ''
   const selectedEquippedBadges = useMemo(() => {
     const raw = selectedDetails?.equipped_badges ?? selectedBetail?.equipped_badges
     const filenames = normalizeEquippedBadges(raw)
@@ -320,6 +378,12 @@ function MyBetailsPageQuery() {
     premiumAnimationTimeoutRef.current = null
   }, [])
 
+  const clearShippingPanelTimeout = useCallback(() => {
+    if (!shippingPanelTimeoutRef.current) return
+    window.clearTimeout(shippingPanelTimeoutRef.current)
+    shippingPanelTimeoutRef.current = null
+  }, [])
+
   const playPremiumSuccessSound = useCallback(() => {
     try {
       const audio = new Audio(premiumSuccessSound)
@@ -342,15 +406,18 @@ function MyBetailsPageQuery() {
   }, [])
 
   useEffect(() => {
-    if (!selectedBetailId) return
+    if (!selectedBetailId && !isShippingPanelOpen) return
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        clearShippingPanelTimeout()
         setSelectedBetailId(null)
+        setIsShippingPanelOpen(false)
+        setShippingTarget(null)
       }
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [selectedBetailId])
+  }, [selectedBetailId, isShippingPanelOpen, clearShippingPanelTimeout])
 
   useEffect(() => {
     if (!selectedBetailId || isInitialLoading) return
@@ -378,16 +445,224 @@ function MyBetailsPageQuery() {
   useEffect(
     () => () => {
       clearPremiumAnimationTimeout()
+      clearShippingPanelTimeout()
     },
-    [clearPremiumAnimationTimeout],
+    [clearPremiumAnimationTimeout, clearShippingPanelTimeout],
   )
 
   const handleSelectBetail = (betailId) => {
+    clearShippingPanelTimeout()
+    setIsShippingPanelOpen(false)
+    setShippingTarget(null)
     setSelectedBetailId((prev) => (prev === betailId ? null : betailId))
   }
 
+  const handleOpenShippingPanel = () => {
+    if (!selectedBetail) return
+    if (selectedIsShippingScheduled) {
+      toast('error', 'Ce bétail a déjà une expédition programmée.')
+      return
+    }
+
+    clearShippingPanelTimeout()
+    setShippingTarget({
+      id: selectedBetail.id,
+      name: selectedBetail.name || 'Bétail inconnu',
+      matricule: selectedBetail.matricule || '---',
+      premium: Boolean(selectedBetail.premium),
+      role: userRole,
+      avatarUrl: selectedBetail.avatar_url ? getThumbnailUrl(selectedBetail.avatar_url) : '',
+      age: Number.isFinite(Number(selectedBetail.age)) ? Number(selectedBetail.age) : null,
+      createdAt: selectedCreatedAt || null,
+      badgeCount: selectedEquippedBadges.length,
+      shippingEstimatedGain: Number.isFinite(Number(selectedBetail.shipping_estimated_gain))
+        ? Number(selectedBetail.shipping_estimated_gain)
+        : null,
+    })
+    setSelectedBetailId(null)
+    shippingPanelTimeoutRef.current = window.setTimeout(() => {
+      setIsShippingPanelOpen(true)
+      shippingPanelTimeoutRef.current = null
+    }, 180)
+  }
+
+  const handleCloseShippingPanel = () => {
+    clearShippingPanelTimeout()
+    setIsShippingPanelOpen(false)
+    setShippingTarget(null)
+  }
+
+  const handleGoToGce = useCallback(() => {
+    navigate('/gce')
+  }, [navigate])
+
+  const handlePreviewShippingGrowth = useCallback(async (betailId) => {
+    if (!betailId) {
+      return { success: false, reason: 'NOT_FOUND' }
+    }
+
+    try {
+      return await growthPreviewMutation.mutateAsync({ betailId })
+    } catch (previewError) {
+      const message = (previewError?.message || '').toLowerCase()
+      const code = previewError?.code || ''
+      if (code === '42883' || message.includes('grow_betail_age_reborn')) {
+        return {
+          success: false,
+          reason: 'GROWTH_RPC_MISSING',
+        }
+      }
+      return {
+        success: false,
+        reason: 'PREVIEW_ERROR',
+      }
+    }
+  }, [growthPreviewMutation.mutateAsync])
+
+  const handleConfirmShippingGrowth = useCallback(async (betailId) => {
+    if (!betailId || !user?.id) {
+      return { success: false, reason: 'NOT_AUTHENTICATED' }
+    }
+
+    try {
+      const result = await growBetailAgeMutation.mutateAsync({ betailId })
+      if (!result?.success) {
+        return result
+      }
+
+      const newAge = Number(result?.new_age)
+      if (Number.isFinite(newAge)) {
+        setShippingTarget((prev) => (prev?.id === betailId ? { ...prev, age: newAge } : prev))
+      }
+
+      const moneyAfter = Number(result?.money_after)
+      if (Number.isFinite(moneyAfter)) {
+        window.dispatchEvent(
+          new CustomEvent('farmgestion-balance-updated', {
+            detail: {
+              userId: user.id,
+              money: moneyAfter,
+            },
+          }),
+        )
+      }
+      return result
+    } catch (growthError) {
+      const message = (growthError?.message || '').toLowerCase()
+      const code = growthError?.code || ''
+      if (code === '42883' || message.includes('grow_betail_age_reborn')) {
+        return {
+          success: false,
+          reason: 'GROWTH_RPC_MISSING',
+        }
+      }
+      return {
+        success: false,
+        reason: 'GROWTH_ERROR',
+      }
+    }
+  }, [growBetailAgeMutation.mutateAsync, user?.id])
+
+  const handlePreviewShippingSchedule = useCallback(async ({
+    betailId,
+    requestedDate = null,
+    manualChoice = false,
+    note = null,
+    estimatedGain = null,
+    minDaysAhead = 7,
+    maxDaysAhead = 60,
+    allowReassign = false,
+  }) => {
+    if (!betailId) {
+      return { success: false, reason: 'NOT_FOUND' }
+    }
+
+    try {
+      return await previewShippingScheduleMutation.mutateAsync({
+        betailId,
+        requestedDate,
+        manualChoice,
+        note,
+        estimatedGain,
+        minDaysAhead,
+        maxDaysAhead,
+        allowReassign,
+      })
+    } catch (scheduleError) {
+      const message = (scheduleError?.message || '').toLowerCase()
+      const code = scheduleError?.code || ''
+      if (code === '42883' || message.includes('schedule_shipping_reborn')) {
+        return {
+          success: false,
+          reason: 'SHIPPING_RPC_MISSING',
+        }
+      }
+      return {
+        success: false,
+        reason: 'SHIPPING_PREVIEW_ERROR',
+      }
+    }
+  }, [previewShippingScheduleMutation.mutateAsync])
+
+  const handleConfirmShippingSchedule = useCallback(async ({
+    betailId,
+    requestedDate = null,
+    manualChoice = false,
+    note = null,
+    estimatedGain = null,
+    minDaysAhead = 7,
+    maxDaysAhead = 60,
+    allowReassign = true,
+  }) => {
+    if (!betailId || !user?.id) {
+      return { success: false, reason: 'NOT_AUTHENTICATED' }
+    }
+
+    try {
+      const result = await confirmShippingScheduleMutation.mutateAsync({
+        betailId,
+        requestedDate,
+        manualChoice,
+        note,
+        estimatedGain,
+        minDaysAhead,
+        maxDaysAhead,
+        allowReassign,
+      })
+
+      if (!result?.success) return result
+
+      if (result?.already_scheduled) {
+        toast('success', 'Créneau déjà fixé: date conservée pour ce bétail.')
+      } else {
+        toast('success', result?.reassigned ? 'Créneau ajusté puis validé.' : 'Créneau d’expédition validé.')
+      }
+      return result
+    } catch (scheduleError) {
+      const message = (scheduleError?.message || '').toLowerCase()
+      const code = scheduleError?.code || ''
+      if (code === '42883' || message.includes('schedule_shipping_reborn')) {
+        return {
+          success: false,
+          reason: 'SHIPPING_RPC_MISSING',
+        }
+      }
+      return {
+        success: false,
+        reason: 'SHIPPING_CONFIRM_ERROR',
+      }
+    }
+  }, [confirmShippingScheduleMutation.mutateAsync, user?.id])
+
+  const hasRightPanel = Boolean(selectedBetail || isShippingPanelOpen)
+  const layoutClassName = `betails-layout my-betails-layout ${hasRightPanel ? 'has-panel' : ''}`.trim()
+
   const handleSaveComment = () => {
     if (!selectedBetail || !user?.id) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
     commentMutation.mutate(
       {
         betailId: selectedBetail.id,
@@ -408,6 +683,10 @@ function MyBetailsPageQuery() {
 
   const runToggle = ({ mutation, nextValue, successMessage, fallbackMessage }) => {
     if (!selectedBetail || !user?.id || mutation.isPending) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
     mutation.mutate(
       { betailId: selectedBetail.id, userId: user.id, nextValue },
       {
@@ -442,6 +721,10 @@ function MyBetailsPageQuery() {
 
   const runPremiumUpgrade = () => {
     if (!selectedBetail || !user?.id || premiumUpgradeMutation.isPending || selectedBetail.premium) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
 
     if (!premiumConfirmState?.cost || premiumConfirmState?.canAfford === false) {
       return
@@ -502,6 +785,10 @@ function MyBetailsPageQuery() {
 
   const startPremiumPreview = () => {
     if (!selectedBetail || !user?.id || selectedBetail.premium) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
 
     if (premiumConfirmState) {
       setPremiumConfirmState(null)
@@ -559,7 +846,7 @@ function MyBetailsPageQuery() {
 
   return (
     <div className="betails-page my-betails-page">
-      <div className={`betails-layout my-betails-layout ${selectedBetail ? 'has-panel' : ''}`}>
+      <div className={layoutClassName}>
         <main className="betails-column-main betails-main my-betails-main">
           <header className="betails-header">
             <div>
@@ -677,7 +964,8 @@ function MyBetailsPageQuery() {
           )}
         </main>
 
-        <aside className="betails-column-panel my-betails-panel-column" aria-hidden={!selectedBetail}>
+        {selectedBetail ? (
+          <aside className="betails-column-panel my-betails-panel-column my-details-panel-column" aria-hidden={!selectedBetail}>
           <section
             ref={panelRef}
             className={`betail-details-panel betails-panel my-betail-panel ${selectedBetail ? 'is-open' : ''}`}
@@ -693,9 +981,9 @@ function MyBetailsPageQuery() {
                       type="button"
                       className={`betail-details-close my-betail-header-toggle ${selectedBetail.pinned ? 'is-active' : ''}`}
                       onClick={runTogglePinned}
-                      disabled={isSaving}
+                      disabled={isSaving || selectedIsShippingScheduled}
                       aria-label={selectedBetail.pinned ? 'Désépingler ce bétail' : 'Épingler ce bétail'}
-                      title={selectedBetail.pinned ? 'Désépingler' : 'Épingler'}
+                      title={selectedIsShippingScheduled ? selectedShippingLockReason : (selectedBetail.pinned ? 'Désépingler' : 'Épingler')}
                     >
                       <Pin size={16} />
                     </button>
@@ -710,9 +998,9 @@ function MyBetailsPageQuery() {
                           fallbackMessage: 'Option archivage à venir (migration DB requise).',
                         })
                       }
-                      disabled={isSaving}
+                      disabled={isSaving || selectedIsShippingScheduled}
                       aria-label={selectedBetail.archived ? 'Désarchiver ce bétail' : 'Archiver ce bétail'}
-                      title={selectedBetail.archived ? 'Désarchiver' : 'Archiver'}
+                      title={selectedIsShippingScheduled ? selectedShippingLockReason : (selectedBetail.archived ? 'Désarchiver' : 'Archiver')}
                     >
                       <Archive size={16} />
                     </button>
@@ -845,12 +1133,19 @@ function MyBetailsPageQuery() {
                               setCommentDraft(selectedComment || '')
                               setEditingComment(true)
                             }}
-                            disabled={isSaving}
+                            disabled={isSaving || selectedIsShippingScheduled}
+                            title={selectedIsShippingScheduled ? selectedShippingLockReason : 'Modifier le commentaire'}
                           >
                             Modifier
                           </button>
                         ) : null}
                       </div>
+
+                      {selectedIsShippingScheduled ? (
+                        <p className="my-betail-lock-hint" role="status" aria-live="polite">
+                          Ce bétail est verrouillé pendant l’expédition en cours.
+                        </p>
+                      ) : null}
 
                       {!editingComment ? (
                         <div className="betail-back-comments">
@@ -865,13 +1160,14 @@ function MyBetailsPageQuery() {
                             value={commentDraft}
                             onChange={(event) => setCommentDraft(event.target.value)}
                             maxLength={1200}
+                            disabled={selectedIsShippingScheduled}
                           />
                           <div className="my-betail-inline-actions">
                             <button
                               type="button"
                               className="my-betail-btn"
                               onClick={handleSaveComment}
-                              disabled={isSaving}
+                              disabled={isSaving || selectedIsShippingScheduled}
                             >
                               Enregistrer
                             </button>
@@ -903,7 +1199,8 @@ function MyBetailsPageQuery() {
                             type="button"
                             className="my-betail-btn"
                             onClick={startPremiumPreview}
-                            disabled={isSaving}
+                            disabled={isSaving || selectedIsShippingScheduled}
+                            title={selectedIsShippingScheduled ? selectedShippingLockReason : 'Prévisualiser le coût premium'}
                           >
                             <Star size={14} />
                             Amélioration premium
@@ -933,7 +1230,7 @@ function MyBetailsPageQuery() {
                                 type="button"
                                 className="my-betail-btn"
                                 onClick={runPremiumUpgrade}
-                                disabled={isSaving || premiumConfirmState.loading || !premiumConfirmState.canAfford}
+                                disabled={isSaving || premiumConfirmState.loading || !premiumConfirmState.canAfford || selectedIsShippingScheduled}
                               >
                                 Confirmer la transmutation
                               </button>
@@ -1005,6 +1302,7 @@ function MyBetailsPageQuery() {
                         <p>Aucun badge équipé sur ce bétail.</p>
                       </div>
                     )}
+                    {/* TODO: Bloquer l’équipement/déséquipement des badges quand selectedIsShippingScheduled est true dès que l’UI badges devient interactive. */}
                     <button
                       type="button"
                       className="my-betail-btn ghost my-betail-shop-btn"
@@ -1014,26 +1312,30 @@ function MyBetailsPageQuery() {
                     </button>
                   </section>
 
-                  <section className="my-betail-section is-danger">
+                  <section className="my-betail-section my-betail-shipping-section">
                     <div className="my-betail-section-head">
-                      <h3>Danger zone</h3>
+                      <h3>Expédition</h3>
                     </div>
-                    <div className="my-betail-grid-actions">
-                      <button
-                        type="button"
-                        className="my-betail-btn ghost"
-                        onClick={() => toast('error', 'Retirer de ma ferme : à venir.')}
-                      >
-                        Retirer de ma ferme
-                      </button>
-                      <button
-                        type="button"
-                        className="my-betail-btn ghost"
-                        onClick={() => toast('error', 'Vente : à venir.')}
-                      >
-                        Vendre
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      className="my-betail-btn my-betail-ship-btn"
+                      onClick={handleOpenShippingPanel}
+                      disabled={selectedIsShippingScheduled}
+                      title={
+                        selectedIsShippingScheduled
+                          ? 'Ce bétail est déjà prévu en expédition.'
+                          : 'Ouvrir le panneau d’expédition'
+                      }
+                    >
+                      {selectedIsShippingScheduled ? 'Expédition déjà prévue' : 'Expédier le bétail'}
+                    </button>
+                    {selectedIsShippingScheduled ? (
+                      <p className="my-betail-ship-status" role="status" aria-live="polite">
+                        {selectedShippingScheduledDate
+                          ? `Créneau déjà fixé: ${selectedShippingScheduledDate}.`
+                          : 'Créneau déjà fixé pour ce bétail.'}
+                      </p>
+                    ) : null}
                   </section>
                 </div>
               </>
@@ -1041,7 +1343,23 @@ function MyBetailsPageQuery() {
               <div className="my-betail-empty-panel">Sélectionne un bétail pour afficher ses détails.</div>
             )}
           </section>
-        </aside>
+          </aside>
+        ) : isShippingPanelOpen ? (
+          <MyBetailsShippingPanel
+            isOpen={isShippingPanelOpen}
+            onClose={handleCloseShippingPanel}
+            shippingTarget={shippingTarget}
+            mascotUrl={shippingMascotUrl}
+            decorUrls={shippingDecorUrls}
+            onPreviewGrowth={handlePreviewShippingGrowth}
+            onConfirmGrowth={handleConfirmShippingGrowth}
+            isGrowthPending={growBetailAgeMutation.isPending}
+            onPreviewShipping={handlePreviewShippingSchedule}
+            onConfirmShipping={handleConfirmShippingSchedule}
+            isShippingPending={confirmShippingScheduleMutation.isPending}
+            onGoToGce={handleGoToGce}
+          />
+        ) : null}
       </div>
     </div>
   )

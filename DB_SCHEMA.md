@@ -68,3 +68,32 @@ create table public.betails (
   constraint betails_owner_id_fkey foreign KEY (owner_id) references auth.users (id) on delete set null
 ) TABLESPACE pg_default;
 ```
+
+## Table `public.shipping`
+
+```sql
+create table public.shipping (
+  id bigserial not null,
+  betail_id uuid not null,
+  scheduled_for timestamp with time zone not null,
+  status text not null default 'scheduled'::text,
+  notes text null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  scheduled_by_uuid uuid null,
+  constraint shipping_pkey primary key (id),
+  constraint shipping_betail_id_unique unique (betail_id),
+  constraint shipping_betail_id_fkey foreign KEY (betail_id) references betails (id) on delete CASCADE,
+  constraint shipping_status_check check (
+    (
+      status = any (
+        array[
+          'scheduled'::text,
+          'delivered'::text,
+          'cancelled'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+```

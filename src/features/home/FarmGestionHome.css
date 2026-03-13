@@ -228,6 +228,10 @@
   .home-hero__widgets {
     grid-template-columns: 1fr;
   }
+
+  .home-weekly-ship__avatars-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 
 .home-hero__card {
@@ -312,6 +316,284 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.home-card--shipping-week {
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.16s ease;
+  background: #e9eeea;
+  border-radius: 2rem;
+  padding: 1.5rem;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  gap: 1rem;
+}
+
+.home-card--shipping-week:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.14);
+}
+
+.home-meeting-card {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.home-meeting-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.8rem;
+}
+
+.home-meeting-card__title {
+  margin: 0;
+  font-size: 1.45rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #1f1a33;
+}
+
+.home-meeting-card__date-selector {
+  background-color: #e9eeea;
+  border-radius: 9999px;
+  padding: 0.6rem 1rem;
+  cursor: pointer;
+  border: 1px solid #d0d0ce;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  transition: background-color 0.2s ease;
+  color: #2f2b42;
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.home-meeting-card__date-selector:hover {
+  background-color: #dededd;
+}
+
+.home-meeting-card__calls-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #3b3653;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.home-meeting-card__date-nav-and-indicators {
+  position: relative;
+}
+
+.home-meeting-card__date-nav-container {
+  background-color: #fff;
+  border-radius: 16px;
+  padding: 12px 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.home-meeting-card__day-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  width: 100%;
+}
+
+.home-meeting-card__day-number,
+.home-meeting-card__day-name {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 40px;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}
+
+.home-meeting-card__day-number {
+  font-size: 1.08rem;
+  font-weight: 700;
+  height: 28px;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  padding-top: 5px;
+  color: #1f1a33;
+}
+
+.home-meeting-card__day-name {
+  font-size: 0.66rem;
+  height: 20px;
+  color: #666;
+  border-bottom-left-radius: 20px;
+  border-bottom-right-radius: 20px;
+  font-weight: 700;
+}
+
+.home-meeting-card__day-item:hover .home-meeting-card__day-number,
+.home-meeting-card__day-item:hover .home-meeting-card__day-name {
+  background-color: #f8f8f8;
+}
+
+.home-meeting-card__day-item.is-active .home-meeting-card__day-number,
+.home-meeting-card__day-item.is-active .home-meeting-card__day-name {
+  background-color: #f0ff7a;
+}
+
+.home-meeting-card__indicator-container {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  position: relative;
+  padding: 0 28px;
+  box-sizing: border-box;
+}
+
+.home-meeting-card__indicator-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #d0d0ce;
+  position: relative;
+  z-index: 2;
+}
+
+.home-meeting-card__indicator-dot.is-active {
+  background-color: #000;
+}
+
+.home-meeting-card__indicator-line {
+  position: absolute;
+  top: 50%;
+  left: 32px;
+  right: 32px;
+  height: 1px;
+  border-top: 1.5px dashed #d0d0ce;
+  z-index: 1;
+}
+
+.home-meeting-card__open-hint {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #5a5372;
+  text-align: right;
+}
+
+.home-weekly-ship__avatars-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.home-weekly-ship__avatars-cell {
+  min-height: 24px;
+  display: inline-flex;
+  justify-content: center;
+}
+
+.home-weekly-ship__avatars {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+}
+
+.home-weekly-ship__avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  margin-left: -5px;
+  border: 2px solid #fff;
+  background: rgba(122, 91, 255, 0.14);
+  color: #4b3a97;
+  display: inline-grid;
+  place-items: center;
+  font-size: 0.56rem;
+  font-weight: 800;
+  overflow: hidden;
+}
+
+.home-weekly-ship__avatar:first-child {
+  margin-left: 0;
+}
+
+.home-weekly-ship__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.home-weekly-ship__avatar.is-more {
+  background: rgba(72, 52, 130, 0.14);
+  color: #433280;
+}
+
+@media screen and (max-width: 480px) {
+  .home-card--shipping-week {
+    padding: 1rem;
+    border-radius: 1.5rem;
+  }
+
+  .home-meeting-card__title {
+    font-size: 1.2rem;
+  }
+
+  .home-meeting-card__date-selector {
+    padding: 0.45rem 0.75rem;
+    font-size: 0.86rem;
+  }
+
+  .home-meeting-card__day-number,
+  .home-meeting-card__day-name {
+    width: 36px;
+  }
+
+  .home-meeting-card__indicator-container {
+    padding: 0 24px;
+  }
+
+  .home-meeting-card__indicator-line {
+    left: 28px;
+    right: 28px;
+  }
+}
+
+@media screen and (max-width: 350px) {
+  .home-card--shipping-week {
+    padding: 0.8rem;
+  }
+
+  .home-meeting-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .home-meeting-card__day-number,
+  .home-meeting-card__day-name {
+    width: 30px;
+  }
+
+  .home-meeting-card__day-number {
+    font-size: 0.9rem;
+  }
+
+  .home-meeting-card__day-name {
+    font-size: 0.6rem;
+  }
+
+  .home-meeting-card__indicator-container {
+    padding: 0 20px;
+  }
+
+  .home-meeting-card__indicator-line {
+    left: 24px;
+    right: 24px;
+  }
 }
 
 .home-card__header {
