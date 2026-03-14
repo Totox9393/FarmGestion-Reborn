@@ -5,6 +5,8 @@ import miloCreateAccount from '../../assets/img/milo_createaccount.png';
 import { signUpWithEmail } from './authApi';
 import { supabase } from './supabaseClient';
 
+const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
+
 function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const pseudoInputRef = useRef(null);
   const [pseudo, setPseudo] = useState('');
@@ -70,7 +72,6 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
         id: user.id,
         username: pseudo,
         email,
-        receive_newsletter: newsletter,
         created_at: now,
         updated_at: now
       });
@@ -78,7 +79,25 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
         setError('Compte créé mais erreur lors de l’enregistrement du profil.');
         setLoading(false);
         return;
-      }      
+      }
+
+      if (!newsletter) {
+        const { error: newsletterError } = await supabase
+          .from('user_settings')
+          .upsert(
+            {
+              user_id: user.id,
+              setting_name: NEWSLETTER_SETTING_NAME,
+              setting_value: false,
+            },
+            { onConflict: 'user_id,setting_name' },
+          );
+
+        if (newsletterError) {
+          console.error('Impossible de sauvegarder la préférence newsletter lors de l\'inscription', newsletterError);
+        }
+      }
+
       // Attendre que la session soit bien établie avant de fermer
       try {
         await new Promise(resolve => setTimeout(resolve, 500));

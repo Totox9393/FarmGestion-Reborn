@@ -1146,6 +1146,10 @@ function BetailMaker() {
               Voir le registre du bétail
               <span className="arrow">→</span>
             </Link>
+            <button type="button" className="registry-link registry-link-button" onClick={handleRestart}>
+              Créer un nouveau bétail
+              <span className="arrow">→</span>
+            </button>
           </div>
         );
 

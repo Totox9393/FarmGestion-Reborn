@@ -45,8 +45,6 @@ const MY_BETAILS_FIELDS_BASE = [
   'comments',
   'owner_id',
   'farm_id',
-  'pinned',
-  'archived',
 ]
 
 const MY_BETAILS_FIELDS_MINIMAL = [
@@ -65,6 +63,13 @@ const MY_BETAILS_FIELDS_MINIMAL = [
   'farm_id',
 ]
 
+const USER_SETTING_PINNED_BETAILS = 'pinned_betails'
+const USER_SETTING_ARCHIVED_BETAILS = 'archived_betails'
+const USER_BETAIL_FLAG_SETTING_NAMES = [
+  USER_SETTING_PINNED_BETAILS,
+  USER_SETTING_ARCHIVED_BETAILS,
+]
+
 const normalizeMyBetail = (item) => {
   const shippingStatus = String(item?.shipping_status || '').toLowerCase()
   const shippingEstimatedGain = Number(item?.shipping_estimated_gain)
@@ -77,6 +82,111 @@ const normalizeMyBetail = (item) => {
     shipping_estimated_gain: Number.isFinite(shippingEstimatedGain) ? shippingEstimatedGain : null,
     is_shipping_scheduled: shippingStatus === 'scheduled' || Boolean(item?.is_shipping_scheduled),
   }
+}
+
+const normalizeSettingBetailIds = (value) => {
+  let parsedValue = value
+  if (typeof parsedValue === 'string') {
+    const trimmed = parsedValue.trim()
+    if (!trimmed) return []
+    try {
+      parsedValue = JSON.parse(trimmed)
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(parsedValue)) {
+    return []
+  }
+
+  return Array.from(
+    new Set(
+      parsedValue
+        .filter((id) => typeof id === 'string' && id.trim().length > 0)
+        .map((id) => id.trim()),
+    ),
+  )
+}
+
+const fetchUserBetailFlags = async (userId) => {
+  if (!userId) {
+    return {
+      pinnedIds: [],
+      archivedIds: [],
+      pinnedSet: new Set(),
+      archivedSet: new Set(),
+    }
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('user_settings')
+      .select('setting_name, setting_value')
+      .eq('user_id', userId)
+      .in('setting_name', USER_BETAIL_FLAG_SETTING_NAMES)
+
+    if (error) {
+      return {
+        pinnedIds: [],
+        archivedIds: [],
+        pinnedSet: new Set(),
+        archivedSet: new Set(),
+      }
+    }
+
+    const rows = Array.isArray(data) ? data : []
+    const pinnedRow = rows.find((row) => row?.setting_name === USER_SETTING_PINNED_BETAILS)
+    const archivedRow = rows.find((row) => row?.setting_name === USER_SETTING_ARCHIVED_BETAILS)
+    const pinnedIds = normalizeSettingBetailIds(pinnedRow?.setting_value)
+    const archivedIds = normalizeSettingBetailIds(archivedRow?.setting_value)
+
+    return {
+      pinnedIds,
+      archivedIds,
+      pinnedSet: new Set(pinnedIds),
+      archivedSet: new Set(archivedIds),
+    }
+  } catch {
+    return {
+      pinnedIds: [],
+      archivedIds: [],
+      pinnedSet: new Set(),
+      archivedSet: new Set(),
+    }
+  }
+}
+
+const applyUserBetailFlags = (items, flags) => {
+  const pinnedSet = flags?.pinnedSet || new Set()
+  const archivedSet = flags?.archivedSet || new Set()
+
+  return (items || []).map((item) => ({
+    ...item,
+    pinned: pinnedSet.has(item?.id),
+    archived: archivedSet.has(item?.id),
+  }))
+}
+
+const toMillis = (value) => {
+  if (!value) return 0
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime()
+}
+
+const sortByPinnedThenRecent = (items) => {
+  return [...(items || [])].sort((a, b) => {
+    const pinnedDiff = Number(Boolean(b?.pinned)) - Number(Boolean(a?.pinned))
+    if (pinnedDiff !== 0) return pinnedDiff
+
+    const purchasedDiff = toMillis(b?.purchased_at) - toMillis(a?.purchased_at)
+    if (purchasedDiff !== 0) return purchasedDiff
+
+    const createdDiff = toMillis(b?.created_at) - toMillis(a?.created_at)
+    if (createdDiff !== 0) return createdDiff
+
+    return String(b?.id || '').localeCompare(String(a?.id || ''))
+  })
 }
 
 const attachShippingScheduleFlags = async (items) => {
@@ -216,10 +326,7 @@ export const BETAILS_QUERY_KEY = {
 }
 
 const applyMyBetailsSort = (query, sort, options = {}) => {
-  const {
-    supportsPurchasedAt = true,
-    supportsPinned = true,
-  } = options
+  const { supportsPurchasedAt = true } = options
 
   const applyRecentOrder = (baseQuery) => {
     if (supportsPurchasedAt) {
@@ -246,24 +353,15 @@ const applyMyBetailsSort = (query, sort, options = {}) => {
     return applyRecentOrder(base)
   }
 
-  if (sort === 'pinned') {
-    if (supportsPinned) {
-      const base = query.order('pinned', { ascending: false })
-      return applyRecentOrder(base)
-    }
-
-    return applyRecentOrder(query)
-  }
-
   return applyRecentOrder(query)
 }
 
 const applyMyBetailsFilter = (query, filter, options = {}) => {
-  const { supportsFlags = true } = options
-  if (!supportsFlags && (filter === 'pinned' || filter === 'archived')) return query
+  const { filterIds = null } = options
   if (filter === 'premium') return query.eq('premium', true)
-  if (filter === 'pinned') return query.eq('pinned', true)
-  if (filter === 'archived') return query.eq('archived', true)
+  if ((filter === 'pinned' || filter === 'archived') && Array.isArray(filterIds)) {
+    return query.in('id', filterIds)
+  }
   return query
 }
 
@@ -273,7 +371,7 @@ const buildMyBetailsQuery = ({
   sort,
   filter,
   farmId,
-  supportsFlags,
+  filterIds,
   supportsPurchasedAt,
   selectFields,
 }) => {
@@ -291,10 +389,9 @@ const buildMyBetailsQuery = ({
     query = query.or(`name.ilike.%${search}%,matricule.ilike.%${search}%`)
   }
 
-  query = applyMyBetailsFilter(query, filter, { supportsFlags })
+  query = applyMyBetailsFilter(query, filter, { filterIds })
   query = applyMyBetailsSort(query, sort, {
     supportsPurchasedAt,
-    supportsPinned: supportsFlags,
   })
 
   return query
@@ -313,6 +410,17 @@ export const fetchMyBetailsPage = async ({
   }
 
   const trimmedSearch = search?.trim?.() ?? ''
+  const flags = await fetchUserBetailFlags(userId)
+  const filterIds = filter === 'pinned'
+    ? flags.pinnedIds
+    : filter === 'archived'
+      ? flags.archivedIds
+      : null
+
+  if (Array.isArray(filterIds) && filterIds.length === 0) {
+    return { items: [], nextPage: undefined }
+  }
+
   const start = page * MY_BETAILS_PAGE_SIZE
   const end = start + MY_BETAILS_PAGE_SIZE - 1
 
@@ -322,7 +430,7 @@ export const fetchMyBetailsPage = async ({
     search: trimmedSearch,
     sort,
     filter,
-    supportsFlags: true,
+    filterIds,
     supportsPurchasedAt: true,
     selectFields: MY_BETAILS_FIELDS_BASE,
   }).range(start, end)
@@ -336,7 +444,7 @@ export const fetchMyBetailsPage = async ({
       search: trimmedSearch,
       sort,
       filter,
-      supportsFlags: false,
+      filterIds,
       supportsPurchasedAt: false,
       selectFields: MY_BETAILS_FIELDS_MINIMAL,
     }).range(start, end)
@@ -352,9 +460,11 @@ export const fetchMyBetailsPage = async ({
 
   const items = (data ?? []).map(normalizeMyBetail)
   const itemsWithShipping = await attachShippingScheduleFlags(items)
+  const itemsWithFlags = applyUserBetailFlags(itemsWithShipping, flags)
+  const finalItems = sort === 'pinned' ? sortByPinnedThenRecent(itemsWithFlags) : itemsWithFlags
   const hasMore = items.length === MY_BETAILS_PAGE_SIZE
   return {
-    items: itemsWithShipping,
+    items: finalItems,
     nextPage: hasMore ? page + 1 : undefined,
   }
 }
@@ -550,14 +660,82 @@ const updateBetailFlag = async ({ betailId, userId, field, value }) => {
   return data
 }
 
+const assertOwnedBetail = async ({ betailId, userId }) => {
+  const { data, error } = await supabase
+    .from('betails')
+    .select('id')
+    .eq('id', betailId)
+    .eq('owner_id', userId)
+    .maybeSingle()
+
+  if (error) throw error
+  if (!data) throw new Error('Bétail introuvable')
+}
+
+const updateUserBetailFlag = async ({ betailId, userId, settingName, nextValue }) => {
+  if (!betailId || !userId) {
+    throw new Error('Informations manquantes')
+  }
+
+  await assertOwnedBetail({ betailId, userId })
+
+  const { data: currentSetting, error: readError } = await supabase
+    .from('user_settings')
+    .select('setting_value')
+    .eq('user_id', userId)
+    .eq('setting_name', settingName)
+    .maybeSingle()
+
+  if (readError) throw readError
+
+  const currentIds = normalizeSettingBetailIds(currentSetting?.setting_value)
+  const nextIds = Boolean(nextValue)
+    ? Array.from(new Set([...currentIds, betailId]))
+    : currentIds.filter((id) => id !== betailId)
+
+  if (!nextIds.length) {
+    const { error: deleteError } = await supabase
+      .from('user_settings')
+      .delete()
+      .eq('user_id', userId)
+      .eq('setting_name', settingName)
+    if (deleteError) throw deleteError
+    return { id: betailId, setting_name: settingName, setting_value: [] }
+  }
+
+  const { error: upsertError } = await supabase
+    .from('user_settings')
+    .upsert(
+      {
+        user_id: userId,
+        setting_name: settingName,
+        setting_value: nextIds,
+      },
+      { onConflict: 'user_id,setting_name' },
+    )
+
+  if (upsertError) throw upsertError
+  return { id: betailId, setting_name: settingName, setting_value: nextIds }
+}
+
 export const toggleBetailPremium = async ({ betailId, userId, nextValue }) =>
   updateBetailFlag({ betailId, userId, field: 'premium', value: nextValue })
 
 export const toggleBetailPinned = async ({ betailId, userId, nextValue }) =>
-  updateBetailFlag({ betailId, userId, field: 'pinned', value: nextValue })
+  updateUserBetailFlag({
+    betailId,
+    userId,
+    settingName: USER_SETTING_PINNED_BETAILS,
+    nextValue,
+  })
 
 export const toggleBetailArchived = async ({ betailId, userId, nextValue }) =>
-  updateBetailFlag({ betailId, userId, field: 'archived', value: nextValue })
+  updateUserBetailFlag({
+    betailId,
+    userId,
+    settingName: USER_SETTING_ARCHIVED_BETAILS,
+    nextValue,
+  })
 
 export const fetchBetailsPage = async ({ search = '', sort = 'recent', cursor }) => {
   const trimmedSearch = search?.trim?.() ?? ''

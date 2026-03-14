@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { AlertTriangle, Hexagon, Info, Users, Ban, MessageCircle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../authentification/AuthContext';
 import AuthenticatedLayout from '../home/AuthenticatedLayout';
+import { getLocalThemePreference } from '../settings/themePreferences';
 import './RulesPage.css';
 
 const generalRules = [
@@ -47,7 +48,7 @@ function RulesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const isAuthenticated = Boolean(user);
-  const [theme, setTheme] = useState(() => localStorage.getItem('farmgestion_theme') || 'dark');
+  const [theme, setTheme] = useState(() => getLocalThemePreference());
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '📜 Règlement | FarmGestion';
@@ -61,7 +62,7 @@ function RulesPage() {
       return undefined;
     }
     const updateTheme = () => {
-      setTheme(localStorage.getItem('farmgestion_theme') || 'dark');
+      setTheme(getLocalThemePreference());
     };
     updateTheme();
     window.addEventListener('farmgestion-theme-change', updateTheme);

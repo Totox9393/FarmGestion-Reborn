@@ -681,9 +681,9 @@ function MyBetailsPageQuery() {
     )
   }
 
-  const runToggle = ({ mutation, nextValue, successMessage, fallbackMessage }) => {
+  const runToggle = ({ mutation, nextValue, successMessage, fallbackMessage, allowWhenShipping = false }) => {
     if (!selectedBetail || !user?.id || mutation.isPending) return
-    if (selectedIsShippingScheduled) {
+    if (selectedIsShippingScheduled && !allowWhenShipping) {
       toast('error', selectedShippingLockReason)
       return
     }
@@ -712,7 +712,8 @@ function MyBetailsPageQuery() {
       mutation: togglePinnedMutation,
       nextValue,
       successMessage: nextValue ? 'Bétail épinglé.' : 'Bétail désépinglé.',
-      fallbackMessage: 'Option épinglé à venir (migration DB requise).',
+      fallbackMessage: 'Préférence épinglé indisponible pour le moment.',
+      allowWhenShipping: true,
     })
   }
 
@@ -973,7 +974,6 @@ function MyBetailsPageQuery() {
           >
             {selectedBetail ? (
               <>
-                {isSaving && <div className="my-betail-saving-overlay">Sauvegarde…</div>}
                 <header className="betail-details-header">
                   <h2 className="betail-details-title">Détails de mon bétail</h2>
                   <div className="betail-details-actions my-betail-panel-actions">
@@ -981,9 +981,9 @@ function MyBetailsPageQuery() {
                       type="button"
                       className={`betail-details-close my-betail-header-toggle ${selectedBetail.pinned ? 'is-active' : ''}`}
                       onClick={runTogglePinned}
-                      disabled={isSaving || selectedIsShippingScheduled}
+                      disabled={isSaving}
                       aria-label={selectedBetail.pinned ? 'Désépingler ce bétail' : 'Épingler ce bétail'}
-                      title={selectedIsShippingScheduled ? selectedShippingLockReason : (selectedBetail.pinned ? 'Désépingler' : 'Épingler')}
+                      title={selectedBetail.pinned ? 'Désépingler' : 'Épingler'}
                     >
                       <Pin size={16} />
                     </button>
@@ -995,7 +995,7 @@ function MyBetailsPageQuery() {
                           mutation: toggleArchivedMutation,
                           nextValue: !selectedBetail.archived,
                           successMessage: selectedBetail.archived ? 'Bétail restauré.' : 'Bétail archivé.',
-                          fallbackMessage: 'Option archivage à venir (migration DB requise).',
+                          fallbackMessage: 'Préférence archivage indisponible pour le moment.',
                         })
                       }
                       disabled={isSaving || selectedIsShippingScheduled}
@@ -1245,19 +1245,6 @@ function MyBetailsPageQuery() {
                             </div>
                           </div>
                         ) : null}
-
-                     {/* 
-                     
-           
-                   TODO : Enfaite l'épinglage ça le fait depuis la table betails, 
-                  // donc ça va pas, si le bétail va a quelqu'un d'autre et qu'il est épinglé bah... il le sera pour le nouveau propriétaire, faudrait revoir ça,
-                  // peut être faire la futur table user_preferences avec une colonne pinned_betails
-                  // qui stocke les ids des bétails épinglés par l'utilisateur, 
-                  //et du coup ça serait plus rapide à faire que de migrer la table betails pour ajouter 
-                  //une colonne pinned, et ça réglerait le problème du transfert de propriété, et ça permettrait 
-                  //aussi d'ajouter d'autres préférences utilisateur facilement dans le futur (genre les badges favoris, les filtres de tri préférés, etc)
-                     
-                     */} 
 
                       </div>
                     </section>

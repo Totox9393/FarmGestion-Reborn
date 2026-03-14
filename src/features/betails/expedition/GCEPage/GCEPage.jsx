@@ -65,6 +65,7 @@ const DELIVERED_STATUS_SET = new Set([
   'expediée',
   'expédiée',
 ])
+const USER_SETTING_ARCHIVED_BETAILS = 'archived_betails'
 
 const clamp = (value, min, max) => Math.min(max, Math.max(min, value))
 
@@ -300,6 +301,42 @@ const isMissingColumnError = (error) => {
   return code === '42703' || message.includes('column')
 }
 
+const normalizeSettingBetailIds = (value) => {
+  let parsed = value
+  if (typeof parsed === 'string') {
+    const trimmed = parsed.trim()
+    if (!trimmed) return []
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      return []
+    }
+  }
+
+  if (!Array.isArray(parsed)) return []
+  return Array.from(
+    new Set(
+      parsed
+        .filter((item) => typeof item === 'string' && item.trim().length > 0)
+        .map((item) => item.trim()),
+    ),
+  )
+}
+
+const fetchArchivedBetailIdsForUser = async (userId) => {
+  if (!userId) return []
+
+  const { data, error } = await supabase
+    .from('user_settings')
+    .select('setting_value')
+    .eq('user_id', userId)
+    .eq('setting_name', USER_SETTING_ARCHIVED_BETAILS)
+    .maybeSingle()
+
+  if (error) return []
+  return normalizeSettingBetailIds(data?.setting_value)
+}
+
 const getResourceFrameUrl = (filename, options = {}) => {
   if (!SUPABASE_URL) return ''
   const baseUrl = `${SUPABASE_URL}/storage/v1/object/public/ressources/${filename}`
@@ -321,6 +358,7 @@ const isWithinRetentionWindow = (scheduledFor, minMonthStart) => {
 const fetchShippingCalendarRows = async () => {
   const { data: sessionData } = await supabase.auth.getSession()
   const currentUserId = sessionData?.session?.user?.id || null
+  const archivedBetailSet = new Set(await fetchArchivedBetailIdsForUser(currentUserId))
 
   if (DEBUG_GCE) {
     console.debug('[GCE] Session status', {
@@ -386,7 +424,7 @@ const fetchShippingCalendarRows = async () => {
 
   const { data: betailsRows, error: betailsError } = await supabase
     .from('betails')
-    .select('id, name, matricule, avatar_url, premium, age, farm_id, owner_id, archived')
+    .select('id, name, matricule, avatar_url, premium, age, farm_id, owner_id')
     .in('id', betailIds)
 
   const safeBetailsRows = betailsError ? [] : (betailsRows || [])
@@ -425,7 +463,7 @@ const fetchShippingCalendarRows = async () => {
       const isFarmPrivate = farm?.visible === false
       const isOwner = Boolean(currentUserId) && Boolean(betail?.owner_id) && betail.owner_id === currentUserId
 
-      const shouldHideArchived = betail?.archived === true
+      const shouldHideArchived = isOwner && archivedBetailSet.has(String(betail?.id || shipping.betail_id || ''))
       const shouldHidePrivateFarm = isFarmPrivate && !isOwner
       if (shouldHideArchived || shouldHidePrivateFarm) {
         if (DEBUG_GCE) {
@@ -435,7 +473,7 @@ const fetchShippingCalendarRows = async () => {
             shouldHideArchived,
             shouldHidePrivateFarm,
             farmVisible: farm?.visible,
-            betailArchived: betail?.archived,
+            archivedByUserSetting: shouldHideArchived,
             betailOwnerId: betail?.owner_id || null,
             currentUserId,
           })

@@ -4,6 +4,12 @@ import { supabase } from '../authentification/supabaseClient';
 import Settings_ChangePassword from './Settings_ChangePassword';
 import Settings_ChangeEmail from './Settings_ChangeEmail';
 import Settings_ChangeAvatar from './Settings_ChangeAvatar';
+import {
+  applyLocalThemePreference,
+  getLocalThemePreference,
+  normalizeThemeValue,
+  saveUserThemePreference,
+} from './themePreferences';
 import './SettingsModal.css';
 
 const SECTIONS = {
@@ -13,9 +19,30 @@ const SECTIONS = {
   import: 'Importer',
 };
 
+const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
+
+const parseNewsletterSettingValue = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'false') return false;
+    if (normalized === 'true') return true;
+  }
+  if (value && typeof value === 'object') {
+    if (typeof value.enabled === 'boolean') return value.enabled;
+    if (typeof value.value === 'boolean') return value.value;
+  }
+  return true;
+};
+
+const resolveNewsletterEnabled = (row) => {
+  if (!row) return true;
+  return parseNewsletterSettingValue(row.setting_value);
+};
+
 function SettingsModal({ isOpen, onClose, user, profile }) {
   const [activeSection, setActiveSection] = useState('account');
-  const [theme, setTheme] = useState(() => localStorage.getItem('farmgestion_theme') || 'dark');
+  const [theme, setTheme] = useState(() => getLocalThemePreference());
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
   const [farmVisible, setFarmVisible] = useState(false);
   const [farmId, setFarmId] = useState(null);
@@ -54,8 +81,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
 
   useEffect(() => {
     if (isOpen) {
-      const savedTheme = localStorage.getItem('farmgestion_theme') || 'dark';
-      setTheme(savedTheme);
+      setTheme(getLocalThemePreference());
     }
   }, [isOpen]);
 
@@ -65,13 +91,26 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     setLoadingPreferences(true);
     (async () => {
       try {
-        const { data: profileData } = await supabase
-          .from('users_profiles')
-          .select('receive_newsletter, farm_id')
-          .eq('id', user.id)
-          .maybeSingle();
+        const [{ data: profileData }, { data: newsletterSetting, error: newsletterError }] = await Promise.all([
+          supabase
+            .from('users_profiles')
+            .select('farm_id')
+            .eq('id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('user_settings')
+            .select('setting_value')
+            .eq('user_id', user.id)
+            .eq('setting_name', NEWSLETTER_SETTING_NAME)
+            .maybeSingle(),
+        ]);
         if (!isMounted) return;
-        setNewsletterEnabled(Boolean(profileData?.receive_newsletter));
+        if (newsletterError) {
+          console.error('Impossible de lire la préférence newsletter', newsletterError);
+          setNewsletterEnabled(true);
+        } else {
+          setNewsletterEnabled(resolveNewsletterEnabled(newsletterSetting));
+        }
         setFarmId(profileData?.farm_id || null);
 
         if (profileData?.farm_id) {
@@ -97,21 +136,65 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
   }, [isOpen, user]);
 
   useEffect(() => {
-    localStorage.setItem('farmgestion_theme', theme);
-    window.dispatchEvent(new Event('farmgestion-theme-change'));
-  }, [theme]);
+    if (!isOpen) {
+      return;
+    }
+
+    const normalizedTheme = normalizeThemeValue(theme);
+    if (normalizedTheme !== theme) {
+      setTheme(normalizedTheme);
+      return;
+    }
+
+    applyLocalThemePreference(normalizedTheme);
+
+    if (!user?.id) {
+      return;
+    }
+
+    let isCancelled = false;
+    (async () => {
+      const { error } = await saveUserThemePreference({ userId: user.id, theme: normalizedTheme });
+      if (!isCancelled && error) {
+        console.error('Impossible de sauvegarder le thème utilisateur', error);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [isOpen, theme, user?.id]);
 
   const handleNewsletterToggle = async () => {
     if (!user || savingNewsletter) return;
     const nextValue = !newsletterEnabled;
     setNewsletterEnabled(nextValue);
     setSavingNewsletter(true);
-    const { error } = await supabase
-      .from('users_profiles')
-      .update({ receive_newsletter: nextValue })
-      .eq('id', user.id);
+
+    let error = null;
+    if (nextValue) {
+      const { error: deleteError } = await supabase
+        .from('user_settings')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('setting_name', NEWSLETTER_SETTING_NAME);
+      error = deleteError;
+    } else {
+      const { error: upsertError } = await supabase
+        .from('user_settings')
+        .upsert(
+          {
+            user_id: user.id,
+            setting_name: NEWSLETTER_SETTING_NAME,
+            setting_value: false,
+          },
+          { onConflict: 'user_id,setting_name' },
+        );
+      error = upsertError;
+    }
+
     if (error) {
-      console.error('Impossible de mettre à jour receive_newsletter', error);
+      console.error('Impossible de mettre à jour la préférence newsletter', error);
       setNewsletterEnabled(!nextValue);
     }
     setSavingNewsletter(false);

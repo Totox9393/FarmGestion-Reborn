@@ -483,6 +483,13 @@
   box-shadow: 0 0 0 3px rgba(255, 107, 107, 0.45);
 }
 
+.registry-link-button {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
 .progress-bar {
   position: absolute;
   top: 0;
@@ -656,6 +663,7 @@
   border-radius: 10px;
   outline: none;
   -webkit-appearance: none;
+  appearance: none;
   background: linear-gradient(to right, 
     #ffb3b3 0%, 
     #ff8e8e 50%, 

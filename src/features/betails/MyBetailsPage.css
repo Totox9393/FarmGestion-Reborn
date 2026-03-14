@@ -2024,22 +2024,6 @@
   position: relative;
 }
 
-.my-betail-saving-overlay {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  display: grid;
-  place-items: center;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 800;
-  font-size: 0.8rem;
-  color: #fff;
-  background: rgba(31, 26, 51, 0.35);
-  backdrop-filter: blur(2px);
-  border-radius: 0 0 16px 16px;
-}
-
 .auth-theme.dark_theme .my-betail-section,
 .auth-theme.galactic_theme .my-betail-section {
   background: rgba(22, 30, 49, 0.84);

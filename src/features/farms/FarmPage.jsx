@@ -5,7 +5,7 @@ import { useRef } from 'react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
 import { FarmDesignPreview } from '../utils/FarmDesign';
-import { normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
+import { normalizeCenterStyle, normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
 import badgesManifest from '../../assets/manifest.json';
 import './FarmPage.css';
 
@@ -34,6 +34,21 @@ const BADGE_RARITY_LABELS = {
 };
 const SITE_COLOR_PRESETS = ['#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#E0BBE4', '#FFDFBA', '#FF8FA3', '#42C6FF', '#84CC16', '#F59E0B', '#A78BFA'];
 const DEFAULT_CUSTOM_COLOR = '#ffffff';
+const FARM_CENTER_BUCKET = 'farms';
+const FARM_CENTER_MAX_SOURCE_BYTES = 12 * 1024 * 1024;
+const FARM_CENTER_OUTPUT_SIZE = 1024;
+const FARM_CENTER_UPLOAD_FORMATS = [
+  { ext: 'webp', mimeType: 'image/webp', quality: 0.84 },
+  { ext: 'png', mimeType: 'image/png' },
+  { ext: 'jpg', mimeType: 'image/jpeg', quality: 0.88 },
+];
+const DEFAULT_CENTER_BACKGROUND_COLOR = '#ffffff';
+const DEFAULT_CENTER_SYMBOL = 'H';
+const DEFAULT_CENTER_IMAGE_ZOOM = 1.15;
+const DEFAULT_CENTER_IMAGE_POSITION = { x: 0, y: 0 };
+const CENTER_MODE_UPLOAD = 'upload';
+const CENTER_MODE_URL = 'url';
+const CENTER_MODE_CUSTOMIZE = 'customize';
 const BADGE_FOLDER_BY_FILE = Object.entries(badgesManifest || {}).reduce((acc, [folder, files]) => {
   if (!Array.isArray(files)) return acc;
   files.forEach((file) => {
@@ -66,6 +81,209 @@ const normalizeEquippedBadges = (value) => {
 };
 
 const colorEquals = (left, right) => String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
+
+const parseFiniteNumber = (value, fallback = 0) => {
+  const nextValue = Number(value);
+  return Number.isFinite(nextValue) ? nextValue : fallback;
+};
+
+const clampNumber = (value, min, max) => Math.min(max, Math.max(min, value));
+
+const clampCenterZoom = (value) => clampNumber(parseFiniteNumber(value, 1), 1, 2.5);
+
+const normalizeSingleCharacter = (value, fallback = '') => {
+  const symbols = Array.from(String(value || '').trim());
+  return symbols[0] || fallback;
+};
+
+const parseMaybeJsonObject = (value) => {
+  if (!value) return null;
+  if (typeof value === 'object') return value;
+  if (typeof value !== 'string') return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const readStoredCenterImageDraft = (rawCenterStyle) => {
+  const parsed = parseMaybeJsonObject(rawCenterStyle);
+  if (!parsed) {
+    return {
+      imageUrl: '',
+      zoom: DEFAULT_CENTER_IMAGE_ZOOM,
+      position: { ...DEFAULT_CENTER_IMAGE_POSITION },
+    };
+  }
+
+  const nestedPosition = parseMaybeJsonObject(
+    parsed.savedImagePosition
+    || parsed.saved_image_position
+    || parsed.lastImagePosition,
+  );
+
+  const valueAsObject = parseMaybeJsonObject(parsed.value);
+
+  const imageUrl = String(
+    parsed.savedImageUrl
+    || parsed.saved_image_url
+    || parsed.lastImageUrl
+    || parsed.previousImageUrl
+    || parsed.imageUrl
+    || parsed.image
+    || parsed.url
+    || (parsed.type === 'image' && typeof parsed.value === 'string' ? parsed.value : '')
+    || (typeof valueAsObject?.url === 'string' ? valueAsObject.url : '')
+    || '',
+  ).trim();
+
+  return {
+    imageUrl,
+    zoom: clampCenterZoom(
+      parsed.savedImageZoom
+      || parsed.saved_image_zoom
+      || parsed.lastImageZoom
+      || DEFAULT_CENTER_IMAGE_ZOOM,
+    ),
+    position: {
+      x: parseFiniteNumber(nestedPosition?.x, DEFAULT_CENTER_IMAGE_POSITION.x),
+      y: parseFiniteNumber(nestedPosition?.y, DEFAULT_CENTER_IMAGE_POSITION.y),
+    },
+  };
+};
+
+const numbersEqual = (left, right, epsilon = 0.0001) =>
+  Math.abs(parseFiniteNumber(left, 0) - parseFiniteNumber(right, 0)) <= epsilon;
+
+const stylesEqual = (left, right) => {
+  if (!left || !right) return false;
+  if (left.type !== right.type) return false;
+
+  if (left.type === 'image') {
+    return (
+      String(left.imageUrl || '').trim() === String(right.imageUrl || '').trim()
+      && numbersEqual(left.zoom, right.zoom, 0.001)
+      && numbersEqual(left.position?.x, right.position?.x, 0.1)
+      && numbersEqual(left.position?.y, right.position?.y, 0.1)
+    );
+  }
+
+  return (
+    normalizeSingleCharacter(left.emoji, DEFAULT_CENTER_SYMBOL) === normalizeSingleCharacter(right.emoji, DEFAULT_CENTER_SYMBOL)
+    && colorEquals(left.backgroundColor || DEFAULT_CENTER_BACKGROUND_COLOR, right.backgroundColor || DEFAULT_CENTER_BACKGROUND_COLOR)
+  );
+};
+
+const extractBucketObjectPath = (publicUrl, bucket) => {
+  if (!publicUrl || !bucket) return '';
+
+  try {
+    const parsedUrl = new URL(publicUrl);
+    const marker = `/storage/v1/object/public/${bucket}/`;
+    const markerIndex = parsedUrl.pathname.indexOf(marker);
+    if (markerIndex === -1) return '';
+    const rawPath = parsedUrl.pathname.slice(markerIndex + marker.length);
+    return decodeURIComponent(rawPath).replace(/^\/+/, '');
+  } catch {
+    return '';
+  }
+};
+
+const loadImageElement = (sourceUrl) =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.decoding = 'async';
+    image.crossOrigin = 'anonymous';
+    image.referrerPolicy = 'no-referrer';
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Impossible de charger cette image.'));
+    image.src = sourceUrl;
+  });
+
+const canvasToBlob = (canvas, type, quality) =>
+  new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) {
+        resolve(blob);
+        return;
+      }
+      reject(new Error('Impossible de préparer l\'image.'));
+    }, type, quality);
+  });
+
+const renderCenterImageCanvas = async ({ sourceUrl, zoom, position, previewSize, outputSize = FARM_CENTER_OUTPUT_SIZE }) => {
+  const image = await loadImageElement(sourceUrl);
+
+  const safePreviewSize = Math.max(1, parseFiniteNumber(previewSize, 112));
+  const safeOutputSize = Math.max(256, parseFiniteNumber(outputSize, FARM_CENTER_OUTPUT_SIZE));
+  const effectiveZoom = clampCenterZoom(zoom);
+  const offsetX = parseFiniteNumber(position?.x, 0);
+  const offsetY = parseFiniteNumber(position?.y, 0);
+  const baseScale = Math.max(safePreviewSize / image.naturalWidth, safePreviewSize / image.naturalHeight);
+  const upscaleFactor = safeOutputSize / safePreviewSize;
+
+  const drawWidth = image.naturalWidth * baseScale * effectiveZoom * upscaleFactor;
+  const drawHeight = image.naturalHeight * baseScale * effectiveZoom * upscaleFactor;
+  const centerX = safeOutputSize / 2;
+  const centerY = safeOutputSize / 2;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = safeOutputSize;
+  canvas.height = safeOutputSize;
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Impossible de préparer le canvas.');
+  }
+
+  context.drawImage(
+    image,
+    centerX + (offsetX * upscaleFactor) - (drawWidth / 2),
+    centerY + (offsetY * upscaleFactor) - (drawHeight / 2),
+    drawWidth,
+    drawHeight,
+  );
+
+  return canvas;
+};
+
+const uploadCenterImageWithFallback = async ({ farmId, userId, canvas }) => {
+  const errors = [];
+
+  for (const format of FARM_CENTER_UPLOAD_FORMATS) {
+    const blob = await canvasToBlob(canvas, format.mimeType, format.quality);
+    const baseFilename = `farm-center-${farmId}.${format.ext}`;
+    const candidatePaths = [
+      `${userId}/${baseFilename}`,
+      baseFilename,
+    ];
+
+    for (const path of candidatePaths) {
+      const { error } = await supabase.storage
+        .from(FARM_CENTER_BUCKET)
+        .upload(path, blob, {
+          contentType: format.mimeType,
+          cacheControl: '3600',
+          upsert: true,
+        });
+
+      if (!error) {
+        return { path, error: null };
+      }
+
+      const details = error?.message || error?.error_description || error?.statusCode || 'Erreur inconnue';
+      errors.push(`${format.ext}@${path}: ${details}`);
+    }
+  }
+
+  return {
+    path: '',
+    error: new Error(errors.join(' | ') || 'Impossible de téléverser l\'image dans le bucket farms.'),
+  };
+};
 
 const fetchFarmById = async (farmId) => {
   const { data, error } = await supabase
@@ -135,9 +353,29 @@ function FarmPage() {
   const [selectedSiteState, setSelectedSiteState] = useState({ farmId: null, siteIndex: null });
   const [hoveredSiteState, setHoveredSiteState] = useState({ farmId: null, siteIndex: null });
   const [centerWidgetState, setCenterWidgetState] = useState({ farmId: null, isOpen: false });
+  const [centerInfoTab, setCenterInfoTab] = useState('stats');
   const [customColorDraft, setCustomColorDraft] = useState(DEFAULT_CUSTOM_COLOR);
   const [isCustomColorPickerOpen, setIsCustomColorPickerOpen] = useState(false);
+  const [centerEditorMode, setCenterEditorMode] = useState(CENTER_MODE_UPLOAD);
+  const [centerImageInputUrl, setCenterImageInputUrl] = useState('');
+  const [centerImagePreviewUrl, setCenterImagePreviewUrl] = useState('');
+  const [centerImageZoom, setCenterImageZoom] = useState(DEFAULT_CENTER_IMAGE_ZOOM);
+  const [centerImagePosition, setCenterImagePosition] = useState({ ...DEFAULT_CENTER_IMAGE_POSITION });
+  const [centerImageNaturalSize, setCenterImageNaturalSize] = useState({ width: 0, height: 0 });
+  const [isCenterImageDragging, setIsCenterImageDragging] = useState(false);
+  const [centerImageDragStart, setCenterImageDragStart] = useState({ x: 0, y: 0 });
+  const [centerImageDragOrigin, setCenterImageDragOrigin] = useState({ x: 0, y: 0 });
+  const [centerPreviewSize, setCenterPreviewSize] = useState(0);
+  const [centerCustomBackground, setCenterCustomBackground] = useState(DEFAULT_CENTER_BACKGROUND_COLOR);
+  const [centerCustomSymbol, setCenterCustomSymbol] = useState(DEFAULT_CENTER_SYMBOL);
+  const [centerImageError, setCenterImageError] = useState('');
+  const [centerImageStatus, setCenterImageStatus] = useState('');
+  const [isCenterUrlLoading, setIsCenterUrlLoading] = useState(false);
+  const [isCenterStyleSaving, setIsCenterStyleSaving] = useState(false);
   const siteColorWriteQueueRef = useRef(Promise.resolve());
+  const centerFileInputRef = useRef(null);
+  const centerPreviewRef = useRef(null);
+  const centerImageObjectUrlRef = useRef('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -203,6 +441,8 @@ function FarmPage() {
       });
   }, [farm?.equipped_badges]);
   const siteColors = useMemo(() => normalizeSiteColors(farm?.site_colors), [farm?.site_colors]);
+  const normalizedCenterStyle = useMemo(() => normalizeCenterStyle(farm?.center_style), [farm?.center_style]);
+  const storedCenterImageDraft = useMemo(() => readStoredCenterImageDraft(farm?.center_style), [farm?.center_style]);
   const selectedSiteIndex = selectedSiteState.farmId === farm?.id ? selectedSiteState.siteIndex : null;
   const hoveredSiteIndex = hoveredSiteState.farmId === farm?.id ? hoveredSiteState.siteIndex : null;
   const isCenterWidgetOpen = centerWidgetState.farmId === farm?.id && centerWidgetState.isOpen;
@@ -211,6 +451,52 @@ function FarmPage() {
   const selectedSiteNumber = selectedSiteIndex == null ? null : selectedSiteIndex + 1;
   const selectedSiteColor = selectedSiteIndex == null ? '' : siteColors[selectedSiteIndex] || '';
   const selectedColorIsPreset = SITE_COLOR_PRESETS.some((color) => colorEquals(color, selectedSiteColor));
+  const effectiveCenterPreviewSize = Math.max(centerPreviewSize || 0, 112);
+  const centerSymbol = normalizeSingleCharacter(centerCustomSymbol, DEFAULT_CENTER_SYMBOL);
+  const centerBackgroundColor = centerCustomBackground || DEFAULT_CENTER_BACKGROUND_COLOR;
+  const centerDraftType = centerEditorMode === CENTER_MODE_CUSTOMIZE ? 'emoji' : 'image';
+  const centerDraftStyle =
+    centerDraftType === 'emoji'
+      ? {
+          type: 'emoji',
+          emoji: centerSymbol,
+          backgroundColor: centerBackgroundColor,
+        }
+      : centerImagePreviewUrl
+        ? {
+            type: 'image',
+            imageUrl: centerImagePreviewUrl,
+            zoom: clampCenterZoom(centerImageZoom),
+            position: {
+              x: parseFiniteNumber(centerImagePosition?.x, 0),
+              y: parseFiniteNumber(centerImagePosition?.y, 0),
+            },
+          }
+        : null;
+  const currentComparableImageUrl = normalizedCenterStyle.imageUrl || '';
+  const shouldUseStoredDraftForComparable = Boolean(
+    currentComparableImageUrl
+    && storedCenterImageDraft.imageUrl
+    && String(storedCenterImageDraft.imageUrl).trim() === String(currentComparableImageUrl).trim(),
+  );
+  const currentComparableCenterStyle = {
+    type: normalizedCenterStyle.type === 'image' && normalizedCenterStyle.imageUrl ? 'image' : 'emoji',
+    imageUrl: currentComparableImageUrl,
+    zoom: shouldUseStoredDraftForComparable
+      ? clampCenterZoom(storedCenterImageDraft.zoom || 1)
+      : clampCenterZoom(normalizedCenterStyle.zoom || 1),
+    position: {
+      x: shouldUseStoredDraftForComparable
+        ? parseFiniteNumber(storedCenterImageDraft.position?.x, 0)
+        : parseFiniteNumber(normalizedCenterStyle.position?.x, 0),
+      y: shouldUseStoredDraftForComparable
+        ? parseFiniteNumber(storedCenterImageDraft.position?.y, 0)
+        : parseFiniteNumber(normalizedCenterStyle.position?.y, 0),
+    },
+    emoji: normalizeSingleCharacter(normalizedCenterStyle.emoji, DEFAULT_CENTER_SYMBOL),
+    backgroundColor: normalizedCenterStyle.backgroundColor || DEFAULT_CENTER_BACKGROUND_COLOR,
+  };
+  const hasCenterPendingChange = Boolean(centerDraftStyle) && !stylesEqual(currentComparableCenterStyle, centerDraftStyle);
 
   const betailStatsQuery = useQuery({
     queryKey: ['farm', 'betail-stats', farm?.id],
@@ -257,6 +543,36 @@ function FarmPage() {
     },
   });
 
+  const updateCenterStyleMutation = useMutation({
+    mutationFn: async ({ farmId: nextFarmId, ownerId, nextCenterStyle }) => {
+      const { error } = await supabase
+        .from('farms_list')
+        .update({ center_style: nextCenterStyle })
+        .eq('id', nextFarmId)
+        .eq('proprietaire', ownerId);
+      if (error) throw error;
+      return nextCenterStyle;
+    },
+    onMutate: async ({ farmId: nextFarmId, nextCenterStyle }) => {
+      await queryClient.cancelQueries({ queryKey: ['farm', 'by-id', nextFarmId] });
+      const previousFarm = queryClient.getQueryData(['farm', 'by-id', nextFarmId]);
+      queryClient.setQueryData(['farm', 'by-id', nextFarmId], (currentFarm) =>
+        currentFarm ? { ...currentFarm, center_style: nextCenterStyle } : currentFarm,
+      );
+      return { previousFarm, farmId: nextFarmId };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousFarm && context.farmId != null) {
+        queryClient.setQueryData(['farm', 'by-id', context.farmId], context.previousFarm);
+      }
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: { type: 'error', message: 'Impossible de sauvegarder le centre de la ferme.' },
+        }),
+      );
+    },
+  });
+
   const queueSiteColorPersist = (nextColors) => {
     if (!isOwner || !farm?.id || !user?.id) return;
     const payload = [...nextColors];
@@ -269,6 +585,373 @@ function FarmPage() {
           nextColors: payload,
         }),
       );
+  };
+
+  const releaseCenterObjectUrl = () => {
+    if (centerImageObjectUrlRef.current && typeof URL !== 'undefined') {
+      URL.revokeObjectURL(centerImageObjectUrlRef.current);
+      centerImageObjectUrlRef.current = '';
+    }
+  };
+
+  const applyCenterPreviewUrl = (nextUrl, options = {}) => {
+    const { isObjectUrl = false, resetTransform = true } = options;
+
+    if (!isObjectUrl) {
+      releaseCenterObjectUrl();
+    } else if (centerImageObjectUrlRef.current && centerImageObjectUrlRef.current !== nextUrl && typeof URL !== 'undefined') {
+      URL.revokeObjectURL(centerImageObjectUrlRef.current);
+    }
+
+    centerImageObjectUrlRef.current = isObjectUrl ? nextUrl : '';
+    setCenterImagePreviewUrl(nextUrl);
+    setCenterImageNaturalSize({ width: 0, height: 0 });
+
+    if (resetTransform) {
+      setCenterImageZoom(DEFAULT_CENTER_IMAGE_ZOOM);
+      setCenterImagePosition({ ...DEFAULT_CENTER_IMAGE_POSITION });
+    }
+  };
+
+  const getCenterBaseScale = () => {
+    if (!centerImageNaturalSize.width || !centerImageNaturalSize.height) {
+      return 1;
+    }
+
+    return Math.max(
+      effectiveCenterPreviewSize / centerImageNaturalSize.width,
+      effectiveCenterPreviewSize / centerImageNaturalSize.height,
+    );
+  };
+
+  const clampCenterPosition = (position, zoom) => {
+    if (!centerImageNaturalSize.width || !centerImageNaturalSize.height) {
+      return { x: 0, y: 0 };
+    }
+
+    const baseScale = getCenterBaseScale();
+    const scaledWidth = centerImageNaturalSize.width * baseScale * clampCenterZoom(zoom);
+    const scaledHeight = centerImageNaturalSize.height * baseScale * clampCenterZoom(zoom);
+    const maxOffsetX = Math.max(0, (scaledWidth - effectiveCenterPreviewSize) * 0.5);
+    const maxOffsetY = Math.max(0, (scaledHeight - effectiveCenterPreviewSize) * 0.5);
+
+    return {
+      x: clampNumber(parseFiniteNumber(position?.x, 0), -maxOffsetX, maxOffsetX),
+      y: clampNumber(parseFiniteNumber(position?.y, 0), -maxOffsetY, maxOffsetY),
+    };
+  };
+
+  useEffect(
+    () => () => {
+      releaseCenterObjectUrl();
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!isCenterWidgetOpen || !farm?.id) return;
+
+    const nextMode = normalizedCenterStyle.type === 'image' && normalizedCenterStyle.imageUrl
+      ? CENTER_MODE_UPLOAD
+      : CENTER_MODE_CUSTOMIZE;
+    const nextImageUrl = normalizedCenterStyle.imageUrl || storedCenterImageDraft.imageUrl || '';
+    const shouldUseStoredDraftForEditor = Boolean(
+      nextImageUrl
+      && storedCenterImageDraft.imageUrl
+      && String(storedCenterImageDraft.imageUrl).trim() === String(nextImageUrl).trim(),
+    );
+    const nextZoom = shouldUseStoredDraftForEditor
+      ? clampCenterZoom(storedCenterImageDraft.zoom || DEFAULT_CENTER_IMAGE_ZOOM)
+      : clampCenterZoom(normalizedCenterStyle.zoom || DEFAULT_CENTER_IMAGE_ZOOM);
+    const nextPosition = shouldUseStoredDraftForEditor
+      ? {
+          x: parseFiniteNumber(storedCenterImageDraft.position?.x, DEFAULT_CENTER_IMAGE_POSITION.x),
+          y: parseFiniteNumber(storedCenterImageDraft.position?.y, DEFAULT_CENTER_IMAGE_POSITION.y),
+        }
+      : {
+          x: parseFiniteNumber(normalizedCenterStyle.position?.x, DEFAULT_CENTER_IMAGE_POSITION.x),
+          y: parseFiniteNumber(normalizedCenterStyle.position?.y, DEFAULT_CENTER_IMAGE_POSITION.y),
+        };
+
+    setCenterEditorMode(nextMode);
+    setCenterImageInputUrl('');
+    setCenterImageError('');
+    setCenterImageStatus('');
+    setIsCenterUrlLoading(false);
+    setIsCenterStyleSaving(false);
+    setCenterImageNaturalSize({ width: 0, height: 0 });
+    setIsCenterImageDragging(false);
+
+    if (nextImageUrl) {
+      applyCenterPreviewUrl(nextImageUrl, { isObjectUrl: false, resetTransform: false });
+      setCenterImageZoom(nextZoom);
+      setCenterImagePosition(nextPosition);
+    } else {
+      applyCenterPreviewUrl('', { isObjectUrl: false, resetTransform: true });
+    }
+
+    setCenterCustomBackground(normalizedCenterStyle.backgroundColor || DEFAULT_CENTER_BACKGROUND_COLOR);
+    setCenterCustomSymbol(normalizeSingleCharacter(normalizedCenterStyle.emoji, DEFAULT_CENTER_SYMBOL));
+  }, [
+    farm?.id,
+    isCenterWidgetOpen,
+    normalizedCenterStyle.backgroundColor,
+    normalizedCenterStyle.emoji,
+    normalizedCenterStyle.imageUrl,
+    normalizedCenterStyle.position?.x,
+    normalizedCenterStyle.position?.y,
+    normalizedCenterStyle.type,
+    normalizedCenterStyle.zoom,
+    storedCenterImageDraft.imageUrl,
+    storedCenterImageDraft.position?.x,
+    storedCenterImageDraft.position?.y,
+    storedCenterImageDraft.zoom,
+  ]);
+
+  useEffect(() => {
+    if (!isCenterWidgetOpen) return;
+
+    let frameA = 0;
+    let frameB = 0;
+    let previewResizeObserver;
+
+    const updatePreviewSize = () => {
+      const rect = centerPreviewRef.current?.getBoundingClientRect();
+      if (rect?.width && rect?.height) {
+        setCenterPreviewSize((currentSize) => {
+          const nextSize = Math.min(rect.width, rect.height);
+          return Math.abs(currentSize - nextSize) > 0.25 ? nextSize : currentSize;
+        });
+      }
+    };
+
+    updatePreviewSize();
+    frameA = window.requestAnimationFrame(() => {
+      updatePreviewSize();
+      frameB = window.requestAnimationFrame(updatePreviewSize);
+    });
+
+    if (typeof ResizeObserver !== 'undefined' && centerPreviewRef.current) {
+      previewResizeObserver = new ResizeObserver(() => {
+        updatePreviewSize();
+      });
+      previewResizeObserver.observe(centerPreviewRef.current);
+    }
+
+    window.addEventListener('resize', updatePreviewSize);
+    return () => {
+      window.cancelAnimationFrame(frameA);
+      window.cancelAnimationFrame(frameB);
+      previewResizeObserver?.disconnect();
+      window.removeEventListener('resize', updatePreviewSize);
+    };
+  }, [isCenterWidgetOpen, centerEditorMode, centerImagePreviewUrl]);
+
+  useEffect(() => {
+    if (!centerImageNaturalSize.width || !centerImageNaturalSize.height) return;
+    setCenterImagePosition((currentPosition) => clampCenterPosition(currentPosition, centerImageZoom));
+  }, [centerImageNaturalSize, centerImageZoom, effectiveCenterPreviewSize]);
+
+  const handleCenterImageFileChange = (event) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+
+    if (!file.type?.startsWith('image/')) {
+      setCenterImageError('Le fichier sélectionné doit être une image.');
+      return;
+    }
+
+    if (file.size > FARM_CENTER_MAX_SOURCE_BYTES) {
+      setCenterImageError('Image trop lourde. Limite: 12 Mo avant compression.');
+      return;
+    }
+
+    setCenterImageError('');
+    setCenterImageStatus('Image chargée. Ajustez-la puis enregistrez.');
+    const localUrl = URL.createObjectURL(file);
+    applyCenterPreviewUrl(localUrl, { isObjectUrl: true, resetTransform: true });
+  };
+
+  const handleCenterLoadFromUrl = async () => {
+    const nextUrl = centerImageInputUrl.trim();
+    if (!nextUrl) {
+      setCenterImageError('Ajoutez une URL image avant de charger.');
+      return;
+    }
+
+    setCenterImageError('');
+    setCenterImageStatus('');
+    setIsCenterUrlLoading(true);
+
+    try {
+      const response = await fetch(nextUrl);
+      if (!response.ok) {
+        throw new Error('Impossible de télécharger cette image depuis l\'URL fournie.');
+      }
+
+      const contentType = String(response.headers.get('content-type') || '').toLowerCase();
+      if (contentType && !contentType.startsWith('image/')) {
+        throw new Error('L\'URL doit pointer vers une image valide.');
+      }
+
+      const blob = await response.blob();
+      if (!String(blob.type || '').toLowerCase().startsWith('image/')) {
+        throw new Error('Le contenu téléchargé n\'est pas une image.');
+      }
+
+      if (blob.size > FARM_CENTER_MAX_SOURCE_BYTES) {
+        throw new Error('Image trop lourde. Limite: 12 Mo avant compression.');
+      }
+
+      const localUrl = URL.createObjectURL(blob);
+      applyCenterPreviewUrl(localUrl, { isObjectUrl: true, resetTransform: true });
+      setCenterImageStatus('Image URL chargée. Ajustez-la puis enregistrez.');
+    } catch (error) {
+      setCenterImageError(error?.message || 'Impossible de charger cette URL image.');
+    } finally {
+      setIsCenterUrlLoading(false);
+    }
+  };
+
+  const handleCenterImagePointerDown = (event) => {
+    if (!centerImagePreviewUrl) return;
+    event.preventDefault();
+    setIsCenterImageDragging(true);
+    setCenterImageDragStart({ x: event.clientX, y: event.clientY });
+    setCenterImageDragOrigin({ x: centerImagePosition.x, y: centerImagePosition.y });
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+  };
+
+  const handleCenterImagePointerMove = (event) => {
+    if (!isCenterImageDragging) return;
+    const deltaX = event.clientX - centerImageDragStart.x;
+    const deltaY = event.clientY - centerImageDragStart.y;
+    const rawPosition = {
+      x: centerImageDragOrigin.x + deltaX,
+      y: centerImageDragOrigin.y + deltaY,
+    };
+    setCenterImagePosition(clampCenterPosition(rawPosition, centerImageZoom));
+  };
+
+  const handleCenterImagePointerUp = (event) => {
+    if (!isCenterImageDragging) return;
+    setIsCenterImageDragging(false);
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  };
+
+  const handleSaveCenterStyle = async () => {
+    if (!isOwner || !farm?.id || !user?.id || !centerDraftStyle) return;
+
+    setCenterImageError('');
+    setCenterImageStatus('');
+    setIsCenterStyleSaving(true);
+
+    try {
+      let nextCenterStyle;
+
+      if (centerDraftStyle.type === 'emoji') {
+        const backupImageUrl = [normalizedCenterStyle.imageUrl, storedCenterImageDraft.imageUrl]
+          .map((value) => String(value || '').trim())
+          .find((value) => value && !value.startsWith('blob:')) || '';
+        const backupZoom = clampCenterZoom(
+          storedCenterImageDraft.zoom
+          || normalizedCenterStyle.zoom
+          || DEFAULT_CENTER_IMAGE_ZOOM,
+        );
+        const backupPosition = {
+          x: parseFiniteNumber(
+            storedCenterImageDraft.position?.x,
+            parseFiniteNumber(normalizedCenterStyle.position?.x, DEFAULT_CENTER_IMAGE_POSITION.x),
+          ),
+          y: parseFiniteNumber(
+            storedCenterImageDraft.position?.y,
+            parseFiniteNumber(normalizedCenterStyle.position?.y, DEFAULT_CENTER_IMAGE_POSITION.y),
+          ),
+        };
+
+        nextCenterStyle = {
+          type: 'emoji',
+          value: centerSymbol,
+          emoji: centerSymbol,
+          backgroundColor: centerBackgroundColor,
+          savedImageUrl: backupImageUrl,
+          savedImageZoom: backupZoom,
+          savedImagePosition: backupPosition,
+        };
+      } else {
+        if (!centerImagePreviewUrl) {
+          throw new Error('Ajoutez une image avant d\'enregistrer.');
+        }
+
+        const clampedPosition = clampCenterPosition(centerImagePosition, centerImageZoom);
+        const centerCanvas = await renderCenterImageCanvas({
+          sourceUrl: centerImagePreviewUrl,
+          zoom: centerImageZoom,
+          position: clampedPosition,
+          previewSize: effectiveCenterPreviewSize,
+        });
+
+        const { path: centerFilePath, error: uploadError } = await uploadCenterImageWithFallback({
+          farmId: farm.id,
+          userId: user.id,
+          canvas: centerCanvas,
+        });
+
+        if (uploadError || !centerFilePath) {
+          const details = uploadError?.message || uploadError?.error_description || uploadError?.statusCode || 'Erreur inconnue';
+          throw new Error(`Upload farms refusé: ${details}`);
+        }
+
+        const { data: publicData } = supabase.storage.from(FARM_CENTER_BUCKET).getPublicUrl(centerFilePath);
+        const nextImageUrl = publicData?.publicUrl ? `${publicData.publicUrl}?v=${Date.now()}` : '';
+
+        if (!nextImageUrl) {
+          throw new Error('Impossible de récupérer l\'URL publique de cette image.');
+        }
+
+        const oldImagePath = extractBucketObjectPath(normalizedCenterStyle.imageUrl, FARM_CENTER_BUCKET);
+        if (oldImagePath && oldImagePath !== centerFilePath) {
+          await supabase.storage.from(FARM_CENTER_BUCKET).remove([oldImagePath]);
+        }
+
+        nextCenterStyle = {
+          type: 'image',
+          value: nextImageUrl,
+          imageUrl: nextImageUrl,
+          zoom: 1,
+          position: {
+            x: 0,
+            y: 0,
+          },
+          savedImageUrl: nextImageUrl,
+          savedImageZoom: clampCenterZoom(centerImageZoom),
+          savedImagePosition: {
+            x: parseFiniteNumber(clampedPosition.x, 0),
+            y: parseFiniteNumber(clampedPosition.y, 0),
+          },
+        };
+
+        applyCenterPreviewUrl(nextImageUrl, { isObjectUrl: false, resetTransform: false });
+      }
+
+      await updateCenterStyleMutation.mutateAsync({
+        farmId: farm.id,
+        ownerId: user.id,
+        nextCenterStyle,
+      });
+
+      setCenterImageStatus('Centre enregistré avec succès.');
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: { type: 'success', message: 'Le centre de la ferme est à jour.' },
+        }),
+      );
+    } catch (error) {
+      setCenterImageError(error?.message || 'Impossible d\'enregistrer le centre.');
+    } finally {
+      setIsCenterStyleSaving(false);
+    }
   };
 
   const handleHexStagePointerDown = (event) => {
@@ -316,12 +999,29 @@ function FarmPage() {
     setIsCustomColorPickerOpen(false);
   };
 
+  const handleCenterModeChange = (nextMode) => {
+    if (![CENTER_MODE_UPLOAD, CENTER_MODE_URL, CENTER_MODE_CUSTOMIZE].includes(nextMode)) return;
+    setCenterEditorMode(nextMode);
+    setCenterImageError('');
+    setCenterImageStatus('');
+
+    if (nextMode === CENTER_MODE_CUSTOMIZE) {
+      setIsCenterImageDragging(false);
+    }
+  };
+
+  const handleCenterSymbolChange = (nextValueRaw) => {
+    const normalizedValue = normalizeSingleCharacter(nextValueRaw);
+    setCenterCustomSymbol(normalizedValue || '');
+  };
+
   const handleCenterWidgetToggle = () => {
     if (!farm?.id) return;
     const willOpen = !isCenterWidgetOpen;
     if (willOpen) {
       setSelectedSiteState({ farmId: farm.id, siteIndex: null });
       setIsCustomColorPickerOpen(false);
+      setCenterInfoTab('stats');
     }
     setCenterWidgetState({ farmId: farm.id, isOpen: willOpen });
   };
@@ -547,36 +1247,267 @@ function FarmPage() {
                 </div>
               ) : null}
             </div>
-          ) : (
+          ) : !isCenterWidgetOpen ? (
             <p className="farm-page-site-empty">
               Cliquez sur un site dans l'hexagone ou sur le centre pour découvrir les options.
             </p>
-          )}
+          ) : null}
           {isCenterWidgetOpen ? (
-            <div className="farm-page-center-widget" aria-live="polite">
-              <div className="farm-page-center-widget-head">
-                <h3 className="farm-page-center-widget-title">Répartition</h3>
-                <span className="farm-page-center-widget-total">{totalBetails}</span>
+            <div className="farm-page-center-panel" aria-live="polite">
+              <div className="farm-page-center-main-tabs" role="tablist" aria-label="Onglets centre de la ferme">
+                <button
+                  type="button"
+                  className={`farm-page-center-main-tab ${centerInfoTab === 'stats' ? 'is-active' : ''}`}
+                  onClick={() => setCenterInfoTab('stats')}
+                  role="tab"
+                  aria-selected={centerInfoTab === 'stats'}
+                >
+                  Statistiques
+                </button>
+                <button
+                  type="button"
+                  className={`farm-page-center-main-tab ${centerInfoTab === 'customization' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    if (!isOwner) return;
+                    setCenterInfoTab('customization');
+                  }}
+                  role="tab"
+                  aria-selected={centerInfoTab === 'customization'}
+                  disabled={!isOwner}
+                >
+                  Personnalisation
+                </button>
               </div>
-              {betailStatsQuery.isError ? (
-                <p className="farm-page-center-widget-state">Impossible de charger la répartition.</p>
-              ) : (
-                <>
-                  <div
-                    className={`farm-page-center-widget-pie ${betailStatsQuery.isLoading ? 'is-loading' : ''}`}
-                    style={{ '--premium-ratio': String(premiumRatio) }}
-                    role="img"
-                    aria-label={`Bétails premium ${premiumBetails}, bétails standard ${standardBetails}`}
-                  />
-                  <div className="farm-page-center-widget-legend">
-                    <span className="farm-page-center-legend-item premium">Bétail premium</span>
-                    <span className="farm-page-center-legend-item standard">Standard</span>
+
+              <div className="farm-page-center-main-content">
+                {(centerInfoTab === 'stats' || !isOwner) ? (
+                  <div className="farm-page-center-main-pane is-stats">
+                    <div className="farm-page-center-widget">
+                      <div className="farm-page-center-widget-head">
+                        <h3 className="farm-page-center-widget-title">Répartition</h3>
+                        <span className="farm-page-center-widget-total">{totalBetails}</span>
+                      </div>
+                      {betailStatsQuery.isError ? (
+                        <p className="farm-page-center-widget-state">Impossible de charger la répartition.</p>
+                      ) : (
+                        <>
+                          <div
+                            className={`farm-page-center-widget-pie ${betailStatsQuery.isLoading ? 'is-loading' : ''}`}
+                            style={{ '--premium-ratio': String(premiumRatio) }}
+                            role="img"
+                            aria-label={`Bétails premium ${premiumBetails}, bétails standard ${standardBetails}`}
+                          />
+                          <div className="farm-page-center-widget-legend">
+                            <span className="farm-page-center-legend-item premium">Bétail premium</span>
+                            <span className="farm-page-center-legend-item standard">Standard</span>
+                          </div>
+                          {betailStatsQuery.isLoading ? (
+                            <p className="farm-page-center-widget-state">Chargement...</p>
+                          ) : null}
+                        </>
+                      )}
+                    </div>
                   </div>
-                  {betailStatsQuery.isLoading ? (
-                    <p className="farm-page-center-widget-state">Chargement...</p>
-                  ) : null}
-                </>
-              )}
+                ) : null}
+
+                {centerInfoTab === 'customization' && isOwner ? (
+                  <div className="farm-page-center-main-pane is-customization">
+                    <div className="farm-page-center-style-card" role="region" aria-label="Personnalisation du centre">
+                      <p className="farm-page-center-style-title">Apparence du centre</p>
+
+                      <div className="radio-inputs" role="tablist" aria-label="Modes de personnalisation du centre">
+                        <label className="radio" htmlFor={`center-mode-upload-${farm.id}`}>
+                          <input
+                            type="radio"
+                            id={`center-mode-upload-${farm.id}`}
+                            name={`center-mode-tabs-${farm.id}`}
+                            checked={centerEditorMode === CENTER_MODE_UPLOAD}
+                            onChange={() => handleCenterModeChange(CENTER_MODE_UPLOAD)}
+                          />
+                          <span className="name">Importer</span>
+                        </label>
+
+                        <label className="radio" htmlFor={`center-mode-url-${farm.id}`}>
+                          <input
+                            type="radio"
+                            id={`center-mode-url-${farm.id}`}
+                            name={`center-mode-tabs-${farm.id}`}
+                            checked={centerEditorMode === CENTER_MODE_URL}
+                            onChange={() => handleCenterModeChange(CENTER_MODE_URL)}
+                          />
+                          <span className="name">URL</span>
+                        </label>
+
+                        <label className="radio" htmlFor={`center-mode-customize-${farm.id}`}>
+                          <input
+                            type="radio"
+                            id={`center-mode-customize-${farm.id}`}
+                            name={`center-mode-tabs-${farm.id}`}
+                            checked={centerEditorMode === CENTER_MODE_CUSTOMIZE}
+                            onChange={() => handleCenterModeChange(CENTER_MODE_CUSTOMIZE)}
+                          />
+                          <span className="name">Personnaliser</span>
+                        </label>
+                      </div>
+
+                      <div className="farm-page-center-style-body">
+                        <input
+                          ref={centerFileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="farm-page-hidden-file-input"
+                          onChange={handleCenterImageFileChange}
+                        />
+
+                        <div className={`farm-page-center-mode-pane ${centerEditorMode === CENTER_MODE_UPLOAD ? 'is-active' : ''}`}>
+                          <button
+                            type="button"
+                            className="farm-page-btn farm-page-center-action"
+                            onClick={() => centerFileInputRef.current?.click()}
+                            disabled={isCenterStyleSaving}
+                          >
+                            Choisir une image
+                          </button>
+                          <p className="farm-page-center-mode-hint">Import local puis recadrage du centre.</p>
+                        </div>
+
+                        <div className={`farm-page-center-mode-pane ${centerEditorMode === CENTER_MODE_URL ? 'is-active' : ''}`}>
+                          <label className="farm-page-center-url-label">
+                            URL image
+                            <input
+                              type="url"
+                              className="farm-page-center-url-input"
+                              value={centerImageInputUrl}
+                              onChange={(event) => setCenterImageInputUrl(event.target.value)}
+                              placeholder="https://..."
+                              disabled={isCenterUrlLoading || isCenterStyleSaving}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="farm-page-btn farm-page-center-action"
+                            onClick={handleCenterLoadFromUrl}
+                            disabled={isCenterUrlLoading || isCenterStyleSaving}
+                          >
+                            {isCenterUrlLoading ? 'Chargement...' : 'Charger l\'image'}
+                          </button>
+                        </div>
+
+                        <div className={`farm-page-center-mode-pane farm-page-center-mode-customize ${centerEditorMode === CENTER_MODE_CUSTOMIZE ? 'is-active' : ''}`}>
+                          <label className="farm-page-center-color-label">
+                            Couleur du centre
+                            <input
+                              type="color"
+                              value={centerBackgroundColor}
+                              onChange={(event) => setCenterCustomBackground(event.target.value || DEFAULT_CENTER_BACKGROUND_COLOR)}
+                              disabled={isCenterStyleSaving}
+                            />
+                          </label>
+                          <label className="farm-page-center-symbol-label">
+                            Lettre ou emoji
+                            <input
+                              type="text"
+                              value={centerCustomSymbol}
+                              maxLength={4}
+                              onChange={(event) => handleCenterSymbolChange(event.target.value)}
+                              placeholder="H"
+                              disabled={isCenterStyleSaving}
+                            />
+                          </label>
+                        </div>
+
+                        {centerDraftType === 'image' ? (
+                          <div className="farm-page-center-image-stage">
+                            <div
+                              ref={centerPreviewRef}
+                              className={`farm-page-center-image-preview ${isCenterImageDragging ? 'is-dragging' : ''}`}
+                              onPointerDown={handleCenterImagePointerDown}
+                              onPointerMove={handleCenterImagePointerMove}
+                              onPointerUp={handleCenterImagePointerUp}
+                              onPointerLeave={handleCenterImagePointerUp}
+                            >
+                              {centerImagePreviewUrl ? (
+                                <img
+                                  src={centerImagePreviewUrl}
+                                  alt="Aperçu centre"
+                                  draggable={false}
+                                  onDragStart={(event) => event.preventDefault()}
+                                  onLoad={(event) => {
+                                    setCenterImageNaturalSize({
+                                      width: event.currentTarget.naturalWidth || 0,
+                                      height: event.currentTarget.naturalHeight || 0,
+                                    });
+
+                                    const rect = centerPreviewRef.current?.getBoundingClientRect();
+                                    if (rect?.width && rect?.height) {
+                                      setCenterPreviewSize((currentSize) => {
+                                        const nextSize = Math.min(rect.width, rect.height);
+                                        return Math.abs(currentSize - nextSize) > 0.25 ? nextSize : currentSize;
+                                      });
+                                    }
+                                  }}
+                                  style={{
+                                    width: `${centerImageNaturalSize.width ? centerImageNaturalSize.width * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
+                                    height: `${centerImageNaturalSize.height ? centerImageNaturalSize.height * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
+                                    transform: `translate(-50%, -50%) translate(${centerImagePosition.x}px, ${centerImagePosition.y}px) scale(${centerImageZoom})`,
+                                  }}
+                                />
+                              ) : (
+                                <span className="farm-page-center-image-placeholder">Aucune image sélectionnée</span>
+                              )}
+                            </div>
+
+                            {centerImagePreviewUrl ? (
+                              <div className="farm-page-center-image-controls">
+                                <label>
+                                  Zoom
+                                  <input
+                                    type="range"
+                                    min="1"
+                                    max="2.5"
+                                    step="0.01"
+                                    value={centerImageZoom}
+                                    onChange={(event) => {
+                                      const nextZoom = clampCenterZoom(event.target.value);
+                                      setCenterImageZoom(nextZoom);
+                                      setCenterImagePosition((currentPosition) => clampCenterPosition(currentPosition, nextZoom));
+                                    }}
+                                    disabled={isCenterStyleSaving}
+                                  />
+                                </label>
+                                <p>Glissez l'image pour recadrer.</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="farm-page-center-custom-stage">
+                            <div
+                              className="farm-page-center-custom-preview is-large"
+                              style={{ background: centerBackgroundColor }}
+                              aria-label="Aperçu centre personnalisé"
+                            >
+                              <span>{centerSymbol || DEFAULT_CENTER_SYMBOL}</span>
+                            </div>
+                            <p>Le symbole sera affiché sur le centre avec la couleur choisie.</p>
+                          </div>
+                        )}
+                      </div>
+
+                      {centerImageError ? <p className="farm-page-center-feedback is-error">{centerImageError}</p> : null}
+                      {centerImageStatus ? <p className="farm-page-center-feedback is-success">{centerImageStatus}</p> : null}
+
+                      <button
+                        type="button"
+                        className="farm-page-btn farm-page-center-save-btn"
+                        onClick={handleSaveCenterStyle}
+                        disabled={!hasCenterPendingChange || isCenterStyleSaving || updateCenterStyleMutation.isPending}
+                      >
+                        {isCenterStyleSaving || updateCenterStyleMutation.isPending ? 'Enregistrement...' : 'Enregistrer les changements'}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>

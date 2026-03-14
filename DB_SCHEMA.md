@@ -97,3 +97,18 @@ create table public.shipping (
   )
 ) TABLESPACE pg_default;
 ```
+
+## Table `public.user_settings`
+
+```sql
+create table public.user_settings (
+  user_id uuid not null,
+  setting_name text not null,
+  setting_value jsonb not null,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  constraint user_settings_user_id_setting_name_key unique (user_id, setting_name),
+  constraint user_settings_user_id_fkey foreign KEY (user_id) references auth.users (id) on delete CASCADE,
+  constraint user_settings_setting_name_format check ((setting_name ~ '^[a-z0-9_]+$'::text))
+) TABLESPACE pg_default; 
+```

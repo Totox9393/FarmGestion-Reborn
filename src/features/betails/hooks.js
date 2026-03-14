@@ -304,6 +304,11 @@ const createToggleMutation = (mutationFn, fieldName) => {
         queryClient.setQueriesData({ queryKey: ['betails', 'my-list', variables.userId] }, (oldData) =>
           updateCachedMyBetailInPages(oldData, variables.betailId, { [fieldName]: variables.nextValue }),
         )
+        if (variables?.userId) {
+          queryClient.invalidateQueries({ queryKey: ['betails', 'my-list', variables.userId] })
+        } else {
+          queryClient.invalidateQueries({ queryKey: ['betails', 'my-list'] })
+        }
       },
     })
   }
