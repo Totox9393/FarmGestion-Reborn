@@ -43,6 +43,7 @@ const BADGE_RARITY_ORDER = {
   '1_common': 2,
   '0_auto': 1,
 }
+const MAX_EQUIPPED_BADGE_SLOTS = 3
 const BADGE_FOLDER_BY_FILE = Object.entries(badgesManifest || {}).reduce((acc, [folder, files]) => {
   if (!Array.isArray(files)) return acc
   files.forEach((file) => {
@@ -359,6 +360,7 @@ function MyBetailsPageQuery() {
         return a.filename.localeCompare(b.filename, 'fr')
       })
   }, [selectedDetails?.equipped_badges, selectedBetail?.equipped_badges])
+  const selectedBadgeSlotsRemaining = Math.max(0, MAX_EQUIPPED_BADGE_SLOTS - selectedEquippedBadges.length)
   const isPremiumAnimationVisible = premiumAnimationPhase !== 'idle'
   const isPremiumAnimationSuccess = premiumAnimationPhase === 'success'
 
@@ -495,6 +497,10 @@ function MyBetailsPageQuery() {
   const handleGoToGce = useCallback(() => {
     navigate('/gce')
   }, [navigate])
+
+  const handleOpenBadgeEquipModal = useCallback(() => {
+    toast('success', 'Le modal pour équiper un badge arrive bientôt.')
+  }, [])
 
   const handlePreviewShippingGrowth = useCallback(async (betailId) => {
     if (!betailId) {
@@ -1255,47 +1261,54 @@ function MyBetailsPageQuery() {
                       <h3>Badges du bétail</h3>
                       <span className="my-betail-badge-count">{selectedEquippedBadges.length}</span>
                     </div>
-                    {selectedEquippedBadges.length ? (
-                      <div className="my-betail-badges-grid" role="list" aria-label="Badges équipés">
-                        {selectedEquippedBadges.map((badge) => (
-                          <article
-                            key={badge.id}
-                            className={`my-betail-badge-card ${badge.folder ? `is-${badge.folder}` : 'is-unknown'}`}
-                            role="listitem"
-                          >
-                            {badge.imageUrl ? (
-                              <img
-                                src={badge.imageUrl}
-                                alt={badge.filename}
-                                className="my-betail-badge-image"
-                                loading="lazy"
-                                decoding="async"
-                                onError={(event) => {
-                                  event.currentTarget.style.display = 'none'
-                                }}
-                              />
-                            ) : (
-                              <div className="my-betail-badge-fallback" aria-hidden="true">
-                                ?
-                              </div>
-                            )}
-                            <p className="my-betail-badge-name">{badge.filename.replace('.gif', '')}</p>
-                            <p className="my-betail-badge-rarity">{badge.rarityLabel}</p>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="my-betail-placeholder-box">
-                        <p>Aucun badge équipé sur ce bétail.</p>
-                      </div>
-                    )}
+                    <div className="my-betail-badges-grid" role="list" aria-label="Badges équipés">
+                      {selectedEquippedBadges.map((badge) => (
+                        <article
+                          key={badge.id}
+                          className={`my-betail-badge-card ${badge.folder ? `is-${badge.folder}` : 'is-unknown'}`}
+                          role="listitem"
+                        >
+                          {badge.imageUrl ? (
+                            <img
+                              src={badge.imageUrl}
+                              alt={badge.filename}
+                              className="my-betail-badge-image"
+                              loading="lazy"
+                              decoding="async"
+                              onError={(event) => {
+                                event.currentTarget.style.display = 'none'
+                              }}
+                            />
+                          ) : (
+                            <div className="my-betail-badge-fallback" aria-hidden="true">
+                              ?
+                            </div>
+                          )}
+                          <p className="my-betail-badge-name">{badge.filename.replace('.gif', '')}</p>
+                          <p className="my-betail-badge-rarity">{badge.rarityLabel}</p>
+                        </article>
+                      ))}
+                      {Array.from({ length: selectedBadgeSlotsRemaining }, (_, index) => (
+                        <button
+                          key={`badge-empty-slot-${index}`}
+                          type="button"
+                          className="my-betail-badge-card my-betail-badge-slot"
+                          onClick={handleOpenBadgeEquipModal}
+                          aria-label="Équiper un badge (bientôt disponible)"
+                        >
+                          <span className="my-betail-badge-slot-plus" aria-hidden="true">+</span>
+                          <p className="my-betail-badge-slot-name">Emplacement vide</p>
+                          <p className="my-betail-badge-slot-hint">Équiper un badge</p>
+                        </button>
+                      ))}
+                    </div>
                     {/* TODO: Bloquer l’équipement/déséquipement des badges quand selectedIsShippingScheduled est true dès que l’UI badges devient interactive. */}
                     <button
                       type="button"
                       className="my-betail-btn ghost my-betail-shop-btn"
-                      onClick={() => toast('error', 'Boutique badges bientôt disponible.')}
+                      onClick={() => navigate('/boutique')}
                     >
-                      Boutique badges (bientôt)
+                      Boutique badges
                     </button>
                   </section>
 

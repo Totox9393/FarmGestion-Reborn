@@ -209,11 +209,14 @@ function BetailsListPageQuery() {
 
   const formatPurchaseError = (error) => {
     const rawMessage = error?.message || ''
+    if (rawMessage.includes('betail_invisible')) {
+      return 'Ce bétail ne peut pas être acheté.'
+    }
     if (rawMessage.includes('daily_limit_reached')) {
       return 'Limite quotidienne atteinte (10 achats).'
     }
     if (rawMessage.includes('already_sold_or_invalid')) {
-      return 'Ce bétail vient d\'etre acheté.'
+      return 'Ce bétail a déjà été acheté.'
     }
     if (rawMessage.includes('no_farm')) {
       return 'Vous devez avoir une ferme pour acheter.'

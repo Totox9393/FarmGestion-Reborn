@@ -889,11 +889,17 @@
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   position: relative;
   height: fit-content;
+  cursor: pointer;
 }
 
 .betail-card:hover {
   transform: translateY(-4px);
   box-shadow: 0 12px 28px rgba(35, 26, 70, 0.14);
+}
+
+.betail-card:focus-visible {
+  outline: 2px solid rgba(122, 91, 255, 0.55);
+  outline-offset: 2px;
 }
 
 .betail-like {
@@ -1282,6 +1288,81 @@
 
 .auth-theme.dark_theme .home-card__content {
   color: rgba(230, 226, 255, 0.78);
+}
+
+.auth-theme.dark_theme .home-card--shipping-week {
+  background: linear-gradient(160deg, rgba(22, 26, 42, 0.94), rgba(14, 18, 30, 0.95));
+  border-color: rgba(141, 179, 255, 0.28);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+}
+
+.auth-theme.dark_theme .home-meeting-card__title {
+  color: #e6edff;
+}
+
+.auth-theme.dark_theme .home-meeting-card__calls-info {
+  color: rgba(196, 212, 246, 0.86);
+}
+
+.auth-theme.dark_theme .home-meeting-card__date-selector {
+  background: rgba(40, 49, 74, 0.92);
+  border-color: rgba(141, 179, 255, 0.36);
+  color: #e6edff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22) inset;
+}
+
+.auth-theme.dark_theme .home-meeting-card__date-selector:hover {
+  background: rgba(52, 62, 92, 0.95);
+}
+
+.auth-theme.dark_theme .home-meeting-card__date-nav-container {
+  background: linear-gradient(180deg, rgba(28, 35, 56, 0.95), rgba(22, 29, 48, 0.95));
+  border: 1px solid rgba(141, 179, 255, 0.25);
+}
+
+.auth-theme.dark_theme .home-meeting-card__day-number {
+  color: #eaf1ff;
+}
+
+.auth-theme.dark_theme .home-meeting-card__day-name {
+  color: rgba(190, 208, 240, 0.84);
+}
+
+.auth-theme.dark_theme .home-meeting-card__day-item:hover .home-meeting-card__day-number,
+.auth-theme.dark_theme .home-meeting-card__day-item:hover .home-meeting-card__day-name {
+  background: rgba(141, 179, 255, 0.14);
+}
+
+.auth-theme.dark_theme .home-meeting-card__day-item.is-active .home-meeting-card__day-number,
+.auth-theme.dark_theme .home-meeting-card__day-item.is-active .home-meeting-card__day-name {
+  background: rgba(128, 167, 248, 0.32);
+  color: #f2f7ff;
+}
+
+.auth-theme.dark_theme .home-meeting-card__indicator-dot {
+  background: rgba(167, 188, 224, 0.7);
+}
+
+.auth-theme.dark_theme .home-meeting-card__indicator-dot.is-active {
+  background: #eaf1ff;
+  box-shadow: 0 0 0 3px rgba(131, 170, 250, 0.2);
+}
+
+.auth-theme.dark_theme .home-meeting-card__indicator-line {
+  border-top-color: rgba(160, 184, 230, 0.65);
+}
+
+.auth-theme.dark_theme .home-meeting-card__open-hint {
+  color: rgba(190, 208, 240, 0.84);
+}
+
+.auth-theme.dark_theme .home-weekly-ship__avatar {
+  border-color: rgba(18, 24, 40, 0.96);
+}
+
+.auth-theme.dark_theme .home-weekly-ship__avatar.is-more {
+  background: rgba(141, 179, 255, 0.25);
+  color: #eaf1ff;
 }
 
 .auth-theme.dark_theme .home-chip {
@@ -1747,6 +1828,81 @@
 
 .auth-theme.galactic_theme .home-card__content {
   color: rgba(214, 228, 255, 0.78);
+}
+
+.auth-theme.galactic_theme .home-card--shipping-week {
+  background: linear-gradient(160deg, rgba(30, 40, 62, 0.95), rgba(21, 30, 48, 0.95));
+  border-color: rgba(141, 179, 255, 0.3);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.42);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__title {
+  color: #edf4ff;
+}
+
+.auth-theme.galactic_theme .home-meeting-card__calls-info {
+  color: rgba(200, 220, 255, 0.9);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__date-selector {
+  background: rgba(48, 63, 95, 0.92);
+  border-color: rgba(151, 191, 255, 0.42);
+  color: #edf4ff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.18) inset;
+}
+
+.auth-theme.galactic_theme .home-meeting-card__date-selector:hover {
+  background: rgba(60, 77, 114, 0.95);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__date-nav-container {
+  background: linear-gradient(180deg, rgba(36, 49, 74, 0.95), rgba(28, 40, 62, 0.95));
+  border: 1px solid rgba(151, 191, 255, 0.28);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__day-number {
+  color: #edf4ff;
+}
+
+.auth-theme.galactic_theme .home-meeting-card__day-name {
+  color: rgba(199, 220, 255, 0.86);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__day-item:hover .home-meeting-card__day-number,
+.auth-theme.galactic_theme .home-meeting-card__day-item:hover .home-meeting-card__day-name {
+  background: rgba(141, 179, 255, 0.17);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__day-item.is-active .home-meeting-card__day-number,
+.auth-theme.galactic_theme .home-meeting-card__day-item.is-active .home-meeting-card__day-name {
+  background: rgba(127, 169, 242, 0.36);
+  color: #f5f9ff;
+}
+
+.auth-theme.galactic_theme .home-meeting-card__indicator-dot {
+  background: rgba(174, 203, 252, 0.76);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__indicator-dot.is-active {
+  background: #f2f7ff;
+  box-shadow: 0 0 0 3px rgba(141, 179, 255, 0.22);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__indicator-line {
+  border-top-color: rgba(176, 204, 252, 0.66);
+}
+
+.auth-theme.galactic_theme .home-meeting-card__open-hint {
+  color: rgba(202, 224, 255, 0.88);
+}
+
+.auth-theme.galactic_theme .home-weekly-ship__avatar {
+  border-color: rgba(22, 30, 48, 0.96);
+}
+
+.auth-theme.galactic_theme .home-weekly-ship__avatar.is-more {
+  background: rgba(141, 179, 255, 0.3);
+  color: #eef5ff;
 }
 
 .auth-theme.galactic_theme .home-chip {

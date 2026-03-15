@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import Settings_ChangePassword from './Settings_ChangePassword';
 import Settings_ChangeEmail from './Settings_ChangeEmail';
 import Settings_ChangeAvatar from './Settings_ChangeAvatar';
+import Settings_AdminShippingPanel from './Settings_AdminShippingPanel';
+import Settings_AdminInvisibleBetailsPanel from './Settings_AdminInvisibleBetailsPanel';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -17,6 +20,9 @@ const SECTIONS = {
   preferences: 'Préférences',
   badges: 'Badges',
   import: 'Importer',
+  administration: 'Administration',
+  expeditions: 'Expéditions',
+  invisibleBetails: 'Bétails invisibles',
 };
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
@@ -41,6 +47,7 @@ const resolveNewsletterEnabled = (row) => {
 };
 
 function SettingsModal({ isOpen, onClose, user, profile }) {
+  const navigate = useNavigate();
   const [activeSection, setActiveSection] = useState('account');
   const [theme, setTheme] = useState(() => getLocalThemePreference());
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
@@ -61,6 +68,10 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
           : theme === 'multicolor'
             ? 'is-multicolor'
             : 'is-light';
+  const isAdmin = String(`${profile?.role || ''} ${profile?.role_ingame || ''}`)
+    .trim()
+    .toUpperCase()
+    .includes('ADMIN');
 
   useEffect(() => {
     if (!isOpen) return;
@@ -78,6 +89,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
       setActiveSection('account');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    if (activeSection.startsWith('administration_')) {
+      setActiveSection('account');
+    }
+  }, [activeSection, isAdmin]);
 
   useEffect(() => {
     if (isOpen) {
@@ -321,6 +339,26 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                 {SECTIONS.import}
               </button>
             </div>
+
+            {isAdmin && (
+              <div className="settings-category">
+                <p className="settings-category-title">{SECTIONS.administration}</p>
+                <button
+                  type="button"
+                  className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('administration_expeditions')}
+                >
+                  {SECTIONS.expeditions}
+                </button>
+                <button
+                  type="button"
+                  className={`settings-link ${activeSection === 'administration_invisible_betails' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('administration_invisible_betails')}
+                >
+                  {SECTIONS.invisibleBetails}
+                </button>
+              </div>
+            )}
           </aside>
 
           <section className="settings-content">
@@ -447,7 +485,16 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                       <p className="settings-item-title">Boutique</p>
                       <p className="settings-item-subtitle">Accédez aux packs et récompenses.</p>
                     </div>
-                    <button type="button" className="settings-action">Ouvrir</button>
+                    <button
+                      type="button"
+                      className="settings-action"
+                      onClick={() => {
+                        onClose?.();
+                        navigate('/boutique');
+                      }}
+                    >
+                      Ouvrir
+                    </button>
                   </div>
                 </div>
               </div>
@@ -466,6 +513,17 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   </div>
                 </div>
               </div>
+            )}
+
+            {isAdmin && activeSection === 'administration_expeditions' && (
+              <Settings_AdminShippingPanel isActive={activeSection === 'administration_expeditions'} isAdmin={isAdmin} />
+            )}
+
+            {isAdmin && activeSection === 'administration_invisible_betails' && (
+              <Settings_AdminInvisibleBetailsPanel
+                isActive={activeSection === 'administration_invisible_betails'}
+                isAdmin={isAdmin}
+              />
             )}
           </section>
         </div>

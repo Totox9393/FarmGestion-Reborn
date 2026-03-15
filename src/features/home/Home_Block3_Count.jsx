@@ -116,7 +116,8 @@ function HomeBlock3Count() {
     queryFn: async () => {
       const { count } = await supabase
         .from('betails')
-        .select('id', { count: 'exact', head: true });
+        .select('id', { count: 'exact', head: true })
+        .eq('visible', true);
       return count || 0;
     },
     staleTime: 1000 * 60 * 5, // 5 minutes

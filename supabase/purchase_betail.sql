@@ -45,12 +45,22 @@ begin
     raise exception 'daily_limit_reached';
   end if;
 
+  if exists (
+    select 1
+    from public.betails as b
+    where b.id = p_betail_id
+      and coalesce(b.visible, true) = false
+  ) then
+    raise exception 'betail_invisible';
+  end if;
+
   update public.betails as b
   set farm_id = v_farm_id,
       owner_id = v_user_id,
       farm_site = (floor(random() * 6) + 1)::text,
       purchased_at = now()
   where b.id = p_betail_id
+    and coalesce(b.visible, true) = true
     and b.owner_id is null
     and b.farm_id is null
     and b.author_id <> v_user_id

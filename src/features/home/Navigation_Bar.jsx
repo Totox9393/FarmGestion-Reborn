@@ -25,7 +25,7 @@ function Navigation_Bar() {
       if (!user) return;
       const { data } = await supabase
         .from('users_profiles')
-        .select('username, avatar_url, farm_id, money')
+        .select('username, avatar_url, farm_id, money, role, role_ingame')
         .eq('id', user.id)
         .maybeSingle();
       if (isMounted) {

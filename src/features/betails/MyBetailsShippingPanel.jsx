@@ -129,6 +129,19 @@ const toLocalIsoDate = (date) => {
   return `${year}-${month}-${day}`
 }
 
+const getLocalShippingDateBounds = () => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const minDate = new Date(today)
+  minDate.setDate(minDate.getDate() + SHIPPING_MIN_DELAY_DAYS)
+  const maxDate = new Date(today)
+  maxDate.setDate(maxDate.getDate() + SHIPPING_MAX_DELAY_DAYS)
+  return {
+    minIso: toLocalIsoDate(minDate),
+    maxIso: toLocalIsoDate(maxDate),
+  }
+}
+
 const formatFrenchDateShort = (isoDate) => {
   const safeIso = normalizeIsoDate(isoDate)
   if (!safeIso) return 'Date non définie'
@@ -152,9 +165,9 @@ const getShippingScheduleReason = (reason) => {
   if (reason === 'VIP_MANUAL_ONLY') return 'Réservation manuelle réservée aux VIP.'
   if (reason === 'DATE_INVALID') return 'Format de date invalide.'
   if (reason === 'DATE_BLOCKED') return 'Cette date est interdite par les règles d’expédition.'
-  if (reason === 'DATE_OUT_OF_RANGE') return 'Date hors fenêtre autorisée (7 à 60 jours).'
+  if (reason === 'DATE_OUT_OF_RANGE') return 'Date hors période autorisée (7 à 60 jours).'
   if (reason === 'DAY_FULL') return 'Ce jour est déjà complet pour les expéditions.'
-  if (reason === 'NO_SLOT_AVAILABLE') return 'Aucun créneau libre trouvé dans la fenêtre demandée.'
+  if (reason === 'NO_SLOT_AVAILABLE') return 'Aucun créneau libre trouvé dans la période demandée.'
   if (reason === 'AGE_NOT_ELIGIBLE') return 'Le bétail doit avoir plus de 6 ans avant planification.'
   if (reason === 'ALREADY_DELIVERED') return 'Ce bétail est déjà marqué comme livré.'
   if (reason === 'SHIPPING_RPC_MISSING') return 'Fonction SQL schedule_shipping_reborn absente côté base.'
@@ -524,6 +537,7 @@ function MyBetailsShippingPanel({
   const shouldShowConstraintStep = stepIndex === 3 && showConstraintWarning
   const isVipUser = hasManualRolePrivilege(shippingTarget?.role)
   const vipDisabledReason = 'Réservé aux membres VIP.'
+  const localShippingDateBounds = useMemo(() => getLocalShippingDateBounds(), [])
   const selectedShippingDate = shippingPlan.selectedDate || shippingPlan.suggestedDate
   const estimatedShippingGain = useMemo(() => {
     const studyGain = Number(studyResult?.totalCost)
@@ -542,6 +556,8 @@ function MyBetailsShippingPanel({
     ? Math.max(0, Math.round(Number(shippingPlan.estimatedGain)))
     : estimatedShippingGain
   const canValidateSlot = shippingPlan.status === 'ready' && Boolean(selectedShippingDate)
+  const isSlotSliderReady = canValidateSlot && !slotSliderLock && shippingPlan.status === 'ready'
+  const isSlotSliderDisabled = !canValidateSlot || slotSliderLock || shippingPlan.status !== 'ready'
   const studyCompletionPercent = useMemo(() => {
     const base = Number(studyResult?.totalCost)
     if (!Number.isFinite(base) || base <= 0) return 0
@@ -778,15 +794,54 @@ function MyBetailsShippingPanel({
   const handleManualDatePick = useCallback(async () => {
     setShowBlockedDays(true)
     if (!isVipUser || !manualDateInput || isManualDateLoading || shippingPlan.status === 'loading') return
+
+    const normalizedManualDate = normalizeIsoDate(manualDateInput)
+    const minAllowedDate = shippingPlan.minDate || localShippingDateBounds.minIso
+    const maxAllowedDate = shippingPlan.maxDate || localShippingDateBounds.maxIso
+
+    if (!normalizedManualDate || normalizedManualDate < minAllowedDate || normalizedManualDate > maxAllowedDate) {
+      const message = getShippingScheduleReason('DATE_OUT_OF_RANGE')
+      setShippingPlan((prev) => ({
+        ...prev,
+        status: 'error',
+        message,
+      }))
+      emitToast('error', message)
+      return
+    }
+
     setIsManualDateLoading(true)
     await loadShippingPreview({
-      requestedDate: manualDateInput,
+      requestedDate: normalizedManualDate,
       manualChoice: true,
       note: shippingNote,
       allowReassign: true,
     })
     setIsManualDateLoading(false)
-  }, [isVipUser, manualDateInput, isManualDateLoading, shippingPlan.status, loadShippingPreview, shippingNote])
+  }, [
+    isVipUser,
+    manualDateInput,
+    isManualDateLoading,
+    shippingPlan.status,
+    shippingPlan.minDate,
+    shippingPlan.maxDate,
+    localShippingDateBounds.minIso,
+    localShippingDateBounds.maxIso,
+    loadShippingPreview,
+    shippingNote,
+  ])
+
+  const handleAutoDateAssign = useCallback(async () => {
+    if (shippingPlan.status === 'loading') return
+    setIsVipManualOpen(false)
+    setIsManualDateLoading(false)
+    await loadShippingPreview({
+      requestedDate: null,
+      manualChoice: false,
+      note: shippingNote,
+      allowReassign: true,
+    })
+  }, [shippingPlan.status, loadShippingPreview, shippingNote])
 
   const handleToggleVipManual = useCallback(() => {
     if (!isVipUser) return
@@ -1398,7 +1453,17 @@ function MyBetailsShippingPanel({
                           <p className="my-shipping-slot-meta">Le registre astral défile pour trouver ton slot.</p>
                         </>
                       ) : shippingPlan.status === 'error' ? (
-                        <p className="my-shipping-slot-main is-error">{shippingPlan.message || 'Impossible de proposer un créneau.'}</p>
+                        <>
+                          <p className="my-shipping-slot-main is-error">{shippingPlan.message || 'Impossible de proposer un créneau.'}</p>
+                          <button
+                            type="button"
+                            className="my-betail-btn ghost"
+                            onClick={handleAutoDateAssign}
+                            disabled={shippingPlan.status === 'loading'}
+                          >
+                            Utiliser l’attribution automatique
+                          </button>
+                        </>
                       ) : (
                         <>
                           <p className="my-shipping-slot-label">Créneau proposé</p>
@@ -1442,8 +1507,8 @@ function MyBetailsShippingPanel({
                             type="date"
                             className="my-shipping-date-input"
                             value={manualDateInput}
-                            min={shippingPlan.minDate || undefined}
-                            max={shippingPlan.maxDate || undefined}
+                            min={shippingPlan.minDate || localShippingDateBounds.minIso || undefined}
+                            max={shippingPlan.maxDate || localShippingDateBounds.maxIso || undefined}
                             onChange={(event) => setManualDateInput(event.target.value)}
                             disabled={isManualDateLoading || shippingPlan.status === 'loading'}
                           />
@@ -1470,30 +1535,42 @@ function MyBetailsShippingPanel({
                       </p>
                     </div>
 
-                    <div className="my-shipping-slider-wrap">
-                      <p className="my-shipping-slider-label">Glisse pour valider ce créneau</p>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={slotSliderValue}
-                        className="my-shipping-slider"
-                        onChange={(event) => {
-                          const nextValue = Number(event.target.value) || 0
-                          setSlotSliderValue(nextValue)
-                          if (nextValue >= 96) {
-                            handleSlotSliderCommit()
-                          }
-                        }}
-                        onMouseUp={() => {
-                          if (slotSliderValue < 96) setSlotSliderValue(0)
-                        }}
-                        onTouchEnd={() => {
-                          if (slotSliderValue < 96) setSlotSliderValue(0)
-                        }}
-                        disabled={!canValidateSlot || slotSliderLock || shippingPlan.status !== 'ready'}
-                      />
+                    <div
+                      className={`my-shipping-slider-wrap ${isSlotSliderReady ? 'is-ready' : ''} ${
+                        isSlotSliderDisabled ? 'is-disabled' : ''
+                      }`}
+                    >
+                      <p className="my-shipping-slider-label">
+                        <span>Glisse pour valider ce créneau</span>
+                        <span className="my-shipping-slider-chevrons" aria-hidden="true">
+                          {'>>>'}
+                        </span>
+                      </p>
+                      <div className="my-shipping-slider-rail">
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={slotSliderValue}
+                          className="my-shipping-slider"
+                          style={{ '--slider-value': slotSliderValue }}
+                          onChange={(event) => {
+                            const nextValue = Number(event.target.value) || 0
+                            setSlotSliderValue(nextValue)
+                            if (nextValue >= 96) {
+                              handleSlotSliderCommit()
+                            }
+                          }}
+                          onMouseUp={() => {
+                            if (slotSliderValue < 96) setSlotSliderValue(0)
+                          }}
+                          onTouchEnd={() => {
+                            if (slotSliderValue < 96) setSlotSliderValue(0)
+                          }}
+                          disabled={isSlotSliderDisabled}
+                        />
+                      </div>
                     </div>
 
                     <div className="my-shipping-constraint-actions">
@@ -1551,11 +1628,11 @@ function MyBetailsShippingPanel({
                     ) : null}
 
                     <div className="my-shipping-constraint-actions">
-                      <button type="button" className="my-betail-btn ghost my-shipping-back-btn" onClick={() => setStepIndex(4)}>
-                        Modifier le créneau
-                      </button>
-                      <button type="button" className="my-betail-btn" onClick={() => setStepIndex(6)}>
+                      <button type="button" className="my-betail-btn my-shipping-final-btn" onClick={() => setStepIndex(6)}>
                         Passer à la validation finale
+                      </button>
+                      <button type="button" className="my-betail-btn ghost my-shipping-back-btn my-shipping-edit-btn" onClick={() => setStepIndex(4)}>
+                        Modifier le créneau
                       </button>
                     </div>
                   </section>
@@ -1565,7 +1642,7 @@ function MyBetailsShippingPanel({
                   <section className="my-shipping-stage my-shipping-destruct-stage">
                     <h3 className="my-shipping-cost-title">Validation finale</h3>
                     <p className="my-shipping-stage-caption">
-                      Déclenche la séquence ci-dessous pour confirmer l’expédition.
+                      Déclenche la séquence d'expedition en cliquant sur le bouton ci-dessous.
                     </p>
 
                     {confirmState.status === 'error' ? (

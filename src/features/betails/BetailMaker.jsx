@@ -17,6 +17,10 @@ import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { qualityStandardSound, qualityPremiumSound } from './qualitySounds';
 
+const MONEY_FORMATTER = new Intl.NumberFormat('fr-FR');
+
+const formatMoney = (value) => MONEY_FORMATTER.format(Math.max(0, Math.round(Number(value) || 0)));
+
 function BetailMaker() {
   const { user } = useAuth();
   const [qualityRevealEffect, setQualityRevealEffect] = useState('');
@@ -50,6 +54,7 @@ function BetailMaker() {
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [creationReward, setCreationReward] = useState(null);
   const previewSize = 220;
   const defaultPhotoZoom = 1.15;
   const defaultPhotoOffset = { x: 0, y: 12 };
@@ -439,6 +444,7 @@ function BetailMaker() {
     setSaveError('');
     setQualityRevealEffect('');
     setIsQualityRevealActive(false);
+    setCreationReward(null);
   };
 
   const getActiveImageSource = () => {
@@ -549,9 +555,13 @@ function BetailMaker() {
       setSaveError("Informations incomplètes.");
       return;
     }
+
     setSaveError('');
+    setCreationReward(null);
     setIsSaving(true);
+
     let avatarUrl = null;
+
     try {
       avatarUrl = await uploadCroppedAvatar();
     } catch {
@@ -577,18 +587,23 @@ function BetailMaker() {
       setMatricule(regenerated);
     }
 
-    const payload = {
-      id: crypto.randomUUID(),
-      name: prenom.trim(),
-      age,
-      avatar_url: avatarUrl,
-      matricule: finalMatricule,
-      premium: qualityResult === 'premium',
-      comments: commentaire?.trim() || null,
-      author_id: user.id,
-      created_at: new Date().toISOString(),
-    };
-    const { error } = await supabase.from('betails').insert(payload);
+    const hasCustomPhoto =
+      (photoSource === 'url' && photoUrl.trim().length > 0)
+      || (photoSource === 'file' && Boolean(photoFilePreview) && photoFilePreview !== defaultProfileImage);
+
+    const createViaRpc = (matriculeValue) =>
+      supabase.rpc('create_betail_reborn', {
+        p_name: prenom.trim(),
+        p_age: age,
+        p_avatar_url: avatarUrl,
+        p_matricule: matriculeValue,
+        p_premium: qualityResult === 'premium',
+        p_comments: commentaire?.trim() || null,
+        p_has_custom_photo: hasCustomPhoto,
+      });
+
+    let { data, error } = await createViaRpc(finalMatricule);
+
     if (error?.code === '23505') {
       const regenerated = await generateUniqueMatricule();
       if (!regenerated) {
@@ -596,19 +611,53 @@ function BetailMaker() {
         setIsSaving(false);
         return;
       }
+
+      finalMatricule = regenerated;
       setMatricule(regenerated);
-      const retryPayload = { ...payload, matricule: regenerated };
-      const { error: retryError } = await supabase.from('betails').insert(retryPayload);
-      if (retryError) {
-        setSaveError("Erreur lors de l'enregistrement.");
-        setIsSaving(false);
-        return;
-      }
-    } else if (error) {
+      const retryResult = await createViaRpc(regenerated);
+      data = retryResult.data;
+      error = retryResult.error;
+    }
+
+    if (error) {
       setSaveError("Erreur lors de l'enregistrement.");
       setIsSaving(false);
       return;
     }
+
+    if (!data?.success) {
+      const reason = String(data?.reason || 'UNKNOWN');
+      if (reason === 'NOT_AUTHENTICATED') {
+        setSaveError("Utilisateur non connecté.");
+      } else if (reason === 'PROFILE_NOT_FOUND') {
+        setSaveError('Profil utilisateur introuvable.');
+      } else {
+        setSaveError("Erreur lors de l'enregistrement.");
+      }
+      setIsSaving(false);
+      return;
+    }
+
+    setCreationReward({
+      awarded: Boolean(data?.reward?.awarded),
+      amount: Number(data?.reward?.amount) || 0,
+      remaining: Number(data?.reward?.remaining) || 0,
+      reason: data?.reward?.reason || null,
+      moneyAfter: Number(data?.money_after),
+    });
+
+    const moneyAfter = Number(data?.money_after);
+    if (Number.isFinite(moneyAfter)) {
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-balance-updated', {
+          detail: {
+            userId: user.id,
+            money: moneyAfter,
+          },
+        }),
+      );
+    }
+
     setIsSaving(false);
     setCurrentStep(8);
   };
@@ -1142,6 +1191,26 @@ function BetailMaker() {
           <div className="step-content fade-in">
             <h2 className="step-title">Bétail enregistré !</h2>
             <p className="quality-subtitle">Tu peux retrouver ce bétail dans la liste.</p>
+            {creationReward?.awarded && (
+              <>
+                <p className="quality-subtitle">
+                  Gain de création: <strong>{formatMoney(creationReward.amount)} 💸</strong>
+                </p>
+                <p className="quality-subtitle">
+                  Créations rémunérées restantes aujourd'hui: <strong>{creationReward.remaining}</strong>
+                </p>
+              </>
+            )}
+            {creationReward && !creationReward.awarded && creationReward.reason === 'DAILY_LIMIT_REACHED' && (
+              <p className="quality-subtitle">
+                Tu as déjà créé 10 bétails aujourd'hui, tu ne gagneras plus de 💸 aujourd'hui.
+              </p>
+            )}
+            {creationReward && Number.isFinite(creationReward.moneyAfter) && (
+              <p className="quality-subtitle">
+                Solde actuel: <strong>{formatMoney(creationReward.moneyAfter)} 💸</strong>
+              </p>
+            )}
             <Link to="/betail-register" className="registry-link">
               Voir le registre du bétail
               <span className="arrow">→</span>

@@ -259,6 +259,7 @@ const buildBaseQuery = ({ search, sort }) => {
   let query = supabase
     .from('betails')
     .select(PUBLIC_BETAIL_FIELDS.join(', '))
+    .eq('visible', true)
     .is('farm_id', null)
     .is('owner_id', null)
     .limit(BETAILS_PAGE_SIZE)
@@ -379,6 +380,7 @@ const buildMyBetailsQuery = ({
   let query = supabase
     .from('betails')
     .select(fields.join(', '))
+    .eq('visible', true)
     .eq('owner_id', userId)
 
   if (farmId) {
@@ -478,6 +480,7 @@ export const updateBetailComment = async ({ betailId, comment, userId }) => {
     .from('betails')
     .update({ comments: comment ?? '' })
     .eq('id', betailId)
+    .eq('visible', true)
     .eq('owner_id', userId)
     .select('id, comments')
     .maybeSingle()
@@ -651,6 +654,7 @@ const updateBetailFlag = async ({ betailId, userId, field, value }) => {
     .from('betails')
     .update({ [field]: value })
     .eq('id', betailId)
+    .eq('visible', true)
     .eq('owner_id', userId)
     .select(`id, ${field}`)
     .maybeSingle()
@@ -665,6 +669,7 @@ const assertOwnedBetail = async ({ betailId, userId }) => {
     .from('betails')
     .select('id')
     .eq('id', betailId)
+    .eq('visible', true)
     .eq('owner_id', userId)
     .maybeSingle()
 
@@ -781,6 +786,7 @@ export const fetchBetailDetails = async (id) => {
     .from('betails')
     .select(BETAILS_DETAIL_FIELDS.join(', '))
     .eq('id', id)
+    .eq('visible', true)
     .maybeSingle()
 
   if (error && isMissingColumnError(error)) {
@@ -788,6 +794,7 @@ export const fetchBetailDetails = async (id) => {
       .from('betails')
       .select(BETAILS_DETAIL_FIELDS_FALLBACK.join(', '))
       .eq('id', id)
+      .eq('visible', true)
       .maybeSingle()
     data = fallbackResult.data
     error = fallbackResult.error

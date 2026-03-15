@@ -320,11 +320,13 @@ const fetchFarmBetailStats = async (farmId) => {
     supabase
       .from('betails')
       .select('id', { count: 'exact', head: true })
-      .eq('farm_id', farmId),
+      .eq('farm_id', farmId)
+      .eq('visible', true),
     supabase
       .from('betails')
       .select('id', { count: 'exact', head: true })
       .eq('farm_id', farmId)
+      .eq('visible', true)
       .eq('premium', true),
   ]);
 

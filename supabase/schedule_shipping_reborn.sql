@@ -70,6 +70,7 @@ begin
   into v_betail
   from public.betails
   where id = p_betail_id
+    and coalesce(visible, true) = true
     and owner_id = v_user_id
   for update;
 

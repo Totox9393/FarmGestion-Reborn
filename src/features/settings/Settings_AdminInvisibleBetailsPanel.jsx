@@ -1,0 +1,336 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '../authentification/supabaseClient';
+
+const PAGE_SIZE = 8;
+const SEARCH_DEBOUNCE_MS = 280;
+const ADMIN_INVISIBLE_BETAILS_QUERY_KEY = ['settings', 'admin', 'invisible-betails'];
+
+const normalizeSearchTerm = (value) =>
+  String(value || '')
+    .replace(/[(),]/g, ' ')
+    .replace(/[%_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+
+const toAvatarFallback = (name) => {
+  const safe = String(name || '').trim();
+  if (!safe) return '?';
+  return safe.slice(0, 1).toUpperCase();
+};
+
+const formatInvisibleDate = (isoValue) => {
+  const date = new Date(isoValue);
+  if (Number.isNaN(date.getTime())) return 'Date inconnue';
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+};
+
+const fetchMatchingOwnerIds = async (normalizedSearch) => {
+  if (!normalizedSearch) return [];
+
+  const { data, error } = await supabase
+    .from('users_profiles')
+    .select('id')
+    .ilike('username', `%${normalizedSearch}%`)
+    .limit(100);
+
+  if (error || !Array.isArray(data)) return [];
+  return Array.from(new Set(data.map((row) => row?.id).filter(Boolean)));
+};
+
+const buildOwnerClause = (ownerIds) => {
+  if (!ownerIds.length) return '';
+  return `,owner_id.in.(${ownerIds.join(',')})`;
+};
+
+const fetchInvisibleBetailsPage = async ({ page, searchTerm }) => {
+  const safePage = Number.isInteger(page) && page >= 0 ? page : 0;
+  const normalizedSearch = normalizeSearchTerm(searchTerm);
+  const normalizedNeedle = normalizedSearch.toLowerCase();
+  const searchPattern = normalizedSearch ? `%${normalizedSearch.replace(/\s+/g, '%')}%` : '';
+
+  let ownerIdsFilter = [];
+  if (normalizedSearch) {
+    ownerIdsFilter = await fetchMatchingOwnerIds(normalizedSearch);
+  }
+
+  const from = safePage * PAGE_SIZE;
+  const to = from + PAGE_SIZE;
+
+  let query = supabase
+    .from('betails')
+    .select('id, name, matricule, avatar_url, owner_id, visible, invisible_at, invisible_reason')
+    .eq('visible', false)
+    .order('invisible_at', { ascending: false })
+    .range(from, to);
+
+  if (searchPattern) {
+    const ownerClause = buildOwnerClause(ownerIdsFilter);
+    query = query.or(`name.ilike.${searchPattern},matricule.ilike.${searchPattern}${ownerClause}`);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  const rows = Array.isArray(data) ? data : [];
+  const hasNextPage = rows.length > PAGE_SIZE;
+  const currentRows = rows.slice(0, PAGE_SIZE);
+
+  const ownerIds = Array.from(new Set(currentRows.map((row) => row?.owner_id).filter(Boolean)));
+
+  let ownerById = new Map();
+  if (ownerIds.length) {
+    const { data: ownerRows, error: ownerError } = await supabase
+      .from('users_profiles')
+      .select('id, username')
+      .in('id', ownerIds);
+
+    if (!ownerError) {
+      ownerById = new Map((ownerRows || []).map((row) => [row.id, row.username || 'Inconnu']));
+    }
+  }
+
+  const mappedItems = currentRows.map((row) => {
+    const ownerId = row?.owner_id || null;
+    const owner = ownerById.get(ownerId) || (ownerId ? ownerId.slice(0, 8) : 'Sans propriétaire');
+
+    return {
+      betailId: row?.id,
+      name: row?.name || 'Bétail inconnu',
+      matricule: row?.matricule || '—',
+      avatarUrl: row?.avatar_url || '',
+      owner,
+      invisibleAt: row?.invisible_at,
+      invisibleReason: row?.invisible_reason || 'Aucune raison précisée',
+      isKnownBetail: Boolean(row?.id),
+    };
+  });
+
+  const items = normalizedNeedle
+    ? mappedItems.filter((item) => {
+      if (!item.isKnownBetail) return false;
+      const searchable = `${item.name} ${item.matricule} ${item.owner} ${item.invisibleReason}`.toLowerCase();
+      return searchable.includes(normalizedNeedle);
+    })
+    : mappedItems;
+
+  return {
+    items,
+    hasNextPage,
+  };
+};
+
+function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
+  const queryClient = useQueryClient();
+  const [page, setPage] = useState(0);
+  const [searchInput, setSearchInput] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [confirmDeleteBetailId, setConfirmDeleteBetailId] = useState(null);
+  const [feedback, setFeedback] = useState({ type: '', message: '' });
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setPage(0);
+      setSearchTerm(normalizeSearchTerm(searchInput));
+      setConfirmDeleteBetailId(null);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [searchInput]);
+
+  const invisibleBetailsQuery = useQuery({
+    queryKey: [...ADMIN_INVISIBLE_BETAILS_QUERY_KEY, page, searchTerm],
+    queryFn: () => fetchInvisibleBetailsPage({ page, searchTerm }),
+    enabled: Boolean(isActive && isAdmin),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    retry: 1,
+    placeholderData: (previousData) => previousData,
+    refetchOnWindowFocus: false,
+  });
+
+  const restoreMutation = useMutation({
+    mutationFn: async ({ betailId }) => {
+      const { error } = await supabase
+        .from('betails')
+        .update({
+          visible: true,
+          invisible_at: null,
+          invisible_reason: null,
+        })
+        .eq('id', betailId);
+
+      if (error) throw error;
+      return { betailId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'admin'] });
+      setFeedback({ type: 'success', message: 'Bétail restauré et visible de nouveau.' });
+      setConfirmDeleteBetailId(null);
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: error?.message || 'Impossible de restaurer ce bétail.',
+      });
+    },
+  });
+
+  const hardDeleteMutation = useMutation({
+    mutationFn: async ({ betailId }) => {
+      const { error } = await supabase
+        .from('betails')
+        .delete()
+        .eq('id', betailId);
+      if (error) throw error;
+      return { betailId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'admin'] });
+      setFeedback({ type: 'success', message: 'Bétail supprimé définitivement du registre.' });
+      setConfirmDeleteBetailId(null);
+    },
+    onError: (error) => {
+      setFeedback({
+        type: 'error',
+        message: error?.message || 'Impossible de supprimer définitivement ce bétail.',
+      });
+      setConfirmDeleteBetailId(null);
+    },
+  });
+
+  const isMutating = restoreMutation.isPending || hardDeleteMutation.isPending;
+  const rows = invisibleBetailsQuery.data?.items || [];
+  const hasNextPage = Boolean(invisibleBetailsQuery.data?.hasNextPage);
+
+  const emptyLabel = useMemo(() => {
+    if (searchTerm) return 'Aucun bétail invisible trouvé pour cette recherche.';
+    return 'Aucun bétail invisible pour le moment.';
+  }, [searchTerm]);
+
+  const handleRestore = (row) => {
+    if (!row?.betailId) return;
+    setConfirmDeleteBetailId(null);
+    restoreMutation.mutate({ betailId: row.betailId });
+  };
+
+  const handleHardDelete = (row) => {
+    if (!row?.betailId) return;
+
+    if (confirmDeleteBetailId !== row.betailId) {
+      setConfirmDeleteBetailId(row.betailId);
+      return;
+    }
+
+    hardDeleteMutation.mutate({ betailId: row.betailId });
+  };
+
+  return (
+    <div className="settings-section">
+      <h3 className="settings-section-title">Bétails invisibles</h3>
+      <div className="settings-admin-toolbar">
+        <input
+          type="search"
+          className="settings-admin-search"
+          placeholder="Rechercher par nom, matricule, owner ou raison..."
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          aria-label="Recherche des bétails invisibles"
+        />
+      </div>
+
+      {feedback.message ? (
+        <p className={`settings-admin-feedback ${feedback.type === 'error' ? 'is-error' : 'is-success'}`}>
+          {feedback.message}
+        </p>
+      ) : null}
+
+      {invisibleBetailsQuery.isLoading ? (
+        <p className="settings-item-subtitle">Chargement des bétails invisibles...</p>
+      ) : invisibleBetailsQuery.isError ? (
+        <p className="settings-admin-feedback is-error">
+          {invisibleBetailsQuery.error?.message || 'Impossible de charger les bétails invisibles.'}
+        </p>
+      ) : rows.length === 0 ? (
+        <p className="settings-item-subtitle">{emptyLabel}</p>
+      ) : (
+        <div className="settings-admin-shipping-list">
+          {rows.map((row) => (
+            <article key={row.betailId} className="settings-admin-shipping-row">
+              <div className="settings-admin-shipping-main">
+                <div className="settings-admin-shipping-avatar" aria-hidden="true">
+                  {row.avatarUrl ? (
+                    <img src={row.avatarUrl} alt="" loading="lazy" decoding="async" />
+                  ) : (
+                    <span>{toAvatarFallback(row.name)}</span>
+                  )}
+                </div>
+
+                <div className="settings-admin-shipping-info">
+                  <p className="settings-admin-shipping-title">{row.name}</p>
+                  <p className="settings-admin-shipping-meta">
+                    Matricule: {row.matricule} · Owner: {row.owner}
+                  </p>
+                  <p className="settings-admin-shipping-meta">
+                    Invisible depuis le {formatInvisibleDate(row.invisibleAt)}
+                  </p>
+                  <p className="settings-admin-shipping-meta">Raison: {row.invisibleReason}</p>
+                </div>
+              </div>
+
+              <div className="settings-admin-shipping-actions">
+                <button
+                  type="button"
+                  className="settings-admin-btn settings-admin-btn--restore"
+                  onClick={() => handleRestore(row)}
+                  disabled={isMutating}
+                >
+                  Restaurer
+                </button>
+                <button
+                  type="button"
+                  className="settings-admin-btn settings-admin-btn--delete-hard"
+                  onClick={() => handleHardDelete(row)}
+                  disabled={isMutating}
+                >
+                  {confirmDeleteBetailId === row.betailId ? 'Confirmer?' : 'Supprimer'}
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+
+      <div className="settings-admin-pagination">
+        <button
+          type="button"
+          className="settings-action"
+          onClick={() => setPage((value) => Math.max(0, value - 1))}
+          disabled={page === 0 || invisibleBetailsQuery.isLoading || isMutating}
+        >
+          Précédent
+        </button>
+        <span className="settings-item-subtitle">Page {page + 1}</span>
+        <button
+          type="button"
+          className="settings-action"
+          onClick={() => setPage((value) => value + 1)}
+          disabled={!hasNextPage || invisibleBetailsQuery.isLoading || isMutating}
+        >
+          Suivant
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default Settings_AdminInvisibleBetailsPanel;

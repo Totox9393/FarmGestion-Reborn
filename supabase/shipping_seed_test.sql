@@ -1,5 +1,5 @@
 -- Exemple 1: programmer une expédition sur un bétail précis
--- Remplace UUID_BETAIL_ICI par l'id UUID réel d'un bétail
+-- Remplacer UUID_BETAIL_ICI par l'id UUID réel d'un bétail
 insert into public.shipping (betail_id, scheduled_for, status, notes, scheduled_by_uuid)
 values (
   'UUID_BETAIL_ICI'::uuid,

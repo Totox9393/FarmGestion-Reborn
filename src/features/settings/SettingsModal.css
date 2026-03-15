@@ -651,13 +651,16 @@
 .settings-body {
   display: grid;
   grid-template-columns: 260px 1fr;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 .settings-sidebar {
   border-right: 1px solid var(--settings-border);
   padding: 18px 16px;
   background: rgba(0, 0, 0, 0.08);
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .settings-modal.is-light .settings-sidebar {
@@ -779,6 +782,7 @@
   padding: 22px 26px 26px;
   overflow-y: auto;
   position: relative;
+  min-height: 0;
 }
 
 .settings-content::-webkit-scrollbar {
@@ -1089,6 +1093,194 @@
   background: transparent !important;
 }
 
+.settings-admin-toolbar {
+  margin-bottom: 12px;
+}
+
+.settings-admin-search {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  padding: 0 12px;
+  font-size: 13px;
+}
+
+.settings-admin-search:focus,
+.settings-admin-search:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-feedback {
+  margin: 0 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-admin-feedback.is-success {
+  color: #20c997;
+}
+
+.settings-admin-feedback.is-error {
+  color: #ff6b6b;
+}
+
+.settings-admin-shipping-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-admin-shipping-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+}
+
+.settings-admin-shipping-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.settings-admin-shipping-avatar {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--settings-border);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--settings-text);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+
+.settings-admin-shipping-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.settings-admin-shipping-info {
+  min-width: 0;
+}
+
+.settings-admin-shipping-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-admin-shipping-meta {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: var(--settings-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.settings-admin-edit-box {
+  margin-top: 8px;
+}
+
+.settings-admin-date-input {
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.settings-admin-date-input:focus,
+.settings-admin-date-input:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-shipping-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-admin-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-admin-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.settings-admin-btn--modify {
+  background: #2b7cff;
+}
+
+.settings-admin-btn--modify:hover {
+  background: #216ae0;
+}
+
+.settings-admin-btn--cancel {
+  background: #d84545;
+  width: 108px;
+}
+
+.settings-admin-btn--cancel:hover {
+  background: #bf3737;
+}
+
+.settings-admin-btn--restore {
+  background: #2f9e5f;
+  width: 108px;
+}
+
+.settings-admin-btn--restore:hover {
+  background: #25834e;
+}
+
+.settings-admin-btn--delete-hard {
+  background: #7c1d1d;
+  width: 108px;
+}
+
+.settings-admin-btn--delete-hard:hover {
+  background: #621515;
+}
+
+.settings-admin-pagination {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
 @media (max-width: 900px) {
   .settings-body {
     grid-template-columns: 1fr;
@@ -1106,5 +1298,18 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
+  }
+
+  .settings-admin-shipping-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .settings-admin-shipping-actions {
+    justify-content: flex-end;
+  }
+
+  .settings-admin-shipping-meta {
+    white-space: normal;
   }
 }

@@ -163,8 +163,12 @@ function AppRoutes() {
       </Routes>
       {toast && typeof document !== 'undefined'
         ? createPortal(
-            <div className={`global-toast ${toast.type === 'success' ? 'is-success' : ''} ${toast.visible ? 'is-visible' : ''}`}>
-              <span className="global-toast__icon">✅</span>
+            <div
+              className={`global-toast ${toast.type === 'success' ? 'is-success' : toast.type === 'error' ? 'is-error' : toast.type === 'warning' ? 'is-warning' : ''} ${toast.visible ? 'is-visible' : ''}`}
+            >
+              <span className="global-toast__icon">
+                {toast.type === 'error' ? '❌' : toast.type === 'warning' ? '⚠️' : '✅'}
+              </span>
               <span>{toast.message}</span>
             </div>,
             document.body

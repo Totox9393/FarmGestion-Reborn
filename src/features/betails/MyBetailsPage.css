@@ -606,6 +606,55 @@
   width: 100%;
 }
 
+.my-shipping-final-btn {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(86, 120, 230, 0.55);
+  background: linear-gradient(135deg, rgba(122, 169, 255, 0.22), rgba(98, 116, 244, 0.18));
+  color: #2a3d7a;
+  box-shadow: 0 12px 20px rgba(76, 102, 186, 0.2);
+}
+
+.my-shipping-final-btn::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -45%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  animation: shipping-final-shimmer 2.6s ease-in-out infinite;
+}
+
+.my-shipping-final-btn:disabled::after {
+  animation: none;
+  opacity: 0;
+}
+
+.my-shipping-edit-btn {
+  background: rgba(255, 255, 255, 0.76);
+  border-color: rgba(122, 91, 255, 0.25);
+  color: rgba(79, 49, 188, 0.78);
+}
+
+@keyframes shipping-final-shimmer {
+  0% {
+    transform: translateX(0);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  55% {
+    transform: translateX(230%);
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(230%);
+    opacity: 0;
+  }
+}
+
 .my-shipping-growth-btn {
   width: 100%;
 }
@@ -788,6 +837,18 @@
   display: grid;
   gap: 8px;
   justify-items: center;
+  position: relative;
+  padding: 10px 12px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(110, 136, 204, 0.28);
+  background: linear-gradient(180deg, rgba(243, 247, 255, 0.98), rgba(232, 238, 255, 0.88));
+  box-shadow: 0 12px 26px rgba(38, 62, 122, 0.12);
+  overflow: hidden;
+}
+
+.my-shipping-slider-wrap.is-disabled {
+  opacity: 0.6;
+  filter: grayscale(0.1);
 }
 
 .my-shipping-slider-label {
@@ -795,48 +856,205 @@
   font-size: 0.79rem;
   font-weight: 800;
   color: #2f2754;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.my-shipping-slider-rail {
+  --shipping-track-inset: 9px;
+  position: relative;
+  width: min(284px, 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.my-shipping-slider-rail::before {
+  content: '';
+  position: absolute;
+  left: var(--shipping-track-inset);
+  right: var(--shipping-track-inset);
+  top: 50%;
+  height: 12px;
+  transform: translateY(-50%);
+  border-radius: 999px;
+  background-image: linear-gradient(
+    90deg,
+    rgba(111, 190, 255, 0) 0%,
+    rgba(111, 190, 255, 0.08) 24%,
+    rgba(111, 190, 255, 0.4) 50%,
+    rgba(111, 190, 255, 0.08) 76%,
+    rgba(111, 190, 255, 0) 100%
+  );
+  background-repeat: no-repeat;
+  background-size: 130px 100%;
+  background-position: -180px 50%;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.my-shipping-slider-wrap.is-ready .my-shipping-slider-rail::before {
+  opacity: 1;
+  animation: shipping-slider-sheen 2.2s ease-in-out infinite;
+}
+
+.my-shipping-slider-chevrons {
+  display: inline-flex;
+  font-size: 0.8rem;
+  letter-spacing: 0.35em;
+  color: rgba(53, 95, 177, 0.72);
+  opacity: 0.8;
+}
+
+.my-shipping-slider-wrap.is-ready .my-shipping-slider-chevrons {
+  animation: shipping-chevron 1.3s ease-in-out infinite;
 }
 
 .my-shipping-slider {
-  width: min(270px, 100%);
+  --slider-value: 0;
+  --slider-progress: calc(var(--slider-value) * 1%);
+  width: 100%;
+  position: relative;
+  z-index: 2;
   appearance: none;
-  height: 40px;
+  height: 44px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(194, 205, 238, 0.5), rgba(116, 143, 213, 0.45));
+  background: linear-gradient(90deg, rgba(186, 208, 248, 0.6), rgba(148, 176, 232, 0.5));
+  border: 1px solid rgba(105, 129, 199, 0.38);
   outline: none;
-  padding: 0 6px;
+  padding: 0 var(--shipping-track-inset);
+  cursor: grab;
+  transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+}
+
+.my-shipping-slider:focus-visible {
+  box-shadow: 0 0 0 3px rgba(93, 150, 255, 0.28), inset 0 0 0 1px rgba(255, 255, 255, 0.8);
+}
+
+.my-shipping-slider:active {
+  cursor: grabbing;
 }
 
 .my-shipping-slider::-webkit-slider-runnable-track {
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(86, 125, 206, 0.36), rgba(61, 101, 188, 0.58));
+  background: linear-gradient(
+    90deg,
+    rgba(67, 160, 255, 0.95) 0%,
+    rgba(69, 176, 255, 0.95) var(--slider-progress),
+    rgba(111, 141, 206, 0.35) var(--slider-progress),
+    rgba(111, 141, 206, 0.35) 100%
+  );
+  box-shadow: inset 0 1px 3px rgba(15, 35, 82, 0.25);
 }
 
 .my-shipping-slider::-webkit-slider-thumb {
   appearance: none;
-  width: 24px;
-  height: 24px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
-  margin-top: -7px;
-  border: 1px solid rgba(72, 108, 191, 0.54);
-  background: #ffffff;
-  box-shadow: 0 3px 8px rgba(51, 68, 111, 0.24);
+  margin-top: -10px;
+  border: 1px solid rgba(62, 96, 173, 0.58);
+  background-image: radial-gradient(circle at 30% 30%, #ffffff, #eef3ff 38%, #c6d8ff 78%),
+    repeating-linear-gradient(90deg, rgba(65, 94, 148, 0.45) 0 2px, transparent 2px 4px);
+  background-size: cover, 18px 18px;
+  background-position: center, center;
+  box-shadow: 0 10px 18px rgba(20, 44, 89, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.9);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.my-shipping-slider-wrap.is-ready .my-shipping-slider::-webkit-slider-thumb {
+  animation: shipping-slider-pulse 1.8s ease-in-out infinite;
 }
 
 .my-shipping-slider::-moz-range-track {
-  height: 10px;
+  height: 12px;
   border-radius: 999px;
-  background: linear-gradient(90deg, rgba(86, 125, 206, 0.36), rgba(61, 101, 188, 0.58));
+  background: rgba(111, 141, 206, 0.35);
+}
+
+.my-shipping-slider::-moz-range-progress {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(67, 160, 255, 0.95), rgba(69, 176, 255, 0.95));
 }
 
 .my-shipping-slider::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 30px;
+  height: 30px;
   border-radius: 50%;
-  border: 1px solid rgba(72, 108, 191, 0.54);
-  background: #ffffff;
-  box-shadow: 0 3px 8px rgba(51, 68, 111, 0.24);
+  border: 1px solid rgba(62, 96, 173, 0.58);
+  background-image: radial-gradient(circle at 30% 30%, #ffffff, #eef3ff 38%, #c6d8ff 78%),
+    repeating-linear-gradient(90deg, rgba(65, 94, 148, 0.45) 0 2px, transparent 2px 4px);
+  background-size: cover, 18px 18px;
+  background-position: center, center;
+  box-shadow: 0 10px 18px rgba(20, 44, 89, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.9);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.my-shipping-slider-wrap.is-ready .my-shipping-slider::-moz-range-thumb {
+  animation: shipping-slider-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes shipping-slider-sheen {
+  0% {
+    background-position: -180px 50%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  80% {
+    opacity: 0;
+  }
+  100% {
+    background-position: calc(100% + 180px) 50%;
+    opacity: 0;
+  }
+}
+
+@keyframes shipping-chevron {
+  0% {
+    transform: translateX(-2px);
+    opacity: 0.45;
+  }
+  50% {
+    transform: translateX(3px);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(8px);
+    opacity: 0.55;
+  }
+}
+
+@keyframes shipping-slider-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 10px 18px rgba(20, 44, 89, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.9);
+  }
+  50% {
+    transform: scale(1.05);
+    box-shadow: 0 12px 22px rgba(20, 44, 89, 0.36), 0 0 0 6px rgba(124, 178, 255, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 10px 18px rgba(20, 44, 89, 0.28), 0 0 0 3px rgba(255, 255, 255, 0.9);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .my-shipping-slider-rail::before,
+  .my-shipping-slider-wrap.is-ready .my-shipping-slider-chevrons,
+  .my-shipping-slider-wrap.is-ready .my-shipping-slider::-webkit-slider-thumb,
+  .my-shipping-slider-wrap.is-ready .my-shipping-slider::-moz-range-thumb {
+    animation: none;
+  }
 }
 
 .my-shipping-postcard {
@@ -951,6 +1169,24 @@
   transform: rotateX(-45deg) rotateY(25deg) rotateZ(0deg) scale(0.82);
   background-color: transparent;
   border: none;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.button:focus,
+.button:active {
+  outline: none;
+}
+
+.button:focus-visible {
+  outline: 2px solid rgba(122, 179, 255, 0.65);
+  outline-offset: 10px;
+}
+
+.button::-moz-focus-inner {
+  border: 0;
 }
 
 .button:disabled {
@@ -1828,6 +2064,26 @@
   cursor: not-allowed;
 }
 
+.my-shipping-panel .my-betail-btn:not(.my-shipping-final-btn):hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow: 0 10px 18px rgba(45, 64, 120, 0.18);
+}
+
+.my-shipping-panel .my-betail-btn:not(.my-shipping-final-btn):active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.my-shipping-panel .my-betail-btn.ghost:hover:not(:disabled) {
+  filter: brightness(1.03);
+  box-shadow: 0 8px 14px rgba(45, 64, 120, 0.12);
+}
+
+.my-shipping-panel .my-shipping-final-btn:hover:not(:disabled) {
+  filter: brightness(1.03);
+  box-shadow: 0 14px 24px rgba(76, 102, 186, 0.24);
+}
+
 .my-betail-grid-actions {
   display: grid;
   grid-template-columns: 1fr;
@@ -1889,7 +2145,7 @@
 
 .my-betail-badges-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
   min-height: 122px;
   align-content: start;
@@ -1904,6 +2160,57 @@
   justify-items: center;
   gap: 6px;
   min-height: 112px;
+}
+
+.my-betail-badge-slot {
+  border-style: dashed;
+  border-color: rgba(122, 91, 255, 0.42);
+  background: rgba(249, 246, 255, 0.8);
+  color: #5840bb;
+  cursor: pointer;
+  transition: transform 0.12s ease, filter 0.12s ease, border-color 0.12s ease;
+}
+
+.my-betail-badge-slot:hover {
+  filter: brightness(1.02);
+  border-color: rgba(98, 72, 206, 0.62);
+}
+
+.my-betail-badge-slot:active {
+  transform: translateY(1px);
+}
+
+.my-betail-badge-slot:focus-visible {
+  outline: 2px solid rgba(98, 72, 206, 0.45);
+  outline-offset: 2px;
+}
+
+.my-betail-badge-slot-plus {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(122, 91, 255, 0.4);
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.my-betail-badge-slot-name {
+  margin: 0;
+  max-width: 100%;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #44317f;
+}
+
+.my-betail-badge-slot-hint {
+  margin: 0;
+  font-size: 0.64rem;
+  font-weight: 700;
+  color: rgba(79, 49, 188, 0.84);
 }
 
 .my-betail-badge-card.is-0_auto {
@@ -2140,6 +2447,21 @@
   color: #ffb8b0;
 }
 
+.auth-theme.dark_theme .my-shipping-final-btn,
+.auth-theme.galactic_theme .my-shipping-final-btn {
+  background: linear-gradient(135deg, rgba(108, 170, 255, 0.38), rgba(80, 112, 220, 0.32));
+  border-color: rgba(150, 200, 255, 0.65);
+  color: #eaf3ff;
+  box-shadow: 0 12px 24px rgba(18, 34, 64, 0.45);
+}
+
+.auth-theme.dark_theme .my-shipping-edit-btn,
+.auth-theme.galactic_theme .my-shipping-edit-btn {
+  background: rgba(44, 60, 94, 0.45);
+  border-color: rgba(141, 179, 255, 0.32);
+  color: rgba(201, 221, 255, 0.86);
+}
+
 .auth-theme.dark_theme .my-shipping-warning-copy,
 .auth-theme.galactic_theme .my-shipping-warning-copy {
   border-left-color: rgba(255, 131, 170, 0.6);
@@ -2251,6 +2573,124 @@
 .auth-theme.dark_theme .my-shipping-stage-caption,
 .auth-theme.galactic_theme .my-shipping-stage-caption {
   color: rgba(191, 214, 251, 0.86);
+}
+
+.auth-theme.dark_theme .my-shipping-slot-box,
+.auth-theme.galactic_theme .my-shipping-slot-box {
+  border-left-color: rgba(141, 179, 255, 0.64);
+}
+
+.auth-theme.dark_theme .my-shipping-slot-label,
+.auth-theme.galactic_theme .my-shipping-slot-label {
+  color: rgba(168, 205, 255, 0.92);
+}
+
+.auth-theme.dark_theme .my-shipping-slot-main,
+.auth-theme.galactic_theme .my-shipping-slot-main {
+  color: #dcedff;
+}
+
+.auth-theme.dark_theme .my-shipping-slot-main.is-error,
+.auth-theme.galactic_theme .my-shipping-slot-main.is-error {
+  color: #ffb8cd;
+}
+
+.auth-theme.dark_theme .my-shipping-slot-meta,
+.auth-theme.galactic_theme .my-shipping-slot-meta {
+  color: rgba(189, 216, 250, 0.9);
+}
+
+.auth-theme.dark_theme .my-shipping-slot-meta.is-warn,
+.auth-theme.galactic_theme .my-shipping-slot-meta.is-warn {
+  color: #ffd4e1;
+}
+
+.auth-theme.dark_theme .my-shipping-vip-picker,
+.auth-theme.galactic_theme .my-shipping-vip-picker {
+  border-top-color: rgba(141, 179, 255, 0.34);
+  border-bottom-color: rgba(141, 179, 255, 0.34);
+}
+
+.auth-theme.dark_theme .my-shipping-vip-title,
+.auth-theme.galactic_theme .my-shipping-vip-title {
+  color: #bcd9ff;
+}
+
+.auth-theme.dark_theme .my-shipping-vip-hint,
+.auth-theme.galactic_theme .my-shipping-vip-hint {
+  color: rgba(187, 214, 250, 0.86);
+}
+
+.auth-theme.dark_theme .my-shipping-blocked-days,
+.auth-theme.galactic_theme .my-shipping-blocked-days {
+  color: rgba(192, 217, 250, 0.9);
+}
+
+.auth-theme.dark_theme .my-shipping-blocked-days span,
+.auth-theme.galactic_theme .my-shipping-blocked-days span {
+  color: rgba(171, 206, 255, 0.9);
+}
+
+.auth-theme.dark_theme .my-shipping-date-input,
+.auth-theme.galactic_theme .my-shipping-date-input {
+  border-color: rgba(141, 179, 255, 0.42);
+  color: #eaf3ff;
+  background: rgba(24, 34, 54, 0.86);
+}
+
+.auth-theme.dark_theme .my-shipping-date-input::-webkit-calendar-picker-indicator,
+.auth-theme.galactic_theme .my-shipping-date-input::-webkit-calendar-picker-indicator {
+  filter: invert(0.92) brightness(1.08);
+}
+
+.auth-theme.dark_theme .my-shipping-slider-label,
+.auth-theme.galactic_theme .my-shipping-slider-label {
+  color: #bfd9ff;
+}
+
+.auth-theme.dark_theme .my-shipping-slider-chevrons,
+.auth-theme.galactic_theme .my-shipping-slider-chevrons {
+  color: rgba(150, 200, 255, 0.8);
+}
+
+.auth-theme.dark_theme .my-shipping-slider-wrap,
+.auth-theme.galactic_theme .my-shipping-slider-wrap {
+  border-color: rgba(120, 166, 255, 0.35);
+  background: linear-gradient(180deg, rgba(20, 30, 52, 0.95), rgba(18, 26, 44, 0.9));
+  box-shadow: 0 12px 24px rgba(10, 18, 35, 0.4);
+}
+
+.auth-theme.dark_theme .my-shipping-slider-rail::before,
+.auth-theme.galactic_theme .my-shipping-slider-rail::before {
+  background: linear-gradient(110deg, rgba(111, 190, 255, 0.12), rgba(111, 190, 255, 0.4), rgba(111, 190, 255, 0.12));
+}
+
+.auth-theme.dark_theme .my-shipping-slider,
+.auth-theme.galactic_theme .my-shipping-slider {
+  border-color: rgba(113, 164, 255, 0.4);
+  background: linear-gradient(90deg, rgba(46, 86, 145, 0.4), rgba(34, 60, 112, 0.35));
+  box-shadow: inset 0 0 0 1px rgba(174, 208, 255, 0.12);
+}
+
+.auth-theme.dark_theme .my-shipping-slider::-webkit-slider-runnable-track,
+.auth-theme.galactic_theme .my-shipping-slider::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    90deg,
+    rgba(103, 183, 255, 0.95) 0%,
+    rgba(119, 201, 255, 0.95) var(--slider-progress),
+    rgba(96, 124, 190, 0.35) var(--slider-progress),
+    rgba(96, 124, 190, 0.35) 100%
+  );
+}
+
+.auth-theme.dark_theme .my-shipping-slider::-moz-range-track,
+.auth-theme.galactic_theme .my-shipping-slider::-moz-range-track {
+  background: rgba(96, 124, 190, 0.35);
+}
+
+.auth-theme.dark_theme .my-shipping-slider::-moz-range-progress,
+.auth-theme.galactic_theme .my-shipping-slider::-moz-range-progress {
+  background: linear-gradient(90deg, rgba(103, 183, 255, 0.95), rgba(119, 201, 255, 0.95));
 }
 
 .auth-theme.dark_theme .my-shipping-cost-reel,
@@ -2482,6 +2922,29 @@
 .auth-theme.galactic_theme .my-betail-badge-card {
   border-color: rgba(141, 179, 255, 0.3);
   background: rgba(20, 29, 48, 0.78);
+}
+
+.auth-theme.dark_theme .my-betail-badge-slot,
+.auth-theme.galactic_theme .my-betail-badge-slot {
+  border-color: rgba(141, 179, 255, 0.46);
+  background: rgba(20, 29, 48, 0.62);
+  color: rgba(198, 220, 255, 0.9);
+}
+
+.auth-theme.dark_theme .my-betail-badge-slot-plus,
+.auth-theme.galactic_theme .my-betail-badge-slot-plus {
+  border-color: rgba(141, 179, 255, 0.52);
+  color: rgba(198, 220, 255, 0.9);
+}
+
+.auth-theme.dark_theme .my-betail-badge-slot-name,
+.auth-theme.galactic_theme .my-betail-badge-slot-name {
+  color: #dce9ff;
+}
+
+.auth-theme.dark_theme .my-betail-badge-slot-hint,
+.auth-theme.galactic_theme .my-betail-badge-slot-hint {
+  color: rgba(187, 211, 250, 0.86);
 }
 
 .auth-theme.dark_theme .my-betail-badge-card.is-0_auto,

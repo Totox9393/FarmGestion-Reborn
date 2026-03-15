@@ -73,10 +73,10 @@ function HomeBlock4Farm() {
           contrôler efficacement votre exploitation.
         </p>
         <p className="home-farm-description">
-          Chaque ferme est unique et personnalisable, le centre (emoji ou photo), la couleur de
+          Chaque ferme est unique et personnalisable, le centre, la couleur de
           chaque site, et même le nom de la ferme.
         </p>
-        <p className="home-farm-note">Le centre de la ferme permettra d'ouvrir le menu de configuration.</p>
+        <p className="home-farm-note">Vous êtes maître de votre ferme.</p>
       </div>
 
       <div className="home-farm-visual" aria-hidden="true">

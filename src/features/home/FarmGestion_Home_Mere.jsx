@@ -122,6 +122,7 @@ function FarmGestion_Home_Mere() {
           const { data: betailsRows, error: betailsError } = await supabase
             .from('betails')
             .select('id, name, avatar_url, owner_id')
+            .eq('visible', true)
             .in('id', betailIds);
 
           if (!betailsError && Array.isArray(betailsRows)) {
@@ -248,11 +249,13 @@ function FarmGestion_Home_Mere() {
       supabase
         .from('betails')
         .select('id, name, matricule, avatar_url, like_count, created_at, author_id')
+        .eq('visible', true)
         .order('created_at', { ascending: false })
         .limit(8),
       supabase
         .from('betails')
         .select('id, name, matricule, avatar_url, like_count, author_id')
+        .eq('visible', true)
         .order('like_count', { ascending: false })
         .limit(3)
     ]);
@@ -316,7 +319,7 @@ function FarmGestion_Home_Mere() {
 
         const [farmRes, countRes] = await Promise.all([
           supabase.from('farms_list').select('id,name,state').eq('id', profile.farm_id).maybeSingle(),
-          supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id),
+          supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id).eq('visible', true),
         ])
 
         const farmObj = farmRes?.data ?? null
@@ -368,6 +371,28 @@ function FarmGestion_Home_Mere() {
 
   const nextSlide = () => setCarouselIndex(prev => Math.min(prev + 1, maxIndex));
   const prevSlide = () => setCarouselIndex(prev => Math.max(prev - 1, 0));
+  const openBetailRegister = useCallback(() => {
+    navigate('/betail-register');
+  }, [navigate]);
+
+  const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.betail-like'));
+
+  const handleImportCardClick = (event) => {
+    if (isLikeButtonTarget(event.target)) {
+      return;
+    }
+    openBetailRegister();
+  };
+
+  const handleImportCardKeyDown = (event) => {
+    if (isLikeButtonTarget(event.target)) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openBetailRegister();
+    }
+  };
 
   const topBetails = useMemo(
     () => topBetailsData.map((betail) => ({
@@ -530,8 +555,21 @@ function FarmGestion_Home_Mere() {
             style={{ transform: `translateX(-${carouselIndex * (100 / visibleBetails)}%)` }}
           >
             {carouselBetails.map(betail => (
-              <div key={betail.id} className="betail-card">
-                <button type="button" className="betail-like" aria-label={`Like ${betail.name}`}>
+              <div
+                key={betail.id}
+                className="betail-card"
+                role="button"
+                tabIndex={0}
+                onClick={handleImportCardClick}
+                onKeyDown={handleImportCardKeyDown}
+                aria-label={`Voir ${betail.name} dans le registre`}
+              >
+                <button
+                  type="button"
+                  className="betail-like"
+                  aria-label={`Like ${betail.name}`}
+                  onClick={(event) => event.stopPropagation()}
+                >
                   <Heart size={16} />
                   <span>{betail.likes ?? 0}</span>
                 </button>
