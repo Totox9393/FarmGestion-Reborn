@@ -282,6 +282,14 @@ function MyBetailsPageQuery() {
     })
   }, [betails])
 
+  const filteredBetails = useMemo(() => {
+    if (filterMode !== 'shipping_scheduled') {
+      return sortedBetails
+    }
+
+    return sortedBetails.filter((item) => isBetailShippingScheduled(item))
+  }, [filterMode, sortedBetails])
+
   const authorIds = useMemo(
     () => betails.map((item) => item.author_id).filter(Boolean),
     [betails],
@@ -289,8 +297,8 @@ function MyBetailsPageQuery() {
 
   const { data: authors = [] } = useAuthorsMap(authorIds)
   const selectedBetail = useMemo(
-    () => sortedBetails.find((item) => item.id === selectedBetailId) ?? null,
-    [sortedBetails, selectedBetailId],
+    () => filteredBetails.find((item) => item.id === selectedBetailId) ?? null,
+    [filteredBetails, selectedBetailId],
   )
 
   const { data: selectedDetails, isFetching: isFetchingSelectedDetails } = useBetailDetails(
@@ -309,9 +317,9 @@ function MyBetailsPageQuery() {
 
   const getAuthorName = (betail) => authorMap[betail.author_id] || 'Auteur inconnu'
   const stats = useMemo(() => {
-    const count = sortedBetails.length
+    const count = filteredBetails.length
     return `${count} résultat${count > 1 ? 's' : ''}`
-  }, [sortedBetails.length])
+  }, [filteredBetails.length])
 
   const selectedAvatarFrameUrl = useMemo(() => getResourceFrameUrl('cadre_betail1.png'), [])
   const matriculeFrameUrl = useMemo(() => getResourceFrameUrl('cadre_matricule.png'), [])
@@ -423,11 +431,11 @@ function MyBetailsPageQuery() {
 
   useEffect(() => {
     if (!selectedBetailId || isInitialLoading) return
-    const stillVisible = sortedBetails.some((item) => item.id === selectedBetailId)
+    const stillVisible = filteredBetails.some((item) => item.id === selectedBetailId)
     if (!stillVisible) {
       setSelectedBetailId(null)
     }
-  }, [sortedBetails, isInitialLoading, selectedBetailId])
+  }, [filteredBetails, isInitialLoading, selectedBetailId])
 
   useEffect(() => {
     if (!selectedBetail) {
@@ -920,6 +928,7 @@ function MyBetailsPageQuery() {
                 <option value="premium">Premium</option>
                 <option value="pinned">Épinglés</option>
                 <option value="archived">Archivés</option>
+                <option value="shipping_scheduled">Expédition prévue</option>
               </select>
             </div>
           </section>
@@ -939,7 +948,7 @@ function MyBetailsPageQuery() {
             <>
               <div className="betails-content">
                 <div className="betails-grid">
-                  {sortedBetails.map((betail) => (
+                  {filteredBetails.map((betail) => (
                     <MyBetailCard
                       key={betail.id}
                       betail={betail}
@@ -950,7 +959,7 @@ function MyBetailsPageQuery() {
                   ))}
                 </div>
 
-                {!sortedBetails.length && !hasError && (
+                {!filteredBetails.length && !hasError && (
                   <p className="betails-empty">Aucun bétail trouvé.</p>
                 )}
               </div>

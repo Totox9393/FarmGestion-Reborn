@@ -18,13 +18,21 @@ declare
   v_now timestamptz := now();
   v_hidden_count integer := 0;
   v_delivered_count integer := 0;
+  v_credited_profiles_count integer := 0;
+  v_credited_total_gain integer := 0;
 begin
   with due_shipping as (
-    select s.id, s.betail_id, s.scheduled_by_uuid
+    select
+      s.id,
+      s.betail_id,
+      s.scheduled_by_uuid,
+      coalesce(s.scheduled_by_uuid, b.owner_id) as beneficiary_uuid,
+      greatest(0, coalesce(s.estimated_gain, 0)) as estimated_gain
     from public.shipping s
+    left join public.betails b on b.id = s.betail_id
     where s.status = 'scheduled'
       and s.scheduled_for <= v_now
-    for update skip locked
+    for update of s skip locked
   ),
   hidden_betails as (
     update public.betails b
@@ -48,6 +56,22 @@ begin
       and coalesce(b.visible, true) = true
     returning b.id
   ),
+  credited_profiles as (
+    update public.users_profiles up
+    set money = coalesce(up.money, 0) + credits.total_gain,
+        updated_at = v_now
+    from (
+      select
+        ds.beneficiary_uuid as user_id,
+        sum(ds.estimated_gain)::integer as total_gain
+      from due_shipping ds
+      where ds.beneficiary_uuid is not null
+        and ds.estimated_gain > 0
+      group by ds.beneficiary_uuid
+    ) credits
+    where up.id = credits.user_id
+    returning up.id, credits.total_gain
+  ),
   delivered_shipping as (
     update public.shipping s
     set status = 'delivered',
@@ -58,14 +82,18 @@ begin
   )
   select
     (select count(*) from hidden_betails),
-    (select count(*) from delivered_shipping)
-  into v_hidden_count, v_delivered_count;
+    (select count(*) from delivered_shipping),
+    (select count(*) from credited_profiles),
+    (select coalesce(sum(total_gain), 0)::integer from credited_profiles)
+  into v_hidden_count, v_delivered_count, v_credited_profiles_count, v_credited_total_gain;
 
   return jsonb_build_object(
     'success', true,
     'processed_at', v_now,
     'betails_hidden', v_hidden_count,
-    'shipping_delivered', v_delivered_count
+    'shipping_delivered', v_delivered_count,
+    'profiles_credited', v_credited_profiles_count,
+    'credited_total_gain', v_credited_total_gain
   );
 end;
 $$;

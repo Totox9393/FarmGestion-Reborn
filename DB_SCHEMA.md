@@ -82,6 +82,7 @@ create table public.shipping (
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone not null default now(),
   scheduled_by_uuid uuid null,
+  estimated_gain integer not null default 0,
   constraint shipping_pkey primary key (id),
   constraint shipping_betail_id_unique unique (betail_id),
   constraint shipping_betail_id_fkey foreign KEY (betail_id) references betails (id) on delete CASCADE,

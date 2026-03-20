@@ -53,6 +53,7 @@ const DAY_ACCENT_RGB_PALETTE = [
   '249 115 22',
   '99 102 241',
 ]
+const TRACKING_TAPE_COLORS = ['#c8ff5c', '#7fc6ff', '#ffb65e', '#f79bff', '#6de0c2', '#ffd95a']
 const YEAR_AVATAR_VISIBLE_MAX = 3
 const COINS_FORMATTER = new Intl.NumberFormat('fr-FR')
 const DELIVERED_STATUS_SET = new Set([
@@ -218,13 +219,13 @@ const getTrackingScheduleLine = ({ scheduledFor, delivered }) => {
     return `Expédition effectuée le ${when} à ${hour}${elapsed ? ` (depuis ${elapsed})` : ''}`
   }
 
-  return `Livraison prévue le ${when} à ${hour}${elapsed ? ` (Dans ${elapsed})` : ''}`
+  return `Expédition prévue le ${when} à ${hour}${elapsed ? ` (Dans ${elapsed})` : ''}`
 }
 
 const getDeliveryRemainingText = (scheduledFor) => {
-  if (!scheduledFor) return 'Date de livraison inconnue'
+  if (!scheduledFor) return 'Date d\'expédition inconnue'
   const target = toSafeDate(scheduledFor)
-  if (!target) return 'Date de livraison inconnue'
+  if (!target) return 'Date d\'expédition inconnue'
 
   const now = Date.now()
   const deltaMs = target.getTime() - now
@@ -234,10 +235,10 @@ const getDeliveryRemainingText = (scheduledFor) => {
   const hours = totalHours % 24
 
   if (deltaMs >= 0) {
-    return `Livraison dans ${days}j ${hours}h`
+    return `Expédition dans ${days}j ${hours}h`
   }
 
-  return `Livraison effectuée depuis ${days}j ${hours}h`
+  return `Expédition effectuée depuis ${days}j ${hours}h`
 }
 
 const getShippingProgressState = (scheduledFor) => {
@@ -266,15 +267,28 @@ const getTrackingProgress = ({ createdAt, scheduledFor, status }) => {
   const target = toSafeDate(scheduledFor)
   if (!target) return 0
 
+  const fallbackRatio = getShippingProgressState(scheduledFor).ratio
+
   const created = toSafeDate(createdAt)
   if (!created || created.getTime() >= target.getTime()) {
-    return getShippingProgressState(scheduledFor).ratio
+    return fallbackRatio
   }
 
   const now = Date.now()
   const startMs = created.getTime()
   const endMs = target.getTime()
-  return clamp((now - startMs) / (endMs - startMs), 0, 1)
+  const createdBasedRatio = clamp((now - startMs) / (endMs - startMs), 0, 1)
+
+  // Keep a sensible minimum progression based on remaining time window,
+  // so very recent schedules do not appear stuck at 0%.
+  return Math.max(createdBasedRatio, fallbackRatio)
+}
+
+const getTrackingCardsPerView = () => {
+  if (typeof window === 'undefined') return 3
+  if (window.innerWidth <= 640) return 1
+  if (window.innerWidth <= 1100) return 2
+  return 3
 }
 
 const getDayAccentRgb = (dayKey) => {
@@ -531,6 +545,10 @@ function GCEPage() {
   const [weekStart, setWeekStart] = useState(currentWeekStart)
   const [mainPanelMode, setMainPanelMode] = useState('calendar')
   const [isQuickMenuOpen, setIsQuickMenuOpen] = useState(false)
+  const [refreshSpinTick, setRefreshSpinTick] = useState(0)
+  const [trackingCarouselIndex, setTrackingCarouselIndex] = useState(0)
+  const [trackingCardsPerView, setTrackingCardsPerView] = useState(() => getTrackingCardsPerView())
+  const [trackingSlideDirection, setTrackingSlideDirection] = useState('next')
   const quickMenuRef = useRef(null)
 
   const shippingQuery = useQuery({
@@ -641,10 +659,11 @@ function GCEPage() {
     setViewMonthStart((prev) => addMonths(prev, 1))
   }
 
+  const viewAnchorDate = viewMode === 'week' ? weekStart : viewMonthStart
   const monthTitle = monthLabel(viewMonthStart)
   const monthOptions = MONTH_NAMES_FR.map((label, index) => ({ value: index, label }))
   const minYear = minMonthStart.getFullYear()
-  const maxYear = Math.max(viewMonthStart.getFullYear() + 6, currentMonthStart.getFullYear() + 6)
+  const maxYear = Math.max(viewAnchorDate.getFullYear() + 6, currentMonthStart.getFullYear() + 6)
   const yearOptions = Array.from({ length: maxYear - minYear + 1 }, (_, index) => minYear + index)
   const scheduledAlertsCount = shippingRowsInWindow.filter((row) => {
     const when = toSafeDate(row?.scheduledFor)
@@ -693,19 +712,62 @@ function GCEPage() {
     [shippingRowsInWindow],
   )
 
-  const trackingTotalEstimatedGain = useMemo(
+  const ongoingTrackingRows = useMemo(
     () =>
-      personalTrackingRows.reduce((sum, row) => {
-        if (isShippingDelivered({ status: row?.status, scheduledFor: row?.scheduledFor })) return sum
-        return sum + (Number(row?.estimatedGain) || 0)
-      }, 0),
+      personalTrackingRows.filter(
+        (row) =>
+          !isShippingDelivered({
+            status: row?.status,
+            scheduledFor: row?.scheduledFor,
+          }),
+      ),
     [personalTrackingRows],
+  )
+
+  const deliveredTrackingRows = useMemo(
+    () =>
+      personalTrackingRows
+        .filter((row) =>
+          isShippingDelivered({
+            status: row?.status,
+            scheduledFor: row?.scheduledFor,
+          }),
+        )
+        .sort((left, right) => {
+          const leftTime = toSafeDate(left?.scheduledFor)?.getTime() || 0
+          const rightTime = toSafeDate(right?.scheduledFor)?.getTime() || 0
+          return rightTime - leftTime
+        }),
+    [personalTrackingRows],
+  )
+
+  const trackingTotalEstimatedGain = useMemo(
+    () => ongoingTrackingRows.reduce((sum, row) => sum + (Number(row?.estimatedGain) || 0), 0),
+    [ongoingTrackingRows],
+  )
+
+  const trackingMaxStart = useMemo(
+    () => Math.max(0, ongoingTrackingRows.length - trackingCardsPerView),
+    [ongoingTrackingRows.length, trackingCardsPerView],
+  )
+
+  const trackingHasPrev = trackingCarouselIndex > 0
+  const trackingHasNext = trackingCarouselIndex < trackingMaxStart
+  const trackingPageCount = Math.max(1, Math.ceil(ongoingTrackingRows.length / Math.max(1, trackingCardsPerView)))
+  const trackingCurrentPage = ongoingTrackingRows.length
+    ? Math.floor(trackingCarouselIndex / Math.max(1, trackingCardsPerView)) + 1
+    : 1
+
+  const visibleOngoingTrackingRows = useMemo(
+    () => ongoingTrackingRows.slice(trackingCarouselIndex, trackingCarouselIndex + trackingCardsPerView),
+    [ongoingTrackingRows, trackingCarouselIndex, trackingCardsPerView],
   )
 
   const handleMonthSelectChange = (event) => {
     const nextMonth = Number(event.target.value)
     if (!Number.isInteger(nextMonth) || nextMonth < 0 || nextMonth > 11) return
-    const candidate = new Date(viewMonthStart.getFullYear(), nextMonth, 1)
+    const sourceDate = viewMode === 'week' ? weekStart : viewMonthStart
+    const candidate = new Date(sourceDate.getFullYear(), nextMonth, 1)
     if (monthDiff(candidate, minMonthStart) < 0) return
     setViewMonthStart(candidate)
     if (viewMode === 'week') {
@@ -716,7 +778,8 @@ function GCEPage() {
   const handleYearSelectChange = (event) => {
     const nextYear = Number(event.target.value)
     if (!Number.isInteger(nextYear)) return
-    const candidate = new Date(nextYear, viewMonthStart.getMonth(), 1)
+    const sourceDate = viewMode === 'week' ? weekStart : viewMonthStart
+    const candidate = new Date(nextYear, sourceDate.getMonth(), 1)
     if (monthDiff(candidate, minMonthStart) < 0) return
     setViewMonthStart(candidate)
     if (viewMode === 'week') {
@@ -727,7 +790,7 @@ function GCEPage() {
   const handleChangeViewMode = (nextMode) => {
     setViewMode(nextMode)
     if (nextMode === 'week') {
-      setWeekStart(getWeekStart(viewMonthStart))
+      setWeekStart(currentWeekStart)
     }
   }
 
@@ -789,6 +852,7 @@ function GCEPage() {
   const isCalendarPanel = mainPanelMode === 'calendar'
 
   const handleRefreshCalendar = async () => {
+    setRefreshSpinTick((previous) => previous + 1)
     const refreshedDate = new Date()
     setNowDate(refreshedDate)
     await shippingQuery.refetch()
@@ -811,9 +875,42 @@ function GCEPage() {
     }
   }, [isQuickMenuOpen])
 
+  useEffect(() => {
+    const timerId = window.setInterval(() => {
+      setNowDate(new Date())
+    }, 60000)
+
+    return () => {
+      window.clearInterval(timerId)
+    }
+  }, [])
+
+  useEffect(() => {
+    const handleResize = () => {
+      setTrackingCardsPerView(getTrackingCardsPerView())
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  useEffect(() => {
+    setTrackingCarouselIndex((previous) => clamp(previous, 0, trackingMaxStart))
+  }, [trackingMaxStart])
+
   const handleQuickPanelSwitch = (mode) => {
     setMainPanelMode(mode)
     setIsQuickMenuOpen(false)
+  }
+
+  const handleTrackingPrev = () => {
+    setTrackingSlideDirection('prev')
+    setTrackingCarouselIndex((previous) => Math.max(0, previous - trackingCardsPerView))
+  }
+
+  const handleTrackingNext = () => {
+    setTrackingSlideDirection('next')
+    setTrackingCarouselIndex((previous) => Math.min(trackingMaxStart, previous + trackingCardsPerView))
   }
 
   const renderDayCell = (date, options = {}) => {
@@ -928,11 +1025,11 @@ function GCEPage() {
             </button>
             <button
               type="button"
-              className={`gce-nav-item ${mainPanelMode === 'expeditions-tutorial' ? 'is-active' : ''}`}
-              onClick={() => setMainPanelMode('expeditions-tutorial')}
+              className={`gce-nav-item ${mainPanelMode === 'tracking' ? 'is-active' : ''}`}
+              onClick={() => setMainPanelMode('tracking')}
             >
-              <Package size={16} />
-              Expéditions
+              <Gauge size={16} />
+              Suivi expédition
             </button>
             <button
               type="button"
@@ -950,17 +1047,17 @@ function GCEPage() {
               <Archive size={16} />
               Archives / Expédiés
             </button>
-            <button
-              type="button"
-              className={`gce-nav-item ${mainPanelMode === 'tracking' ? 'is-active' : ''}`}
-              onClick={() => setMainPanelMode('tracking')}
-            >
-              <Gauge size={16} />
-              Suivi expédition
-            </button>
           </nav>
 
           <div className="gce-sidebar-bottom">
+            <button
+              type="button"
+              className={`gce-nav-item ${mainPanelMode === 'expeditions-tutorial' ? 'is-active' : ''}`}
+              onClick={() => setMainPanelMode('expeditions-tutorial')}
+            >
+              <Package size={16} />
+              Tutoriel d'expédition
+            </button>
             <button type="button" className="gce-nav-item" onClick={() => navigate('/mes-betails')}>
               <ListChecks size={16} />
               Mes bétails
@@ -1005,7 +1102,7 @@ function GCEPage() {
               <span className="gce-view-label">Vue :</span>
               <select
                 className="gce-select"
-                value={viewMonthStart.getMonth()}
+                value={viewAnchorDate.getMonth()}
                 onChange={handleMonthSelectChange}
                 aria-label="Sélectionner le mois"
                 disabled={!isCalendarPanel}
@@ -1019,7 +1116,7 @@ function GCEPage() {
 
               <select
                 className="gce-select"
-                value={viewMonthStart.getFullYear()}
+                value={viewAnchorDate.getFullYear()}
                 onChange={handleYearSelectChange}
                 aria-label="Sélectionner l'année"
                 disabled={!isCalendarPanel}
@@ -1047,7 +1144,11 @@ function GCEPage() {
                 {scheduledAlertsCount > 0 ? <span className="gce-alert-badge">{Math.min(scheduledAlertsCount, 99)}</span> : null}
               </button>
               <button type="button" className="gce-profile-btn" aria-label="Rafraîchir le calendrier" onClick={handleRefreshCalendar}>
-                <RefreshCcw size={18} />
+                <RefreshCcw
+                  key={`refresh-spin-${refreshSpinTick}`}
+                  size={18}
+                  className={`gce-refresh-icon ${refreshSpinTick > 0 ? 'is-spinning' : ''}`}
+                />
               </button>
               <button
                 type="button"
@@ -1062,8 +1163,8 @@ function GCEPage() {
                   <button type="button" onClick={() => handleQuickPanelSwitch('calendar')}>
                     Calendrier
                   </button>
-                  <button type="button" onClick={() => handleQuickPanelSwitch('expeditions-tutorial')}>
-                    Tuto expéditions
+                  <button type="button" onClick={() => handleQuickPanelSwitch('tracking')}>
+                    Suivi expédition
                   </button>
                   <button type="button" onClick={() => handleQuickPanelSwitch('history')}>
                     Historique perso
@@ -1071,8 +1172,8 @@ function GCEPage() {
                   <button type="button" onClick={() => handleQuickPanelSwitch('archives')}>
                     Archives / Expédiés
                   </button>
-                  <button type="button" onClick={() => handleQuickPanelSwitch('tracking')}>
-                    Suivi expédition
+                  <button type="button" onClick={() => handleQuickPanelSwitch('expeditions-tutorial')}>
+                    Tuto expéditions
                   </button>
                 </div>
               ) : null}
@@ -1087,7 +1188,7 @@ function GCEPage() {
           {shippingQuery.isLoading ? <p className="gce-state">Chargement des expéditions...</p> : null}
           {shippingQuery.isError ? <p className="gce-state is-error">Impossible de charger les expéditions.</p> : null}
 
-          <div className="gce-calendar-surface">
+          <div className={`gce-calendar-surface ${mainPanelMode === 'tracking' ? 'is-tracking' : ''}`}>
             {mainPanelMode === 'expeditions-tutorial' ? (
               <section className="gce-tutorial" aria-label="Tutoriel expédition">
                 <div className="gce-tutorial-hero" aria-hidden="true">
@@ -1157,7 +1258,7 @@ function GCEPage() {
                         <div>
                           <p className="gce-list-item-title">{row.betailName}</p>
                           <p className="gce-list-item-meta">{row.matricule} • {row.farmName}</p>
-                          <p className="gce-list-item-meta">Dernier statut: {row.status || 'scheduled'} • {formatDateTimeParis(row.scheduledFor)}</p>
+                          <p className="gce-list-item-meta">Dernier statut : {row.status || 'scheduled'} • {formatDateTimeParis(row.scheduledFor)}</p>
                         </div>
                       </article>
                     ))}
@@ -1165,53 +1266,174 @@ function GCEPage() {
                 )}
               </section>
             ) : mainPanelMode === 'tracking' ? (
-              <section className="gce-list-panel" aria-label="Suivi des expéditions personnelles">
+              <section className="gce-list-panel gce-tracking-panel" aria-label="Suivi des expéditions personnelles">
                 <p className="gce-list-eyebrow">Suivi expédition</p>
                 <h3 className="gce-list-title">Suivi de mes bétails expédiés</h3>
                 <p className="gce-list-summary">
-                  Gain total estimé à venir: <strong>{formatMoney(trackingTotalEstimatedGain)}</strong>
+                  Gain total à venir : <strong>{formatMoney(trackingTotalEstimatedGain)}</strong>
                 </p>
                 {personalTrackingRows.length === 0 ? (
                   <p className="gce-list-empty">Aucun bétail expédié ou en cours d’expédition pour le moment.</p>
                 ) : (
-                  <div className="gce-list-items">
-                    {personalTrackingRows.map((row) => {
-                      const isDelivered = isShippingDelivered({
-                        status: row?.status,
-                        scheduledFor: row?.scheduledFor,
-                      })
-                      const progressRatio = getTrackingProgress({
-                        createdAt: row?.createdAt,
-                        scheduledFor: row?.scheduledFor,
-                        status: row?.status,
-                      })
-                      const progressPct = isDelivered ? 100 : Math.round(progressRatio * 100)
+                  <div className="gce-track-sections">
+                    <section className="gce-track-block" aria-label="Bétails en cours d'expédition">
+                      <div className="gce-track-block-head">
+                        <h4>En cours d'expédition</h4>
+                        <div className="gce-track-block-head-right">
+                          <span>{ongoingTrackingRows.length}</span>
+                          <p className="gce-track-page-indicator" aria-label="Page actuelle">
+                            {trackingCurrentPage}/{trackingPageCount}
+                          </p>
+                          <button
+                            type="button"
+                            className="gce-track-carousel-btn"
+                            onClick={handleTrackingPrev}
+                            disabled={!trackingHasPrev}
+                            aria-label="Voir les expéditions précédentes"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="gce-track-carousel-btn"
+                            onClick={handleTrackingNext}
+                            disabled={!trackingHasNext}
+                            aria-label="Voir les expéditions suivantes"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                      </div>
 
-                      return (
-                        <article key={`tracking-${row.shippingId}`} className="gce-list-item gce-track-item">
-                          <div className="gce-list-avatar">
-                            {row.avatarUrl ? <img src={row.avatarUrl} alt={row.betailName} loading="lazy" decoding="async" /> : <span>{getAvatarFallback(row.betailName)}</span>}
-                          </div>
-                          <div>
-                            <p className="gce-list-item-title">{row.betailName}</p>
-                            <p className="gce-list-item-meta">{row.matricule} • {row.farmName}</p>
-                            <p className="gce-list-item-meta">
-                              {getTrackingScheduleLine({ scheduledFor: row?.scheduledFor, delivered: isDelivered })}
-                            </p>
-                            <p className="gce-track-gain">
-                              <span aria-hidden="true">💸</span>
-                              <span>Gain estimé: <strong>{formatMoney(row?.estimatedGain)}</strong></span>
-                            </p>
-                            <div className="gce-progress-track gce-track-progress" aria-hidden="true">
-                              <span className={isDelivered ? 'is-delivered' : 'is-remaining'} style={{ width: `${progressPct}%` }} />
+                      {ongoingTrackingRows.length === 0 ? (
+                        <p className="gce-list-empty">Aucun bétail en cours d’expédition actuellement.</p>
+                      ) : (
+                        <>
+                          <div
+                            className={`gce-track-live-viewport ${trackingHasPrev ? 'has-prev' : ''} ${trackingHasNext ? 'has-next' : ''}`}
+                          >
+                            <div
+                              key={`tracking-page-${trackingCarouselIndex}`}
+                              className={`gce-track-live-grid ${trackingSlideDirection === 'prev' ? 'is-slide-prev' : 'is-slide-next'}`}
+                              style={{ '--gce-track-columns': String(trackingCardsPerView) }}
+                            >
+                              {visibleOngoingTrackingRows.map((row, rowIndex) => {
+                                const progressRatio = getTrackingProgress({
+                                  createdAt: row?.createdAt,
+                                  scheduledFor: row?.scheduledFor,
+                                  status: row?.status,
+                                })
+                                const progressPct = clamp(Math.round(progressRatio * 100), 0, 100)
+                                const tapeColor = TRACKING_TAPE_COLORS[(trackingCarouselIndex + rowIndex) % TRACKING_TAPE_COLORS.length]
+
+                                return (
+                                  <article
+                                    key={`tracking-live-${row.shippingId}`}
+                                    className="gce-track-live-card"
+                                    style={{ '--gce-track-tape-color': tapeColor }}
+                                  >
+                                    <div className="gce-track-time-badge" aria-label="Temps restant">
+                                      <span className="gce-track-clock-icon" aria-hidden="true" />
+                                      <span>{getDeliveryRemainingText(row?.scheduledFor)}</span>
+                                    </div>
+
+                                    <div className="gce-track-illustration" aria-hidden="true">
+                                      <div className="gce-track-conveyor-belt" />
+                                      <div className="gce-track-package">
+                                        <div className="gce-track-box">
+                                          <div className="gce-track-box-face gce-track-box-top">
+                                            <span className="gce-track-tape" />
+                                            <span className="gce-track-tape-horizontal" />
+                                            <span className="gce-track-avatar-core">
+                                              {row.avatarUrl ? (
+                                                <img src={row.avatarUrl} alt={row.betailName} loading="lazy" decoding="async" />
+                                              ) : (
+                                                <span>{getAvatarFallback(row.betailName)}</span>
+                                              )}
+                                            </span>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <div className="gce-track-content">
+                                      <h4 className="gce-track-card-title">Suivi de votre expédition</h4>
+                                      <p className="gce-track-card-description">
+                                        {row.betailName} ({row.matricule}) • {row.farmName}
+                                      </p>
+                                      <p className="gce-track-card-description">
+                                        {getTrackingScheduleLine({ scheduledFor: row?.scheduledFor, delivered: false })}
+                                      </p>
+                                      <p className="gce-track-card-description">
+                                        Gain : <strong>{formatMoney(row?.estimatedGain)}</strong>
+                                      </p>
+                                      {row.notes ? (
+                                        <p className="gce-track-card-note">Note: {row.notes}</p>
+                                      ) : null}
+
+                                      <div className="gce-track-footer">
+                                        <div className="gce-track-progress-indicator" aria-label={`Progression ${progressPct}%`}>
+                                          <span style={{ width: `${progressPct}%` }} />
+                                        </div>
+                                        <p className="gce-track-progress-text">Progression en cours: {progressPct}%</p>
+                                        <p className="gce-track-status-message">
+                                          <span className="gce-track-package-icon" aria-hidden="true" />
+                                          Acheminement en cours
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </article>
+                                )
+                              })}
                             </div>
-                            <p className="gce-track-progress-label">
-                              {isDelivered ? 'Expédition effectuée' : `Progression: ${progressPct}%`}
-                            </p>
                           </div>
-                        </article>
-                      )
-                    })}
+
+                          {trackingHasNext ? (
+                            <button
+                              type="button"
+                              className="gce-track-more-hint"
+                              aria-live="polite"
+                              onClick={handleTrackingNext}
+                            >
+                              <span>D'autres expéditions sont disponibles</span>
+                              <ChevronRight size={14} aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </>
+                      )}
+                    </section>
+
+                    <section className="gce-track-block" aria-label="Bétails déjà expédiés">
+                      <div className="gce-track-block-head">
+                        <h4>Déjà expédiés</h4>
+                        <span>{deliveredTrackingRows.length}</span>
+                      </div>
+
+                      {deliveredTrackingRows.length === 0 ? (
+                        <p className="gce-list-empty">Aucun bétail déjà expédié pour le moment.</p>
+                      ) : (
+                        <div className="gce-list-items gce-track-delivered-list">
+                          {deliveredTrackingRows.map((row) => (
+                            <article key={`tracking-delivered-${row.shippingId}`} className="gce-list-item gce-track-item">
+                              <div className="gce-list-avatar">
+                                {row.avatarUrl ? <img src={row.avatarUrl} alt={row.betailName} loading="lazy" decoding="async" /> : <span>{getAvatarFallback(row.betailName)}</span>}
+                              </div>
+                              <div>
+                                <p className="gce-list-item-title">{row.betailName}</p>
+                                <p className="gce-list-item-meta">{row.matricule} • {row.farmName}</p>
+                                <p className="gce-list-item-meta">
+                                  {getTrackingScheduleLine({ scheduledFor: row?.scheduledFor, delivered: true })}
+                                </p>
+                                <p className="gce-track-gain">
+                                  <span aria-hidden="true">💸</span>
+                                  <span>Gain reçu: <strong>{formatMoney(row?.estimatedGain)}</strong></span>
+                                </p>
+                              </div>
+                            </article>
+                          ))}
+                        </div>
+                      )}
+                    </section>
                   </div>
                 )}
               </section>
