@@ -1115,8 +1115,15 @@ function FarmPage() {
           </div>
 
           <div className="farm-private-orbit" aria-hidden="true">
-            <div className="farm-private-hex-shell">
-              <div className="farm-private-hex" />
+            <div className="farm-private-crypto-shell">
+              <div className="farm-private-crypto-track">
+                <span className="farm-private-crypto-bit c1">A1F3</span>
+                <span className="farm-private-crypto-bit c2">7D9C</span>
+                <span className="farm-private-crypto-bit c3">0x5E</span>
+                <span className="farm-private-crypto-bit c4">B2A8</span>
+                <span className="farm-private-crypto-bit c5">31CF</span>
+              </div>
+              <div className="farm-private-crypto-scan" />
             </div>
           </div>
 

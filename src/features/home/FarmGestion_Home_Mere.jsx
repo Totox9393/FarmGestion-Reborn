@@ -24,6 +24,12 @@ import gupna8 from '../../assets/img/gupna/gupna8.png';
 import gupna9 from '../../assets/img/gupna/gupna9.png';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const MILO_REFECTOIRE_URL = supabaseUrl
+  ? `${supabaseUrl}/storage/v1/object/public/ressources/milo_refectoire.png`
+  : '';
+const FARMS_BG_URL = supabaseUrl
+  ? `${supabaseUrl}/storage/v1/object/public/ressources/farms.png`
+  : '';
 const BETAILS_CACHE_TTL_MS = 15000;
 const PARIS_TIMEZONE = 'Europe/Paris';
 const WEEK_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
@@ -371,6 +377,19 @@ function FarmGestion_Home_Mere() {
 
   const nextSlide = () => setCarouselIndex(prev => Math.min(prev + 1, maxIndex));
   const prevSlide = () => setCarouselIndex(prev => Math.max(prev - 1, 0));
+  const openCommunityPage = useCallback(() => {
+    navigate('/community');
+  }, [navigate]);
+  const openFarmPage = useCallback(() => {
+    if (!profile?.farm_id) return;
+    navigate(`/farm/${profile.farm_id}`);
+  }, [navigate, profile?.farm_id]);
+  const handleWidgetKeyDown = useCallback((event, action) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      action();
+    }
+  }, []);
   const openBetailRegister = useCallback(() => {
     navigate('/betail-register');
   }, [navigate]);
@@ -493,20 +512,28 @@ function FarmGestion_Home_Mere() {
             <div className="home-hero__content">
             </div>
             <div className="home-hero__widgets">
-              <div className="home-hero__widget">
-                <p className="home-hero__widget-title">Identité</p>
-                <p className="home-hero__widget-value">
-                  <span className="home-hero__scroll-wrap">
-                    <span className="home-hero__scroll">{profile.username || 'fermier·e'}</span>
-                  </span>
-                </p>
-                <p className="home-hero__widget-meta">
-                  <span className="home-hero__scroll-wrap">
-                    <span className="home-hero__scroll">{user.email}</span>
-                  </span>
-                </p>
+              <div
+                className="home-hero__widget home-hero__widget--community home-hero__widget--interactive"
+                style={{ '--community-bg': MILO_REFECTOIRE_URL ? `url(${MILO_REFECTOIRE_URL})` : 'none' }}
+                role="button"
+                tabIndex={0}
+                onClick={openCommunityPage}
+                onKeyDown={(event) => handleWidgetKeyDown(event, openCommunityPage)}
+                aria-label="Ouvrir la communauté"
+              >
+                <p className="home-hero__widget-title">Communauté</p>
+                <p className="home-hero__widget-value">Visites les fermes et les profils des autres</p>
+                <p className="home-hero__widget-meta">Découvre les membres actifs.</p>
               </div>
-              <div className="home-hero__widget">
+              <div
+                className="home-hero__widget home-hero__widget--farm home-hero__widget--interactive"
+                style={{ '--farm-bg': FARMS_BG_URL ? `url(${FARMS_BG_URL})` : 'none' }}
+                role="button"
+                tabIndex={0}
+                onClick={openFarmPage}
+                onKeyDown={(event) => handleWidgetKeyDown(event, openFarmPage)}
+                aria-label="Ouvrir la ferme liée"
+              >
                 <p className="home-hero__widget-title">Ferme liée</p>
                 <p className="home-hero__widget-value">
                   <span className="home-hero__scroll-wrap">

@@ -171,6 +171,94 @@
   backdrop-filter: blur(10px);
 }
 
+.home-hero__widget--community {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  border-color: rgba(255, 255, 255, 0.65);
+  box-shadow: 0 12px 26px rgba(35, 26, 70, 0.08);
+}
+
+.home-hero__widget--community::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  background-image: var(--community-bg, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(2px);
+  transform: scale(1.05);
+  opacity: 1;
+  z-index: -2;
+}
+
+.home-hero__widget--community::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(160deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.2));
+  z-index: -1;
+}
+
+.home-hero__widget--interactive {
+  cursor: pointer;
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+.home-hero__widget--interactive:hover {
+  transform: translateY(-1px);
+}
+
+.home-hero__widget--interactive:focus-visible {
+  outline: 2px solid rgba(72, 52, 130, 0.45);
+  outline-offset: 2px;
+}
+
+.home-hero__widget--farm {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border-color: rgba(255, 255, 255, 0.64);
+}
+
+.home-hero__widget--farm::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  background-image: var(--farm-bg, none);
+  background-size: cover;
+  background-position: center;
+  filter: blur(2px) brightness(1.28) saturate(1.08);
+  transform: scale(1.05);
+  opacity: 0.86;
+  z-index: -2;
+}
+
+.home-hero__widget--farm::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.7), rgba(241, 245, 255, 0.44));
+  z-index: -1;
+}
+
+.home-hero__widget--community .home-hero__widget-value {
+  font-size: 0.98rem;
+  line-height: 1.1;
+  margin-bottom: 0;
+}
+
+.home-hero__widget--community .home-hero__widget-title,
+.home-hero__widget--community .home-hero__widget-value,
+.home-hero__widget--community .home-hero__widget-meta {
+  color: #ffffff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
 .home-hero__widget-title {
   font-size: 0.85rem;
   letter-spacing: 0.04em;

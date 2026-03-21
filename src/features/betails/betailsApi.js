@@ -65,6 +65,7 @@ const MY_BETAILS_FIELDS_MINIMAL = [
 
 const USER_SETTING_PINNED_BETAILS = 'pinned_betails'
 const USER_SETTING_ARCHIVED_BETAILS = 'archived_betails'
+const MAX_PINNED_BETAILS = 4
 const USER_BETAIL_FLAG_SETTING_NAMES = [
   USER_SETTING_PINNED_BETAILS,
   USER_SETTING_ARCHIVED_BETAILS,
@@ -694,6 +695,18 @@ const updateUserBetailFlag = async ({ betailId, userId, settingName, nextValue }
   if (readError) throw readError
 
   const currentIds = normalizeSettingBetailIds(currentSetting?.setting_value)
+
+  if (
+    settingName === USER_SETTING_PINNED_BETAILS &&
+    Boolean(nextValue) &&
+    !currentIds.includes(betailId) &&
+    currentIds.length >= MAX_PINNED_BETAILS
+  ) {
+    const limitError = new Error(`MAX_PINNED_BETAILS:${MAX_PINNED_BETAILS}`)
+    limitError.code = 'MAX_PINNED_BETAILS'
+    throw limitError
+  }
+
   const nextIds = Boolean(nextValue)
     ? Array.from(new Set([...currentIds, betailId]))
     : currentIds.filter((id) => id !== betailId)

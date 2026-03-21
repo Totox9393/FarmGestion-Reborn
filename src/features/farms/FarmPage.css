@@ -22,26 +22,55 @@
 }
 
 .farm-page--private {
+  --farm-private-text: #1f2d4d;
+  --farm-private-eyebrow: rgba(59, 88, 148, 0.9);
+  --farm-private-title: #203156;
+  --farm-private-copy: rgba(33, 50, 88, 0.88);
+  --farm-private-bg-top: rgba(133, 174, 255, 0.22);
+  --farm-private-bg-side: rgba(116, 211, 225, 0.2);
+  --farm-private-bg-gradient-a: #f2f7ff;
+  --farm-private-bg-gradient-b: #e4edfb;
+  --farm-private-card-border: rgba(99, 132, 206, 0.26);
+  --farm-private-card-gradient-a: rgba(255, 255, 255, 0.95);
+  --farm-private-card-gradient-b: rgba(242, 248, 255, 0.96);
+  --farm-private-card-shadow: 0 20px 46px rgba(53, 78, 140, 0.2);
+  --farm-private-lock-metal-a: #f5f8ff;
+  --farm-private-lock-metal-b: #d9e5ff;
+  --farm-private-lock-stroke: rgba(114, 143, 216, 0.7);
+  --farm-private-lock-keyhole: #29427f;
+  --farm-private-orbit-border: rgba(127, 165, 234, 0.52);
+  --farm-private-orbit-bg-a: rgba(145, 181, 247, 0.18);
+  --farm-private-orbit-bg-b: rgba(109, 145, 222, 0.08);
+  --farm-private-track-border: rgba(130, 164, 237, 0.6);
+  --farm-private-track-bg: rgba(236, 244, 255, 0.82);
+  --farm-private-track-inner: rgba(255, 255, 255, 0.5);
+  --farm-private-scan-glow: rgba(143, 209, 255, 0.52);
+  --farm-private-btn-border: rgba(87, 118, 195, 0.44);
+  --farm-private-btn-bg-a: rgba(158, 186, 248, 0.42);
+  --farm-private-btn-bg-b: rgba(134, 169, 238, 0.24);
+  --farm-private-btn-color: #214084;
+  --farm-private-btn-ghost-bg: rgba(255, 255, 255, 0.86);
+
   min-height: calc(100vh - var(--nav-h, 58px));
   display: grid;
   place-items: center;
   padding: clamp(18px, 4vw, 36px);
   background:
-    radial-gradient(circle at 12% 16%, rgba(90, 190, 255, 0.18) 0%, rgba(90, 190, 255, 0) 36%),
-    radial-gradient(circle at 86% 2%, rgba(125, 104, 255, 0.2) 0%, rgba(125, 104, 255, 0) 35%),
-    linear-gradient(180deg, #111b3b 0%, #17274f 100%);
-  color: #e8eeff;
+    radial-gradient(circle at 12% 16%, var(--farm-private-bg-top) 0%, rgba(90, 190, 255, 0) 36%),
+    radial-gradient(circle at 86% 2%, var(--farm-private-bg-side) 0%, rgba(125, 104, 255, 0) 35%),
+    linear-gradient(180deg, var(--farm-private-bg-gradient-a) 0%, var(--farm-private-bg-gradient-b) 100%);
+  color: var(--farm-private-text);
 }
 
 .farm-private-card {
   width: min(100%, 760px);
   text-align: center;
   border-radius: 24px;
-  border: 1px solid rgba(151, 181, 255, 0.32);
+  border: 1px solid var(--farm-private-card-border);
   background:
-    linear-gradient(180deg, rgba(28, 44, 86, 0.84) 0%, rgba(17, 28, 58, 0.86) 100%);
+    linear-gradient(180deg, var(--farm-private-card-gradient-a) 0%, var(--farm-private-card-gradient-b) 100%);
   box-shadow:
-    0 26px 62px rgba(6, 10, 24, 0.5),
+    var(--farm-private-card-shadow),
     inset 0 0 0 1px rgba(220, 231, 255, 0.08);
   padding: clamp(20px, 4.8vw, 42px);
 }
@@ -57,7 +86,7 @@
   width: 66px;
   height: 52px;
   margin: 0 auto;
-  border: 9px solid rgba(222, 234, 255, 0.95);
+  border: 9px solid var(--farm-private-lock-stroke);
   border-bottom: 0;
   border-radius: 36px 36px 0 0;
   transform-origin: 50% 90%;
@@ -69,7 +98,7 @@
   height: 78px;
   margin: -2px auto 0;
   border-radius: 16px;
-  background: linear-gradient(180deg, #eff4ff 0%, #cbdbff 100%);
+  background: linear-gradient(180deg, var(--farm-private-lock-metal-a) 0%, var(--farm-private-lock-metal-b) 100%);
   box-shadow: inset 0 -8px 18px rgba(69, 95, 170, 0.32);
   display: grid;
   place-items: center;
@@ -79,7 +108,7 @@
   width: 16px;
   height: 24px;
   border-radius: 999px;
-  background: #26417f;
+  background: var(--farm-private-lock-keyhole);
   position: relative;
 }
 
@@ -92,7 +121,7 @@
   left: 50%;
   bottom: -9px;
   transform: translateX(-50%);
-  background: #26417f;
+  background: var(--farm-private-lock-keyhole);
 }
 
 .farm-private-orbit {
@@ -100,54 +129,87 @@
   margin: 8px auto 8px;
   aspect-ratio: 11 / 3;
   border-radius: 999px;
-  border: 1px dashed rgba(162, 194, 255, 0.36);
+  border: 1px dashed var(--farm-private-orbit-border);
   position: relative;
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(99, 133, 223, 0.12) 0%, rgba(40, 66, 128, 0.06) 100%);
+  background: linear-gradient(180deg, var(--farm-private-orbit-bg-a) 0%, var(--farm-private-orbit-bg-b) 100%);
 }
 
-.farm-private-hex-shell {
+.farm-private-crypto-shell {
   position: absolute;
   left: 8%;
   top: 50%;
   transform: translateY(-50%);
   animation: farmOrbitDrift 7.2s cubic-bezier(0.3, 0.04, 0.17, 0.98) infinite;
+  width: clamp(176px, 30vw, 244px);
 }
 
-.farm-private-hex {
-  width: clamp(38px, 5.2vw, 52px);
-  aspect-ratio: 1;
-  position: relative;
-  clip-path: polygon(25% 6%, 75% 6%, 100% 50%, 75% 94%, 25% 94%, 0 50%);
-  border: 2px solid rgba(232, 241, 255, 0.96);
-  background:
-    radial-gradient(circle at 50% 50%, rgba(213, 233, 255, 0.22) 0%, rgba(213, 233, 255, 0.02) 62%),
-    rgba(216, 232, 255, 0.06);
+.farm-private-crypto-track {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  align-items: center;
+  justify-items: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--farm-private-track-border);
+  background: var(--farm-private-track-bg);
+  overflow: hidden;
   box-shadow:
-    0 8px 16px rgba(0, 0, 0, 0.34),
-    0 0 18px rgba(164, 203, 255, 0.26),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.34);
-  animation: farmHexSpin 2.1s linear infinite;
+    0 8px 16px rgba(0, 0, 0, 0.32),
+    inset 0 0 0 1px var(--farm-private-track-inner);
 }
 
-.farm-private-hex::before,
-.farm-private-hex::after {
-  content: '';
+.farm-private-crypto-bit {
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  font-family: 'Consolas', 'Menlo', 'Monaco', monospace;
+  font-size: clamp(0.58rem, 1.28vw, 0.72rem);
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-align: center;
+  padding: 4px 4px;
+  border-radius: 7px;
+  border: 1px solid currentColor;
+  background: rgba(255, 255, 255, 0.06);
+  text-shadow: 0 0 10px currentColor;
+  animation: farmCryptoFlicker 1.2s steps(2, end) infinite;
+}
+
+.farm-private-crypto-bit.c1 {
+  color: #69d4ff;
+  animation-delay: 0s;
+}
+
+.farm-private-crypto-bit.c2 {
+  color: #85ffb0;
+  animation-delay: 0.15s;
+}
+
+.farm-private-crypto-bit.c3 {
+  color: #ffd06d;
+  animation-delay: 0.3s;
+}
+
+.farm-private-crypto-bit.c4 {
+  color: #ff8ca7;
+  animation-delay: 0.45s;
+}
+
+.farm-private-crypto-bit.c5 {
+  color: #bc9cff;
+  animation-delay: 0.6s;
+}
+
+.farm-private-crypto-scan {
   position: absolute;
-  inset: 0;
-  clip-path: inherit;
-}
-
-.farm-private-hex::before {
-  inset: 5px;
-  border: 1px solid rgba(225, 238, 255, 0.78);
-  box-shadow: inset 0 0 10px rgba(170, 206, 255, 0.22);
-}
-
-.farm-private-hex::after {
-  inset: -2px;
-  border: 1px solid rgba(149, 191, 255, 0.38);
-  filter: blur(1px);
+  inset: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, var(--farm-private-scan-glow) 48%, rgba(255, 255, 255, 0) 100%);
+  transform: translateX(-120%);
+  animation: farmCryptoScan 2.1s ease-in-out infinite;
 }
 
 .farm-private-eyebrow {
@@ -156,20 +218,124 @@
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-weight: 800;
-  color: rgba(185, 208, 255, 0.95);
+  color: var(--farm-private-eyebrow);
 }
 
 .farm-private-title {
   margin: 6px 0 0;
   font-size: clamp(1.65rem, 4.2vw, 2.5rem);
-  color: #f3f7ff;
+  color: var(--farm-private-title);
 }
 
 .farm-private-text {
   margin: 12px auto 0;
   width: min(100%, 55ch);
-  color: rgba(220, 230, 255, 0.92);
+  color: var(--farm-private-copy);
   line-height: 1.5;
+}
+
+.farm-page--private .farm-page-btn {
+  border-color: var(--farm-private-btn-border);
+  background: linear-gradient(180deg, var(--farm-private-btn-bg-a) 0%, var(--farm-private-btn-bg-b) 100%);
+  color: var(--farm-private-btn-color);
+}
+
+.farm-page--private .farm-page-btn.ghost {
+  background: var(--farm-private-btn-ghost-bg);
+}
+
+.auth-theme.dark_theme .farm-page--private,
+.auth-theme.galactic_theme .farm-page--private {
+  --farm-private-text: #e8eeff;
+  --farm-private-eyebrow: rgba(185, 208, 255, 0.95);
+  --farm-private-title: #f3f7ff;
+  --farm-private-copy: rgba(220, 230, 255, 0.92);
+  --farm-private-bg-top: rgba(90, 190, 255, 0.18);
+  --farm-private-bg-side: rgba(125, 104, 255, 0.2);
+  --farm-private-bg-gradient-a: #111b3b;
+  --farm-private-bg-gradient-b: #17274f;
+  --farm-private-card-border: rgba(151, 181, 255, 0.32);
+  --farm-private-card-gradient-a: rgba(28, 44, 86, 0.84);
+  --farm-private-card-gradient-b: rgba(17, 28, 58, 0.86);
+  --farm-private-card-shadow: 0 26px 62px rgba(6, 10, 24, 0.5);
+  --farm-private-lock-metal-a: #eff4ff;
+  --farm-private-lock-metal-b: #cbdbff;
+  --farm-private-lock-stroke: rgba(222, 234, 255, 0.95);
+  --farm-private-lock-keyhole: #26417f;
+  --farm-private-orbit-border: rgba(162, 194, 255, 0.36);
+  --farm-private-orbit-bg-a: rgba(99, 133, 223, 0.12);
+  --farm-private-orbit-bg-b: rgba(40, 66, 128, 0.06);
+  --farm-private-track-border: rgba(170, 201, 255, 0.48);
+  --farm-private-track-bg: rgba(15, 33, 79, 0.55);
+  --farm-private-track-inner: rgba(233, 242, 255, 0.16);
+  --farm-private-scan-glow: rgba(170, 232, 255, 0.35);
+  --farm-private-btn-border: rgba(124, 154, 236, 0.42);
+  --farm-private-btn-bg-a: rgba(98, 130, 209, 0.34);
+  --farm-private-btn-bg-b: rgba(66, 96, 173, 0.2);
+  --farm-private-btn-color: #dfeaff;
+  --farm-private-btn-ghost-bg: rgba(30, 47, 90, 0.72);
+}
+
+.auth-theme.pastel_theme .farm-page--private {
+  --farm-private-text: #4d305a;
+  --farm-private-eyebrow: rgba(147, 86, 139, 0.86);
+  --farm-private-title: #5f3266;
+  --farm-private-copy: rgba(93, 55, 102, 0.86);
+  --farm-private-bg-top: rgba(255, 173, 220, 0.26);
+  --farm-private-bg-side: rgba(180, 198, 255, 0.2);
+  --farm-private-bg-gradient-a: #fff3fb;
+  --farm-private-bg-gradient-b: #fde9f6;
+  --farm-private-card-border: rgba(212, 145, 199, 0.34);
+  --farm-private-card-gradient-a: rgba(255, 255, 255, 0.94);
+  --farm-private-card-gradient-b: rgba(255, 239, 249, 0.94);
+  --farm-private-card-shadow: 0 20px 46px rgba(170, 108, 161, 0.2);
+  --farm-private-lock-metal-a: #fff4fc;
+  --farm-private-lock-metal-b: #f6dbf0;
+  --farm-private-lock-stroke: rgba(201, 138, 196, 0.8);
+  --farm-private-lock-keyhole: #8f4c86;
+  --farm-private-orbit-border: rgba(212, 157, 203, 0.5);
+  --farm-private-orbit-bg-a: rgba(252, 214, 245, 0.44);
+  --farm-private-orbit-bg-b: rgba(232, 205, 255, 0.24);
+  --farm-private-track-border: rgba(208, 146, 199, 0.62);
+  --farm-private-track-bg: rgba(255, 248, 253, 0.82);
+  --farm-private-track-inner: rgba(255, 255, 255, 0.6);
+  --farm-private-scan-glow: rgba(255, 184, 228, 0.46);
+  --farm-private-btn-border: rgba(182, 120, 171, 0.46);
+  --farm-private-btn-bg-a: rgba(241, 193, 231, 0.62);
+  --farm-private-btn-bg-b: rgba(229, 168, 214, 0.4);
+  --farm-private-btn-color: #6b336f;
+  --farm-private-btn-ghost-bg: rgba(255, 255, 255, 0.9);
+}
+
+.auth-theme.multicolor_theme .farm-page--private {
+  --farm-private-text: #2c2f5a;
+  --farm-private-eyebrow: rgba(85, 88, 171, 0.9);
+  --farm-private-title: #2a2e66;
+  --farm-private-copy: rgba(48, 54, 108, 0.84);
+  --farm-private-bg-top: rgba(166, 212, 255, 0.28);
+  --farm-private-bg-side: rgba(244, 169, 255, 0.22);
+  --farm-private-bg-gradient-a: #f8f5ff;
+  --farm-private-bg-gradient-b: #efeaff;
+  --farm-private-card-border: rgba(145, 152, 228, 0.32);
+  --farm-private-card-gradient-a: rgba(255, 255, 255, 0.95);
+  --farm-private-card-gradient-b: rgba(244, 241, 255, 0.94);
+  --farm-private-card-shadow: 0 20px 46px rgba(89, 96, 184, 0.18);
+  --farm-private-lock-metal-a: #f8f8ff;
+  --farm-private-lock-metal-b: #dfe1ff;
+  --farm-private-lock-stroke: rgba(125, 132, 214, 0.8);
+  --farm-private-lock-keyhole: #35428f;
+  --farm-private-orbit-border: rgba(148, 159, 235, 0.52);
+  --farm-private-orbit-bg-a: rgba(195, 214, 255, 0.32);
+  --farm-private-orbit-bg-b: rgba(224, 209, 255, 0.22);
+  --farm-private-track-border: rgba(146, 155, 232, 0.58);
+  --farm-private-track-bg: rgba(244, 247, 255, 0.86);
+  --farm-private-track-inner: rgba(255, 255, 255, 0.58);
+  --farm-private-scan-glow: rgba(179, 223, 255, 0.5);
+  --farm-private-btn-border: rgba(115, 123, 206, 0.45);
+  --farm-private-btn-bg-a: rgba(186, 196, 255, 0.52);
+  --farm-private-btn-bg-b: rgba(162, 171, 240, 0.36);
+  --farm-private-btn-color: #2a3478;
+  --farm-private-btn-ghost-bg: rgba(255, 255, 255, 0.9);
 }
 
 .farm-private-actions {
@@ -224,20 +390,41 @@
   }
 }
 
-@keyframes farmHexSpin {
-  from {
-    transform: rotate(0deg);
+@keyframes farmCryptoFlicker {
+  0%,
+  100% {
+    opacity: 0.95;
+    filter: brightness(1);
   }
-  to {
-    transform: rotate(360deg);
+  50% {
+    opacity: 0.5;
+    filter: brightness(1.25);
+  }
+}
+
+@keyframes farmCryptoScan {
+  0% {
+    transform: translateX(-120%);
+    opacity: 0;
+  }
+  12% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(120%);
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .farm-private-lock,
   .farm-private-lock-shackle,
-  .farm-private-hex-shell,
-  .farm-private-hex {
+  .farm-private-crypto-shell,
+  .farm-private-crypto-bit,
+  .farm-private-crypto-scan {
     animation: none;
   }
 }

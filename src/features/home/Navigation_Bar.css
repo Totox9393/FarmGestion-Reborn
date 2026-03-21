@@ -174,6 +174,44 @@
   gap: 6px;
 }
 
+.nav-settings {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: rgba(72, 52, 130, 0.08);
+  color: #1f1a33;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, border-color 0.15s ease;
+}
+
+.nav-settings .iconify {
+  width: 18px;
+  height: 18px;
+  display: block;
+  color: currentColor;
+  opacity: 1;
+  flex-shrink: 0;
+}
+
+.nav-settings:hover {
+  background: rgba(72, 52, 130, 0.12);
+  border-color: rgba(122, 91, 255, 0.35);
+  box-shadow: 0 10px 22px rgba(88, 65, 168, 0.18);
+  transform: translateY(-1px);
+}
+
+.nav-settings:focus,
+.nav-settings:focus-visible {
+  outline: none;
+  background: rgba(72, 52, 130, 0.12);
+  border-color: rgba(122, 91, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(122, 91, 255, 0.2), 0 10px 22px rgba(88, 65, 168, 0.18);
+}
+
 .nav-user {
   display: inline-flex;
   align-items: center;
@@ -300,6 +338,11 @@
 
   .nav-right {
     gap: 4px;
+  }
+
+  .nav-settings {
+    width: 34px;
+    height: 34px;
   }
 
   .nav-identity,
@@ -443,6 +486,11 @@
   background: rgba(122, 91, 255, 0.08);
 }
 
+.auth-theme.dark_theme .nav-settings {
+  background: rgba(122, 91, 255, 0.14);
+  color: #f0edff;
+}
+
 .auth-theme.dark_theme .nav-user:hover {
   background: rgba(122, 91, 255, 0.16);
   border-color: rgba(122, 91, 255, 0.45);
@@ -547,6 +595,11 @@
   background: rgba(245, 138, 198, 0.1);
 }
 
+.auth-theme.pastel_theme .nav-settings {
+  background: rgba(245, 138, 198, 0.16);
+  color: #4a2435;
+}
+
 .auth-theme.pastel_theme .nav-user:hover {
   background: rgba(245, 138, 198, 0.2);
   border-color: rgba(245, 138, 198, 0.42);
@@ -635,6 +688,11 @@
 
 .auth-theme.galactic_theme .nav-user {
   background: rgba(141, 179, 255, 0.1);
+}
+
+.auth-theme.galactic_theme .nav-settings {
+  background: rgba(141, 179, 255, 0.14);
+  color: #eaf2ff;
 }
 
 .auth-theme.galactic_theme .nav-user:hover {
@@ -739,6 +797,11 @@
 
 .auth-theme.multicolor_theme .nav-user {
   background: rgba(127, 107, 255, 0.1);
+}
+
+.auth-theme.multicolor_theme .nav-settings {
+  background: rgba(127, 107, 255, 0.16);
+  color: #35204b;
 }
 
 .auth-theme.multicolor_theme .nav-user:hover {

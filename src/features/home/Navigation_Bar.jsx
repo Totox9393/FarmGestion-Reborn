@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, HelpCircle } from 'lucide-react';
+import { Icon } from '@iconify/react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
@@ -108,6 +109,15 @@ function Navigation_Bar() {
       return;
     }
     go(`/farm/${farmId}`);
+  };
+
+  const goMyProfile = () => {
+    const username = String(profile?.username || '').trim();
+    if (!username) {
+      go('/community');
+      return;
+    }
+    go(`/community/profile/${encodeURIComponent(username)}`);
   };
 
   const formattedMoney = useMemo(() => {
@@ -221,7 +231,7 @@ function Navigation_Bar() {
             className="nav-user"
             type="button"
             title={profile?.username || user.email}
-            onClick={() => setIsSettingsOpen(true)}
+            onClick={goMyProfile}
           >
             <div className="nav-avatar">
               {profile?.avatar_url ? (
@@ -236,6 +246,15 @@ function Navigation_Bar() {
                 💸 {formattedMoney}
               </p>
             </div>
+          </button>
+          <button
+            type="button"
+            className="nav-settings"
+            onClick={() => setIsSettingsOpen(true)}
+            aria-label="Ouvrir les paramètres"
+            title="Paramètres"
+          >
+            <Icon icon="mdi:cog" width={18} height={18} />
           </button>
           <button
             type="button"

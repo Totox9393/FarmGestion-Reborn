@@ -712,6 +712,10 @@ function MyBetailsPageQuery() {
             toast('error', fallbackMessage)
             return
           }
+          if (toggleError?.code === 'MAX_PINNED_BETAILS' || String(toggleError?.message || '').includes('MAX_PINNED_BETAILS:4')) {
+            toast('error', 'Tu peux épingler maximum 4 bétails.')
+            return
+          }
           toast('error', 'Action impossible pour le moment.')
         },
       },
