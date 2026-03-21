@@ -697,6 +697,26 @@
   transition: background 0.15s ease, color 0.15s ease;
 }
 
+.settings-link--with-badge {
+  justify-content: space-between;
+}
+
+.settings-link-badge {
+  min-width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  background: #e94a4a;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
 .settings-link:hover {
   background: rgba(255, 255, 255, 0.08);
 }
@@ -1095,10 +1115,14 @@
 
 .settings-admin-toolbar {
   margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .settings-admin-search {
   width: 100%;
+  flex: 1;
   height: 40px;
   border-radius: 10px;
   border: 1px solid var(--settings-border);
@@ -1106,6 +1130,55 @@
   color: var(--settings-text);
   padding: 0 12px;
   font-size: 13px;
+}
+
+.settings-admin-refresh {
+  height: 40px;
+  padding: 0 14px;
+  flex-shrink: 0;
+}
+
+.settings-admin-refresh-icon-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.settings-admin-refresh-icon-btn:hover {
+  border-color: var(--settings-accent);
+  filter: brightness(0.98);
+}
+
+.settings-admin-refresh-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-admin-refresh-icon {
+  transform-origin: center;
+}
+
+.settings-admin-refresh-icon.is-spinning {
+  animation: settings-refresh-spin-once 560ms ease-in-out 1;
+}
+
+@keyframes settings-refresh-spin-once {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .settings-admin-search:focus,
@@ -1127,6 +1200,83 @@
 
 .settings-admin-feedback.is-error {
   color: #ff6b6b;
+}
+
+.settings-admin-view-switch {
+  display: flex;
+  gap: 8px;
+  margin: 2px 0 12px;
+  flex-wrap: wrap;
+}
+
+.settings-admin-view-btn {
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-admin-view-btn--with-badge {
+  position: relative;
+  padding-right: 24px;
+}
+
+.settings-admin-view-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  background: #ff4d4f;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+.settings-admin-view-badge.is-sparkle {
+  animation: settings-badge-sparkle 1.4s ease-in-out infinite;
+}
+
+@keyframes settings-badge-sparkle {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 6px 14px rgba(0, 0, 0, 0.28);
+    filter: brightness(1);
+  }
+  45% {
+    transform: scale(1.08);
+    box-shadow: 0 0 0 4px rgba(255, 77, 79, 0.22), 0 10px 18px rgba(0, 0, 0, 0.35);
+    filter: brightness(1.1);
+  }
+}
+
+.settings-admin-view-btn:hover {
+  border-color: var(--settings-accent);
+}
+
+.settings-admin-view-btn.active {
+  border-color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+}
+
+.settings-admin-view-btn:focus,
+.settings-admin-view-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
 }
 
 .settings-admin-shipping-list {
@@ -1271,6 +1421,146 @@
 
 .settings-admin-btn--delete-hard:hover {
   background: #621515;
+}
+
+.settings-admin-btn--act {
+  background: #b8791e;
+  width: 108px;
+}
+
+.settings-admin-btn--act:hover {
+  background: #996519;
+}
+
+.settings-admin-btn--reject {
+  background: #d84545;
+  width: 108px;
+}
+
+.settings-admin-btn--reject:hover {
+  background: #bf3737;
+}
+
+.settings-admin-report-actions-menu {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  min-width: 230px;
+}
+
+.settings-admin-btn--moderation {
+  width: 100%;
+  background: #2b7cff;
+}
+
+.settings-admin-btn--moderation:hover {
+  background: #216ae0;
+}
+
+.settings-admin-btn--moderation-warning {
+  background: #d84545;
+}
+
+.settings-admin-btn--moderation-warning:hover {
+  background: #bf3737;
+}
+
+.settings-admin-btn--moderation-cancel {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--settings-border);
+  color: var(--settings-text);
+}
+
+.settings-admin-btn--moderation-cancel:hover {
+  border-color: var(--settings-accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-admin-report-reason {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--settings-text);
+}
+
+.settings-admin-report-comment {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--settings-muted);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.settings-admin-report-row {
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.settings-admin-report-row:hover {
+  border-color: var(--settings-accent);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.settings-admin-report-row.is-expanded {
+  border-color: var(--settings-accent);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.settings-admin-report-row:focus,
+.settings-admin-report-row:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-report-owner-line {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.settings-admin-report-owner {
+  color: #3f8cff;
+  font-weight: 700;
+}
+
+.settings-admin-report-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--settings-muted);
+  opacity: 0.85;
+}
+
+.settings-admin-report-retention {
+  margin: 6px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #59a7ff;
+}
+
+.settings-admin-status-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 108px;
+  height: 34px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid transparent;
+}
+
+.settings-admin-status-badge.is-done {
+  color: #1f7a49;
+  background: rgba(47, 158, 95, 0.2);
+  border-color: rgba(47, 158, 95, 0.45);
+}
+
+.settings-admin-status-badge.is-rejected {
+  color: #a12c2c;
+  background: rgba(216, 69, 69, 0.2);
+  border-color: rgba(216, 69, 69, 0.45);
 }
 
 .settings-admin-pagination {

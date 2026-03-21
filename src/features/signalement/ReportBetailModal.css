@@ -1,0 +1,601 @@
+.report-betail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  background: rgba(14, 16, 24, 0.55);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.report-betail-modal {
+  --report-bg: #fbfbff;
+  --report-panel: #ffffff;
+  --report-panel-soft: #f4f6ff;
+  --report-text: #241b3f;
+  --report-text-soft: rgba(36, 27, 63, 0.72);
+  --report-border: rgba(110, 92, 192, 0.2);
+  --report-accent: #6a4bdd;
+  --report-accent-soft: rgba(106, 75, 221, 0.12);
+  --report-danger: #d84862;
+  width: min(700px, calc(100vw - 24px));
+  max-height: min(640px, calc(100vh - 24px));
+  border-radius: 20px;
+  border: 1px solid var(--report-border);
+  background: var(--report-bg);
+  color: var(--report-text);
+  box-shadow: 0 22px 50px rgba(14, 16, 24, 0.35);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.report-betail-top-actions {
+  position: absolute;
+  top: 9px;
+  right: 10px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.report-betail-close {
+  position: relative;
+  width: 30px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--report-text);
+  font-size: 25px;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: color 0.16s ease, transform 0.16s ease;
+}
+
+.report-betail-close:hover {
+  color: #ff4d4f;
+  transform: translateY(-1px);
+}
+
+.report-betail-visibility-toggle {
+  position: relative;
+  width: 30px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  transition: filter 0.16s ease, transform 0.16s ease;
+}
+
+.report-betail-visibility-toggle svg {
+  display: block;
+  transform: translateY(2px);
+}
+
+.report-betail-visibility-toggle.is-visible {
+  color: #1f9c63;
+}
+
+.report-betail-visibility-toggle.is-hidden {
+  color: #d94747;
+}
+
+.report-betail-visibility-toggle:hover {
+  filter: brightness(0.9);
+  transform: translateY(-1px) scale(1.06);
+}
+
+.report-betail-visibility-toggle:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+.report-betail-visibility-toggle::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: -4px;
+  top: calc(100% + 8px);
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+  background: rgba(30, 33, 45, 0.94);
+  color: #ffffff;
+  border-radius: 8px;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  z-index: 6;
+}
+
+.report-betail-visibility-toggle:hover::after,
+.report-betail-visibility-toggle:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.report-betail-header {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 14px 46px 10px 14px;
+  background: linear-gradient(160deg, var(--report-panel-soft), transparent 70%);
+  border-bottom: 1px solid var(--report-border);
+}
+
+.report-betail-milo {
+  width: 58px;
+  height: 58px;
+  object-fit: contain;
+  filter: drop-shadow(0 6px 10px rgba(12, 14, 24, 0.22));
+}
+
+.report-betail-eyebrow {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--report-accent);
+}
+
+.report-betail-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.report-betail-header p {
+  margin: 2px 0 0;
+  color: var(--report-text-soft);
+  font-size: 0.86rem;
+}
+
+.report-betail-form {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.report-betail-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(205px, 240px) 1fr;
+  gap: 8px;
+  padding: 10px 12px 8px;
+  overflow: hidden;
+}
+
+.report-betail-summary {
+  background: var(--report-panel);
+  border: 1px solid var(--report-border);
+  border-radius: 12px;
+  padding: 10px;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  align-self: start;
+}
+
+.report-betail-summary-head {
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.report-betail-avatar {
+  width: 62px;
+  height: 62px;
+  border-radius: 999px;
+  border: 2px solid var(--report-border);
+  background: var(--report-panel-soft);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  font-size: 1.45rem;
+  font-weight: 800;
+}
+
+.report-betail-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.report-betail-summary-head h3 {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.report-betail-summary-head p {
+  margin: 4px 0 0;
+  color: var(--report-accent);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.report-betail-meta {
+  margin: 0;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.report-betail-meta div {
+  display: grid;
+  gap: 1px;
+}
+
+.report-betail-meta dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--report-text-soft);
+  font-weight: 800;
+}
+
+.report-betail-meta dd {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.92rem;
+}
+
+.report-betail-comment {
+  background: var(--report-panel-soft);
+  border: 1px solid var(--report-border);
+  border-radius: 10px;
+  padding: 8px;
+}
+
+.report-betail-comment-text {
+  max-height: 112px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 2px;
+}
+
+.report-betail-comment-text::-webkit-scrollbar {
+  width: 8px;
+}
+
+.report-betail-comment-text::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(106, 75, 221, 0.42);
+}
+
+.report-betail-comment-text::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.report-betail-comment-label {
+  margin: 0 0 6px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  color: var(--report-text-soft);
+}
+
+.report-betail-comment p {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: var(--report-text-soft);
+}
+
+.report-betail-reasons {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.report-betail-step {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.86rem;
+  color: var(--report-text-soft);
+}
+
+.report-betail-reason-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.report-betail-reason {
+  border: 1px solid var(--report-border);
+  border-radius: 10px;
+  background: var(--report-panel);
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  min-height: 42px;
+}
+
+.report-betail-reason:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(19, 22, 36, 0.1);
+}
+
+.report-betail-reason input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.report-betail-reason.is-selected {
+  border-color: rgba(106, 75, 221, 0.55);
+  box-shadow: 0 0 0 1px rgba(106, 75, 221, 0.34);
+  background: var(--report-accent-soft);
+}
+
+.report-betail-reason-title {
+  font-weight: 800;
+  font-size: 0.82rem;
+  line-height: 1.2;
+}
+
+.report-betail-selected-hint {
+  margin: 0;
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px dashed var(--report-border);
+  background: var(--report-panel-soft);
+  padding: 8px 10px;
+  font-size: 0.78rem;
+  line-height: 1.3;
+  color: var(--report-text-soft);
+}
+
+.report-betail-other-view {
+  display: grid;
+  gap: 8px;
+}
+
+.report-betail-back-reasons {
+  justify-self: start;
+  border: 1px solid var(--report-border);
+  background: var(--report-panel);
+  color: var(--report-text);
+  border-radius: 999px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report-betail-back-reasons:hover {
+  background: var(--report-panel-soft);
+}
+
+.report-betail-other-wrap {
+  display: grid;
+  gap: 4px;
+  min-height: 0;
+  align-content: start;
+}
+
+.report-betail-other-wrap label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--report-text-soft);
+}
+
+.report-betail-other-wrap textarea {
+  width: 100%;
+  resize: none;
+  min-height: 74px;
+  max-height: 74px;
+  border-radius: 10px;
+  border: 1px solid var(--report-border);
+  background: var(--report-panel);
+  color: var(--report-text);
+  padding: 10px;
+  font-size: 0.92rem;
+  font-family: inherit;
+}
+
+.report-betail-other-wrap textarea:focus,
+.report-betail-reason:focus-within,
+.report-betail-cancel:focus,
+.report-betail-submit:focus,
+.report-betail-close:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(106, 75, 221, 0.35);
+}
+
+.report-betail-other-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--report-text-soft);
+  font-size: 0.76rem;
+}
+
+.report-betail-other-foot .is-warning {
+  color: var(--report-danger);
+  font-weight: 700;
+}
+
+.report-betail-error {
+  margin: 0;
+  color: var(--report-danger);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.report-betail-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--report-border);
+  background: var(--report-panel);
+}
+
+.report-betail-cancel,
+.report-betail-submit {
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--report-border);
+  padding: 0 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.report-betail-cancel {
+  background: var(--report-panel-soft);
+  color: var(--report-text);
+}
+
+.report-betail-submit {
+  border: 0;
+  background: linear-gradient(135deg, #8d72ff, var(--report-accent));
+  color: #ffffff;
+  box-shadow: 0 10px 18px rgba(106, 75, 221, 0.34);
+}
+
+.report-betail-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.report-betail-success {
+  margin: 16px;
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--report-border);
+  background: var(--report-panel);
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+
+.report-betail-success h3 {
+  margin: 0;
+}
+
+.report-betail-success p {
+  margin: 0;
+  color: var(--report-text-soft);
+  line-height: 1.45;
+}
+
+.auth-theme.dark_theme .report-betail-modal {
+  --report-bg: rgba(20, 22, 36, 0.98);
+  --report-panel: rgba(24, 26, 40, 0.98);
+  --report-panel-soft: rgba(28, 32, 52, 0.95);
+  --report-text: #eef0ff;
+  --report-text-soft: rgba(230, 226, 255, 0.72);
+  --report-border: rgba(122, 91, 255, 0.34);
+  --report-accent: #9f8bff;
+  --report-accent-soft: rgba(122, 91, 255, 0.22);
+  --report-danger: #ff8096;
+}
+
+.auth-theme.pastel_theme .report-betail-modal {
+  --report-bg: rgba(255, 247, 252, 0.98);
+  --report-panel: rgba(255, 251, 254, 0.98);
+  --report-panel-soft: rgba(255, 241, 249, 0.95);
+  --report-text: #4a2435;
+  --report-text-soft: rgba(74, 36, 53, 0.72);
+  --report-border: rgba(245, 138, 198, 0.35);
+  --report-accent: #d85b9d;
+  --report-accent-soft: rgba(245, 138, 198, 0.2);
+  --report-danger: #cc4b70;
+}
+
+.auth-theme.galactic_theme .report-betail-modal {
+  --report-bg: rgba(24, 32, 50, 0.98);
+  --report-panel: rgba(30, 40, 62, 0.98);
+  --report-panel-soft: rgba(35, 47, 72, 0.95);
+  --report-text: #edf3ff;
+  --report-text-soft: rgba(214, 228, 255, 0.76);
+  --report-border: rgba(141, 179, 255, 0.34);
+  --report-accent: #8db3ff;
+  --report-accent-soft: rgba(141, 179, 255, 0.2);
+  --report-danger: #ff8ea1;
+}
+
+.auth-theme.multicolor_theme .report-betail-modal {
+  --report-bg: rgba(247, 241, 255, 0.98);
+  --report-panel: rgba(255, 255, 255, 0.98);
+  --report-panel-soft: rgba(244, 238, 255, 0.95);
+  --report-text: #35204b;
+  --report-text-soft: rgba(53, 32, 75, 0.72);
+  --report-border: rgba(162, 128, 255, 0.34);
+  --report-accent: #6a4bdd;
+  --report-accent-soft: rgba(162, 128, 255, 0.2);
+  --report-danger: #cf4f73;
+}
+
+@media (max-width: 860px) {
+  .report-betail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .report-betail-reason-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .report-betail-summary {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    align-items: start;
+  }
+
+  .report-betail-summary-head {
+    grid-column: 1 / -1;
+  }
+
+  .report-betail-comment {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 540px) {
+  .report-betail-overlay {
+    padding: 10px;
+  }
+
+  .report-betail-modal {
+    max-height: min(650px, calc(100vh - 12px));
+    border-radius: 16px;
+  }
+
+  .report-betail-header {
+    grid-template-columns: 1fr;
+    padding-right: 42px;
+  }
+
+  .report-betail-milo {
+    width: 62px;
+    height: 62px;
+  }
+
+  .report-betail-reason-grid {
+    grid-template-columns: 1fr;
+  }
+}

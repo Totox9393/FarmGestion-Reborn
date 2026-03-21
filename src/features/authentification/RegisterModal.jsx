@@ -7,6 +7,25 @@ import { supabase } from './supabaseClient';
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
 
+const normalizePseudo = (value) => String(value || '').trim();
+
+const checkUsernameAvailability = async (pseudoValue) => {
+  const normalizedPseudo = normalizePseudo(pseudoValue);
+  if (!normalizedPseudo) return { available: false, error: 'Le pseudo est requis.' };
+
+  const { data, error } = await supabase
+    .from('users_profiles')
+    .select('id')
+    .ilike('username', normalizedPseudo)
+    .limit(1);
+
+  if (error) {
+    return { available: false, error: 'Impossible de vérifier la disponibilité du pseudo.' };
+  }
+
+  return { available: !Array.isArray(data) || data.length === 0, error: '' };
+};
+
 function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const pseudoInputRef = useRef(null);
   const [pseudo, setPseudo] = useState('');
@@ -49,10 +68,19 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    if (!pseudo.trim()) {
+    const normalizedPseudo = normalizePseudo(pseudo);
+
+    if (!normalizedPseudo) {
       setError('Le pseudo est requis.');
       return;
     }
+
+    const { available, error: availabilityError } = await checkUsernameAvailability(normalizedPseudo);
+    if (!available) {
+      setError(availabilityError || 'Ce pseudo est déjà utilisé.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('Les mots de passe ne correspondent pas.');
       return;
@@ -70,12 +98,20 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
       const now = new Date().toISOString();
       const { error: profileError } = await supabase.from('users_profiles').insert({
         id: user.id,
-        username: pseudo,
+        username: normalizedPseudo,
         email,
         created_at: now,
         updated_at: now
       });
       if (profileError) {
+        const isUsernameConflict = profileError?.code === '23505'
+          || String(profileError?.message || '').toLowerCase().includes('users_profiles_username_ci_unique_idx')
+          || String(profileError?.message || '').toLowerCase().includes('duplicate key');
+        if (isUsernameConflict) {
+          setError('Ce pseudo est déjà utilisé. Choisissez-en un autre.');
+          setLoading(false);
+          return;
+        }
         setError('Compte créé mais erreur lors de l’enregistrement du profil.');
         setLoading(false);
         return;

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Heart } from 'lucide-react'
 import {
   useAuthorsMap,
@@ -7,8 +8,11 @@ import {
   useBetailsList,
   usePurchaseBetail,
   useUserFarmId,
+  useUserRole,
 } from './hooks'
 import { useAuth } from '../authentification/AuthContext'
+import { supabase } from '../authentification/supabaseClient'
+import ReportBetailModal from '../signalement/ReportBetailModal'
 import './BetailsListPage.css'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 
@@ -112,10 +116,68 @@ function BetailsListPageQuery() {
   const [sortMode, setSortMode] = useState('recent')
   const [selectedBetailId, setSelectedBetailId] = useState(null)
   const [purchasingId, setPurchasingId] = useState(null)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [reportBetailVisible, setReportBetailVisible] = useState(true)
+  const queryClient = useQueryClient()
   const purchaseAudio = useMemo(() => new Audio(purchaseSound), [])
 
   const { data: farmId } = useUserFarmId(user?.id)
+  const { data: userRole = '' } = useUserRole(user?.id)
   const purchaseMutation = usePurchaseBetail()
+
+  const isAdminOrModeration = useMemo(() => {
+    const normalized = String(userRole || '').trim().toUpperCase()
+    return normalized.includes('ADMIN') || normalized.includes('MODERATION')
+  }, [userRole])
+
+  const visibilityToggleMutation = useMutation({
+    mutationFn: async ({ betailId, nextVisible }) => {
+      const payload = nextVisible
+        ? {
+            visible: true,
+            invisible_at: null,
+            invisible_reason: null,
+          }
+        : {
+            visible: false,
+            invisible_at: new Date().toISOString(),
+            invisible_reason: 'Rendu invisible manuellement par un modérateur',
+          }
+
+      const { error } = await supabase
+        .from('betails')
+        .update(payload)
+        .eq('id', betailId)
+
+      if (error) {
+        throw error
+      }
+
+      return { nextVisible }
+    },
+    onSuccess: ({ nextVisible }) => {
+      setReportBetailVisible(nextVisible)
+      queryClient.invalidateQueries({ queryKey: ['betails'] })
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: {
+            type: 'success',
+            message: nextVisible ? 'Bétail rendu visible.' : 'Bétail rendu invisible.',
+          },
+        }),
+      )
+    },
+    onError: () => {
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: {
+            type: 'error',
+            message: 'Impossible de changer la visibilité du bétail.',
+          },
+        }),
+      )
+    },
+  })
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -198,7 +260,26 @@ function BetailsListPageQuery() {
   }
 
   const handleClosePanel = () => {
+    setIsReportModalOpen(false)
     setSelectedBetailId(null)
+  }
+
+  const handleOpenReportModal = () => {
+    if (!selectedBetail) return
+    setIsReportModalOpen(true)
+  }
+
+  const handleCloseReportModal = () => {
+    setIsReportModalOpen(false)
+  }
+
+  const handleToggleBetailVisibility = () => {
+    if (!selectedBetail?.id || visibilityToggleMutation.isPending) return
+    const nextVisible = !reportBetailVisible
+    visibilityToggleMutation.mutate({
+      betailId: selectedBetail.id,
+      nextVisible,
+    })
   }
 
   const getPurchaseDisabledReason = () => {
@@ -271,9 +352,22 @@ function BetailsListPageQuery() {
     if (!selectedBetailId || isInitialLoading) return
     const stillVisible = betails.some((item) => item.id === selectedBetailId)
     if (!stillVisible) {
+      setIsReportModalOpen(false)
       setSelectedBetailId(null)
     }
   }, [betails, isInitialLoading, selectedBetailId])
+
+  useEffect(() => {
+    if (!selectedBetail) {
+      setIsReportModalOpen(false)
+    }
+  }, [selectedBetail])
+
+  useEffect(() => {
+    if (selectedBetail) {
+      setReportBetailVisible(Boolean(selectedBetail.visible ?? true))
+    }
+  }, [selectedBetail])
 
   return (
     <div className="betails-page">
@@ -381,6 +475,7 @@ function BetailsListPageQuery() {
                     className="betail-details-close betail-details-report"
                     aria-label="Signaler ce bétail"
                     title="Signaler ce bétail"
+                    onClick={handleOpenReportModal}
                   >
                     <AlertTriangle size={16} />
                   </button>
@@ -499,6 +594,20 @@ function BetailsListPageQuery() {
           )}
         </aside>
       </div>
+
+      <ReportBetailModal
+        isOpen={isReportModalOpen}
+        onClose={handleCloseReportModal}
+        betail={selectedBetail}
+        reporterId={user?.id || null}
+        authorName={selectedAuthorName}
+        createdAtLabel={formatFrenchDate(selectedCreatedAt)}
+        description={selectedComment}
+        canToggleVisibility={isAdminOrModeration}
+        isBetailVisible={reportBetailVisible}
+        isTogglingVisibility={visibilityToggleMutation.isPending}
+        onToggleVisibility={handleToggleBetailVisibility}
+      />
     </div>
   )
 }

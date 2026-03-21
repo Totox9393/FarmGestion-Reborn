@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 
 const PAGE_SIZE = 8;
@@ -135,6 +136,7 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [confirmDeleteBetailId, setConfirmDeleteBetailId] = useState(null);
+  const [refreshSpinTick, setRefreshSpinTick] = useState(0);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
   useEffect(() => {
@@ -234,6 +236,13 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
     hardDeleteMutation.mutate({ betailId: row.betailId });
   };
 
+  const handleRefresh = async () => {
+    setFeedback({ type: '', message: '' });
+    setConfirmDeleteBetailId(null);
+    setRefreshSpinTick((value) => value + 1);
+    await invisibleBetailsQuery.refetch();
+  };
+
   return (
     <div className="settings-section">
       <h3 className="settings-section-title">Bétails invisibles</h3>
@@ -246,6 +255,19 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
           onChange={(event) => setSearchInput(event.target.value)}
           aria-label="Recherche des bétails invisibles"
         />
+        <button
+          type="button"
+          className="settings-admin-refresh-icon-btn"
+          onClick={handleRefresh}
+          aria-label="Rafraîchir les bétails invisibles"
+          disabled={invisibleBetailsQuery.isFetching || isMutating}
+        >
+          <RefreshCcw
+            key={`invisible-refresh-${refreshSpinTick}`}
+            size={16}
+            className={`settings-admin-refresh-icon ${refreshSpinTick > 0 ? 'is-spinning' : ''}`}
+          />
+        </button>
       </div>
 
       {feedback.message ? (

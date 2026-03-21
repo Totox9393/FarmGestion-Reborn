@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
@@ -7,6 +8,7 @@ import Settings_ChangeEmail from './Settings_ChangeEmail';
 import Settings_ChangeAvatar from './Settings_ChangeAvatar';
 import Settings_AdminShippingPanel from './Settings_AdminShippingPanel';
 import Settings_AdminInvisibleBetailsPanel from './Settings_AdminInvisibleBetailsPanel';
+import Settings_ReportsPanel from './Settings_ReportsPanel';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -23,9 +25,11 @@ const SECTIONS = {
   administration: 'Administration',
   expeditions: 'Expéditions',
   invisibleBetails: 'Bétails invisibles',
+  reports: 'Signalements',
 };
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
+const ADMIN_REPORTS_PENDING_COUNT_QUERY_KEY = ['settings', 'admin', 'reports', 'pending-count'];
 
 const parseNewsletterSettingValue = (value) => {
   if (typeof value === 'boolean') return value;
@@ -48,6 +52,7 @@ const resolveNewsletterEnabled = (row) => {
 
 function SettingsModal({ isOpen, onClose, user, profile }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('account');
   const [theme, setTheme] = useState(() => getLocalThemePreference());
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
@@ -68,10 +73,36 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
           : theme === 'multicolor'
             ? 'is-multicolor'
             : 'is-light';
-  const isAdmin = String(`${profile?.role || ''} ${profile?.role_ingame || ''}`)
+  const normalizedRoles = String(`${profile?.role || ''} ${profile?.role_ingame || ''}`)
     .trim()
-    .toUpperCase()
-    .includes('ADMIN');
+    .toUpperCase();
+  const isAdmin = normalizedRoles.includes('ADMIN');
+  const isModeration = normalizedRoles.includes('MODERATION');
+  const canAccessAdministration = isAdmin || isModeration;
+
+  const pendingReportsCountQuery = useQuery({
+    queryKey: ADMIN_REPORTS_PENDING_COUNT_QUERY_KEY,
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('betails_reports')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      if (error) {
+        return 0;
+      }
+
+      return Number(count || 0);
+    },
+    enabled: Boolean(isOpen && canAccessAdministration),
+    staleTime: 20_000,
+    gcTime: 300_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
+  const pendingReportsCount = pendingReportsCountQuery.data ?? 0;
+  const pendingReportsBadgeCount = pendingReportsCount > 9999 ? '9999+' : String(pendingReportsCount);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -91,17 +122,41 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
   }, [isOpen]);
 
   useEffect(() => {
-    if (isAdmin) return;
+    if (canAccessAdministration) return;
     if (activeSection.startsWith('administration_')) {
       setActiveSection('account');
     }
-  }, [activeSection, isAdmin]);
+  }, [activeSection, canAccessAdministration]);
 
   useEffect(() => {
     if (isOpen) {
       setTheme(getLocalThemePreference());
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !canAccessAdministration) return;
+
+    const channel = supabase
+      .channel(`settings-admin-reports-${user?.id || 'anon'}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'betails_reports',
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ADMIN_REPORTS_PENDING_COUNT_QUERY_KEY });
+          queryClient.invalidateQueries({ queryKey: ['settings', 'admin', 'reports'] });
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [isOpen, canAccessAdministration, queryClient, user?.id]);
 
   useEffect(() => {
     if (!isOpen || !user) return;
@@ -340,22 +395,38 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               </button>
             </div>
 
-            {isAdmin && (
+            {canAccessAdministration && (
               <div className="settings-category">
                 <p className="settings-category-title">{SECTIONS.administration}</p>
+                {isAdmin && (
+                  <>
+                    <button
+                      type="button"
+                      className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
+                      onClick={() => setActiveSection('administration_expeditions')}
+                    >
+                      {SECTIONS.expeditions}
+                    </button>
+                    <button
+                      type="button"
+                      className={`settings-link ${activeSection === 'administration_invisible_betails' ? 'active' : ''}`}
+                      onClick={() => setActiveSection('administration_invisible_betails')}
+                    >
+                      {SECTIONS.invisibleBetails}
+                    </button>
+                  </>
+                )}
                 <button
                   type="button"
-                  className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
-                  onClick={() => setActiveSection('administration_expeditions')}
+                  className={`settings-link settings-link--with-badge ${activeSection === 'administration_signalements' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('administration_signalements')}
                 >
-                  {SECTIONS.expeditions}
-                </button>
-                <button
-                  type="button"
-                  className={`settings-link ${activeSection === 'administration_invisible_betails' ? 'active' : ''}`}
-                  onClick={() => setActiveSection('administration_invisible_betails')}
-                >
-                  {SECTIONS.invisibleBetails}
+                  <span>{SECTIONS.reports}</span>
+                  {pendingReportsCount > 0 ? (
+                    <span className="settings-link-badge" aria-label={`${pendingReportsCount} signalements en attente`}>
+                      {pendingReportsBadgeCount}
+                    </span>
+                  ) : null}
                 </button>
               </div>
             )}
@@ -523,6 +594,14 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               <Settings_AdminInvisibleBetailsPanel
                 isActive={activeSection === 'administration_invisible_betails'}
                 isAdmin={isAdmin}
+              />
+            )}
+
+            {canAccessAdministration && activeSection === 'administration_signalements' && (
+              <Settings_ReportsPanel
+                isActive={activeSection === 'administration_signalements'}
+                canAccessAdministration={canAccessAdministration}
+                currentUserId={user?.id || null}
               />
             )}
           </section>

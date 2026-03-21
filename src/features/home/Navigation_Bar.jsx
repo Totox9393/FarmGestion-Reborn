@@ -185,7 +185,7 @@ function Navigation_Bar() {
                   leaveTo="nav-leave-to"
                 >
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
-                    <button className="nav-dropdown-item" onClick={() => go('/farms-actives')}><Factory size={16} /> Fermes actives</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/community')}><Factory size={16} /> Communaute</button>
                     <button className="nav-dropdown-item" onClick={() => go('/gce')}><CalendarDays size={16} /> GCE</button>
                     <button className="nav-dropdown-item" onClick={goMyFarm}>
                       <HomeIcon size={16} /> Ma ferme {farm?.name ? `- ${farm.name}` : '- Non renseignée'}

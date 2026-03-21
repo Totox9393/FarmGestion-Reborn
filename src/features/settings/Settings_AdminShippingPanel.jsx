@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import cancelConfirmedSound from '../../assets/sounds/00111 - WAV_111_GUESS_BNK_SE_COMMON.wav';
 
@@ -188,6 +189,7 @@ function Settings_AdminShippingPanel({ isActive, isAdmin }) {
   const [editingShippingId, setEditingShippingId] = useState(null);
   const [confirmCancelShippingId, setConfirmCancelShippingId] = useState(null);
   const [editingDate, setEditingDate] = useState('');
+  const [refreshSpinTick, setRefreshSpinTick] = useState(0);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
 
   const playCancelConfirmedSound = () => {
@@ -318,6 +320,13 @@ function Settings_AdminShippingPanel({ isActive, isAdmin }) {
     cancelShippingMutation.mutate({ shippingId: row.shippingId });
   };
 
+  const handleRefresh = async () => {
+    setFeedback({ type: '', message: '' });
+    setConfirmCancelShippingId(null);
+    setRefreshSpinTick((value) => value + 1);
+    await expeditionsQuery.refetch();
+  };
+
   return (
     <div className="settings-section">
       <h3 className="settings-section-title">Expeditions</h3>
@@ -330,6 +339,19 @@ function Settings_AdminShippingPanel({ isActive, isAdmin }) {
           onChange={(event) => setSearchInput(event.target.value)}
           aria-label="Recherche des expéditions"
         />
+        <button
+          type="button"
+          className="settings-admin-refresh-icon-btn"
+          onClick={handleRefresh}
+          aria-label="Rafraîchir les expéditions"
+          disabled={expeditionsQuery.isFetching || isMutating}
+        >
+          <RefreshCcw
+            key={`shipping-refresh-${refreshSpinTick}`}
+            size={16}
+            className={`settings-admin-refresh-icon ${refreshSpinTick > 0 ? 'is-spinning' : ''}`}
+          />
+        </button>
       </div>
 
       {feedback.message ? (

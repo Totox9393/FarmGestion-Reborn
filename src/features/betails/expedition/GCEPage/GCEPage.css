@@ -1960,6 +1960,22 @@
   }
 }
 
+@media (max-height: 860px) and (min-width: 921px) {
+  .gce-page {
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .gce-shell {
+    height: auto;
+    min-height: 100%;
+  }
+
+  .gce-grid.gce-grid-month {
+    grid-template-rows: 36px repeat(6, minmax(76px, 1fr));
+  }
+}
+
 @media (max-width: 920px) {
   .gce-page {
     height: auto;

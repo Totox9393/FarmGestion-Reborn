@@ -114,3 +114,41 @@ create table public.user_settings (
   constraint user_settings_setting_name_format check ((setting_name ~ '^[a-z0-9_]+$'::text))
 ) TABLESPACE pg_default; 
 ```
+
+## Table `public.betails_reports`
+
+```sql
+create table public.betails_reports (
+  id uuid not null default gen_random_uuid(),
+  betail_id uuid not null,
+  reporter_id uuid not null,
+  reason_code text not null,
+  reason_details text null,
+  status text not null default 'pending'::text,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  handled_by uuid null,
+  handled_at timestamp with time zone null,
+  betail_snapshot_comment text null,
+  constraint betails_reports_pkey primary key (id),
+  constraint betails_reports_betail_id_fkey foreign key (betail_id) references betails (id) on delete cascade,
+  constraint betails_reports_reporter_id_fkey foreign key (reporter_id) references users_profiles (id) on delete cascade,
+  constraint betails_reports_handled_by_fkey foreign key (handled_by) references users_profiles (id) on delete set null,
+  constraint betails_reports_reason_code_check check (
+    reason_code = any (
+      array[
+        'photo_inappropriee'::text,
+        'nom_inapproprie'::text,
+        'description_inappropriee'::text,
+        'informations_personnelles'::text,
+        'fraude_manipulation'::text,
+        'harcelement'::text,
+        'autre'::text
+      ]
+    )
+  ),
+  constraint betails_reports_status_check check (
+    status = any (array['pending'::text, 'done'::text, 'rejected'::text])
+  )
+) TABLESPACE pg_default;
+```

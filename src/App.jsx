@@ -14,6 +14,8 @@ import RulesPage from './features/other/RulesPage';
 import FarmPage from './features/farms/FarmPage';
 import ShopPage from './features/boutique/ShopPage';
 import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
+import CommunityPage from './features/community/CommunityPage';
+import CommunityProfilePage from './features/community/CommunityProfilePage';
 import './App.css';
 
 function AppRoutes() {
@@ -146,6 +148,36 @@ function AppRoutes() {
             <PrivateRoute>
               <AuthenticatedLayout>
                 <ShopPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/community"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <CommunityPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/community/profile/:handle"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <CommunityProfilePage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/farms-actives"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <CommunityPage />
               </AuthenticatedLayout>
             </PrivateRoute>
           }
