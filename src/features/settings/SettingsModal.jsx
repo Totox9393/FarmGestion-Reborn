@@ -57,6 +57,9 @@ const resolveFriendRequestsEnabled = (row) => {
 };
 
 function SettingsModal({ isOpen, onClose, user, profile }) {
+  const marketingVersion = import.meta.env.VITE_APP_MARKETING_VERSION || '0.0.0';
+  const commitHash = import.meta.env.VITE_APP_COMMIT_HASH || 'dev';
+  const versionLabel = `v${marketingVersion} • ${commitHash}`;
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('account');
@@ -403,93 +406,98 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
 
         <div className="settings-body">
           <aside className="settings-sidebar">
-            <div className="settings-category">
-              <p className="settings-category-title">Compte</p>
-              <button
-                type="button"
-                className={`settings-link settings-link--account ${activeSection === 'account' ? 'active' : ''}`}
-                onClick={() => setActiveSection('account')}
-              >
-                <div className="settings-user">
-                  <div className="settings-user-avatar">
-                    {profile?.avatar_url ? (
-                      <img src={profile.avatar_url} alt="avatar" />
-                    ) : (
-                      <svg viewBox="0 0 24 24" aria-hidden="true">
-                        <path
-                          fill="currentColor"
-                          d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2-8 4.5V20h16v-1.5C20 16 16.42 14 12 14Z"
-                        />
-                      </svg>
-                    )}
-                  </div>
-                  <div className="settings-user-info">
-                    <p className="settings-user-name">{profile?.username || 'Utilisateur'}</p>
-                  </div>
-                </div>
-              </button>
-              <button
-                type="button"
-                className={`settings-link ${activeSection === 'preferences' ? 'active' : ''}`}
-                onClick={() => setActiveSection('preferences')}
-              >
-                {SECTIONS.preferences}
-              </button>
-            </div>
-
-            <div className="settings-category">
-              <p className="settings-category-title">Autres</p>
-              <button
-                type="button"
-                className={`settings-link ${activeSection === 'badges' ? 'active' : ''}`}
-                onClick={() => setActiveSection('badges')}
-              >
-                {SECTIONS.badges}
-              </button>
-              <button
-                type="button"
-                className={`settings-link ${activeSection === 'import' ? 'active' : ''}`}
-                onClick={() => setActiveSection('import')}
-              >
-                {SECTIONS.import}
-              </button>
-            </div>
-
-            {canAccessAdministration && (
+            <div className="settings-sidebar-categories">
               <div className="settings-category">
-                <p className="settings-category-title">{SECTIONS.administration}</p>
-                {isAdmin && (
-                  <>
-                    <button
-                      type="button"
-                      className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
-                      onClick={() => setActiveSection('administration_expeditions')}
-                    >
-                      {SECTIONS.expeditions}
-                    </button>
-                    <button
-                      type="button"
-                      className={`settings-link ${activeSection === 'administration_invisible_betails' ? 'active' : ''}`}
-                      onClick={() => setActiveSection('administration_invisible_betails')}
-                    >
-                      {SECTIONS.invisibleBetails}
-                    </button>
-                  </>
-                )}
+                <p className="settings-category-title">Compte</p>
                 <button
                   type="button"
-                  className={`settings-link settings-link--with-badge ${activeSection === 'administration_signalements' ? 'active' : ''}`}
-                  onClick={() => setActiveSection('administration_signalements')}
+                  className={`settings-link settings-link--account ${activeSection === 'account' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('account')}
                 >
-                  <span>{SECTIONS.reports}</span>
-                  {pendingReportsCount > 0 ? (
-                    <span className="settings-link-badge" aria-label={`${pendingReportsCount} signalements en attente`}>
-                      {pendingReportsBadgeCount}
-                    </span>
-                  ) : null}
+                  <div className="settings-user">
+                    <div className="settings-user-avatar">
+                      {profile?.avatar_url ? (
+                        <img src={profile.avatar_url} alt="avatar" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" aria-hidden="true">
+                          <path
+                            fill="currentColor"
+                            d="M12 12a4 4 0 1 0-4-4 4 4 0 0 0 4 4Zm0 2c-4.42 0-8 2-8 4.5V20h16v-1.5C20 16 16.42 14 12 14Z"
+                          />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="settings-user-info">
+                      <p className="settings-user-name">{profile?.username || 'Utilisateur'}</p>
+                    </div>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  className={`settings-link ${activeSection === 'preferences' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('preferences')}
+                >
+                  {SECTIONS.preferences}
                 </button>
               </div>
-            )}
+
+              <div className="settings-category">
+                <p className="settings-category-title">Autres</p>
+                <button
+                  type="button"
+                  className={`settings-link ${activeSection === 'badges' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('badges')}
+                >
+                  {SECTIONS.badges}
+                </button>
+                <button
+                  type="button"
+                  className={`settings-link ${activeSection === 'import' ? 'active' : ''}`}
+                  onClick={() => setActiveSection('import')}
+                >
+                  {SECTIONS.import}
+                </button>
+              </div>
+
+              {canAccessAdministration && (
+                <div className="settings-category">
+                  <p className="settings-category-title">{SECTIONS.administration}</p>
+                  {isAdmin && (
+                    <>
+                      <button
+                        type="button"
+                        className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_expeditions')}
+                      >
+                        {SECTIONS.expeditions}
+                      </button>
+                      <button
+                        type="button"
+                        className={`settings-link ${activeSection === 'administration_invisible_betails' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_invisible_betails')}
+                      >
+                        {SECTIONS.invisibleBetails}
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    className={`settings-link settings-link--with-badge ${activeSection === 'administration_signalements' ? 'active' : ''}`}
+                    onClick={() => setActiveSection('administration_signalements')}
+                  >
+                    <span>{SECTIONS.reports}</span>
+                    {pendingReportsCount > 0 ? (
+                      <span className="settings-link-badge" aria-label={`${pendingReportsCount} signalements en attente`}>
+                        {pendingReportsBadgeCount}
+                      </span>
+                    ) : null}
+                  </button>
+                </div>
+              )}
+            </div>
+            <p className="settings-sidebar-version" title="Version marketing • commit">
+              {versionLabel}
+            </p>
           </aside>
 
           <section className="settings-content">
