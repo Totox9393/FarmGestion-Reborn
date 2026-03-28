@@ -33,6 +33,7 @@ const FARMS_BG_URL = supabaseUrl
 const BETAILS_CACHE_TTL_MS = 15000;
 const PARIS_TIMEZONE = 'Europe/Paris';
 const WEEK_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
+const USER_SETTING_ARCHIVED_BETAILS = 'archived_betails';
 const betailsCache = {
   timestamp: 0,
   latest: [],
@@ -83,6 +84,73 @@ const buildWeeklyShippingPlaceholder = () =>
     isToday: false,
   }));
 
+const countEquippedBadges = (value) => {
+  const walk = (entry) => {
+    if (Array.isArray(entry)) {
+      return entry.reduce((sum, item) => sum + walk(item), 0);
+    }
+
+    if (!entry) return 0;
+
+    if (typeof entry === 'string') {
+      const trimmed = entry.trim();
+      if (!trimmed) return 0;
+      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+        try {
+          return walk(JSON.parse(trimmed));
+        } catch {
+          return 1;
+        }
+      }
+      return 1;
+    }
+
+    if (typeof entry === 'object') {
+      return Object.values(entry).reduce((sum, item) => sum + walk(item), 0);
+    }
+
+    return 0;
+  };
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    try {
+      return walk(JSON.parse(trimmed));
+    } catch {
+      return 0;
+    }
+  }
+
+  return walk(value);
+};
+
+const parseVisibilityFromState = (value) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value !== 'string') return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === 'true' || normalized === 'public' || normalized === 'publique') return true;
+  if (normalized === 'false' || normalized === 'private' || normalized === 'privee' || normalized === 'privée') return false;
+  return null;
+};
+
+const normalizeSettingBetailIds = (value) => {
+  let parsed = value;
+  if (typeof parsed === 'string') {
+    const trimmed = parsed.trim();
+    if (!trimmed) return [];
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch {
+      return [];
+    }
+  }
+
+  if (!Array.isArray(parsed)) return [];
+  return Array.from(new Set(parsed.filter((item) => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())));
+};
+
 const mockBetails = [
   { id: 1, name: 'Marguerite', matricule: 'BT-7539', race: '⭐ Premium', img: betail1, likes: 24 },
   { id: 2, name: 'Belle', matricule: 'BT-2814', race: 'Standard', img: betail2, likes: 12 },
@@ -131,13 +199,20 @@ function FarmGestion_Home_Mere() {
           return { days: buildWeeklyShippingPlaceholder(), total: 0 };
         }
 
+        const { data: archivedData } = await supabase
+          .from('user_settings')
+          .select('setting_value')
+          .eq('user_id', user.id)
+          .eq('setting_name', USER_SETTING_ARCHIVED_BETAILS)
+          .maybeSingle();
+        const archivedBetailSet = new Set(normalizeSettingBetailIds(archivedData?.setting_value));
+
         const betailIds = [...new Set(shippingRows.map((row) => row.betail_id).filter(Boolean))];
         let betailMap = new Map();
         if (betailIds.length) {
           const { data: betailsRows, error: betailsError } = await supabase
             .from('betails')
-            .select('id, name, avatar_url, owner_id')
-            .eq('visible', true)
+            .select('id, name, avatar_url, owner_id, farm_id')
             .in('id', betailIds);
 
           if (!betailsError && Array.isArray(betailsRows)) {
@@ -145,9 +220,26 @@ function FarmGestion_Home_Mere() {
           }
         }
 
+        const farmIds = [...new Set(Array.from(betailMap.values()).map((row) => row?.farm_id).filter(Boolean))];
+        let farmMap = new Map();
+        if (farmIds.length) {
+          const { data: farmsRows, error: farmsError } = await supabase
+            .from('farms_list')
+            .select('id, visible')
+            .in('id', farmIds);
+
+          if (!farmsError && Array.isArray(farmsRows)) {
+            farmMap = new Map(farmsRows.map((row) => [row.id, row]));
+          }
+        }
+
         const visibleRows = shippingRows.filter((row) => {
           const betail = betailMap.get(row.betail_id);
-          return row.scheduled_by_uuid === user.id || betail?.owner_id === user.id;
+          const farm = betail?.farm_id ? farmMap.get(betail.farm_id) : null;
+          const isOwner = Boolean(betail?.owner_id) && betail.owner_id === user.id;
+          const shouldHidePrivateFarm = farm?.visible === false && !isOwner;
+          const shouldHideArchived = isOwner && archivedBetailSet.has(String(betail?.id || row.betail_id || ''));
+          return !shouldHidePrivateFarm && !shouldHideArchived;
         });
 
         const groupedByDay = new Map();
@@ -353,31 +445,64 @@ function FarmGestion_Home_Mere() {
     queryKey: ['home', 'farm-stats', user?.id, profile?.farm_id],
     queryFn: async () => {
       try {
-        if (!user?.id || !profile?.farm_id) return { farmId: null, farmState: null, betailCount: 0, farmName: null }
+        if (!user?.id || !profile?.farm_id) return { farmId: null, farmState: null, betailCount: 0, farmName: null, farmVisible: null, badgeCount: 0 }
 
         const [farmRes, countRes] = await Promise.all([
-          supabase.from('farms_list').select('id,name,state').eq('id', profile.farm_id).maybeSingle(),
+          supabase.from('farms_list').select('id,name,state,visible,equipped_badges').eq('id', profile.farm_id).maybeSingle(),
           supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id).eq('visible', true),
         ])
 
         const farmObj = farmRes?.data ?? null
         const count = typeof countRes?.count === 'number' ? countRes.count : 0
+        const badgeCount = countEquippedBadges(farmObj?.equipped_badges)
+        const stateVisibility = parseVisibilityFromState(farmObj?.state)
+        const resolvedVisibility = stateVisibility ?? (typeof farmObj?.visible === 'boolean' ? farmObj.visible : null)
 
         return {
           farmId: farmObj?.id ?? profile.farm_id ?? null,
           farmState: farmObj?.state ?? null,
           betailCount: count,
           farmName: farmObj?.name ?? null,
+          farmVisible: resolvedVisibility,
+          badgeCount,
         }
       } catch (err) {
         // Ne pas jeter pour éviter une erreur 500 côté UI ; retourner des valeurs sûres
-        return { farmId: profile?.farm_id ?? null, farmState: null, betailCount: 0, farmName: null }
+        return { farmId: profile?.farm_id ?? null, farmState: null, betailCount: 0, farmName: null, farmVisible: null, badgeCount: 0 }
       }
     },
     enabled: !!user?.id && !!profile?.farm_id,
     staleTime: 15_000,
     cacheTime: 60_000,
   })
+
+  const { data: lastPurchasedBetail = null, isLoading: isLoadingLastPurchased } = useQuery({
+    queryKey: ['home', 'last-purchased-betail', user?.id],
+    queryFn: async () => {
+      try {
+        if (!user?.id) return null;
+
+        const { data, error } = await supabase
+          .from('betails')
+          .select('id,name,matricule,avatar_url,purchased_at')
+          .eq('owner_id', user.id)
+          .not('purchased_at', 'is', null)
+          .order('purchased_at', { ascending: false, nullsFirst: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) return null;
+        return data ?? null;
+      } catch {
+        return null;
+      }
+    },
+    enabled: !!user?.id,
+    staleTime: 60_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 0,
+  });
 
   // Refresh periodically instead of realtime to avoid websocket errors
   useEffect(() => {
@@ -429,6 +554,21 @@ function FarmGestion_Home_Mere() {
   const openBetailRegister = useCallback(() => {
     navigate('/betail-register');
   }, [navigate]);
+  const farmName = farmStats.farmName ?? farm?.name ?? '—';
+  const farmState = farmStats.farmState ?? farm?.state ?? 'Inconnu';
+  const hasBetailCount = typeof farmStats.betailCount === 'number';
+  const farmBetailDisplay = hasBetailCount ? farmStats.betailCount : '—';
+  const farmIdDisplay = farmStats.farmId ?? profile?.farm_id ?? '—';
+  const farmNameDisplay = farmIdDisplay !== '—' ? `${farmName} #${farmIdDisplay}` : farmName;
+  const farmVisibilityLabel = farmStats.farmVisible === true ? 'Publique' : farmStats.farmVisible === false ? 'Privee' : '—';
+  const farmBadgeCount = typeof farmStats.badgeCount === 'number' ? farmStats.badgeCount : 0;
+  const canOpenFarm = Boolean(profile?.farm_id);
+  const hasLastPurchasedBetail = Boolean(lastPurchasedBetail?.id);
+  const lastPurchasedAvatar = hasLastPurchasedBetail ? normalizeAvatar(lastPurchasedBetail?.avatar_url) : '';
+  const lastPurchasedName = hasLastPurchasedBetail ? lastPurchasedBetail?.name || 'Sans nom' : 'Aucun bétail acheté';
+  const lastPurchasedMatricule = hasLastPurchasedBetail
+    ? lastPurchasedBetail?.matricule || 'Matricule inconnu'
+    : 'Ton prochain achat apparaitra ici';
 
   const toggleLikeMutation = useMutation({
     mutationFn: async ({ betailId, currentlyLiked }) => {
@@ -826,7 +966,6 @@ function FarmGestion_Home_Mere() {
               </div>
             </div>
 
-            <div className="home-meeting-card__open-hint">Ouvrir le GCE</div>
           </div>
 
           <div className="home-weekly-ship__avatars-row" aria-hidden="true">
@@ -835,61 +974,123 @@ function FarmGestion_Home_Mere() {
                 <span className="home-weekly-ship__avatars">
                   {day.avatars.slice(0, 3).map((avatar) => (
                     <span key={avatar.id} className="home-weekly-ship__avatar" title={avatar.name}>
-                      {avatar.avatarUrl ? <img src={avatar.avatarUrl} alt="" loading="lazy" decoding="async" /> : <span>{avatar.name[0]?.toUpperCase() || '?'}</span>}
+                      {avatar.avatarUrl ? (
+                        <img
+                          src={normalizeAvatar(avatar.avatarUrl)}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = betail1;
+                          }}
+                        />
+                      ) : (
+                        <span className="home-weekly-ship__avatar-dot" aria-hidden="true" />
+                      )}
                     </span>
                   ))}
+                  {day.avatars.length === 0 ? (
+                    <span className="home-weekly-ship__avatar is-empty" aria-hidden="true">
+                      <span className="home-weekly-ship__avatar-dot" />
+                    </span>
+                  ) : null}
                   {day.avatars.length > 3 ? <span className="home-weekly-ship__avatar is-more">+{day.avatars.length - 3}</span> : null}
                 </span>
               </div>
             ))}
           </div>
+
+          <div className="home-meeting-card__open-btn" aria-hidden="true">
+            Ouvrir le GCE
+            <span aria-hidden>→</span>
+          </div>
         </button>
 
-        <div className="home-card">
-          <div className="home-card__header">
-            <span className="home-chip purple">Ferme</span>
-            <span className="home-chip soft">{farmStats.farmState ?? farm?.state ?? '—'}</span>
+        <div className="home-card home-card--farm">
+          <div className="home-meeting-card__header home-farm-card__header">
+            <h3 className="home-meeting-card__title">Ferme</h3>
+            <span className="home-meeting-card__date-selector home-farm-card__state">{farmState}</span>
           </div>
-          <div className="home-card__content">
-            <p>Ferme: <strong>{farmStats.farmName ?? farm?.name ?? '—'}</strong></p>
-            <p>Bétails : <strong>{typeof farmStats.betailCount === 'number' ? farmStats.betailCount : '—'}</strong></p>
-            <p>Statut : <strong>{farmStats.farmState ?? farm?.state ?? '—'}</strong></p>
-            <p>Ta ferme est prête. Tu pourras bientôt suivre les betails, stocks et équipes.</p>
-            <div className="home-stats">
-              <div className="home-stat">
-                <span className="home-stat__value">{farmStats.farmId ?? profile?.farm_id ?? '—'}</span>
-                <span className="home-stat__label">Ferme ID</span>
-              </div>
-              <div className="home-stat">
-                <span className="home-stat__value">{typeof farmStats.betailCount === 'number' ? farmStats.betailCount : '—'}</span>
-                <span className="home-stat__label">Bétails</span>
-              </div>
-              <div className="home-stat">
-                <span className="home-stat__value">—</span>
-                <span className="home-stat__label">Badges</span>
-              </div>
+
+          <p className="home-farm-card__subtitle">{farmNameDisplay}</p>
+
+          <div className="home-farm-card__metrics" aria-hidden="true">
+            <div className="home-farm-card__metric">
+              <span className="home-farm-card__metric-label">Bétails</span>
+              <strong className="home-farm-card__metric-value">{farmBetailDisplay}</strong>
             </div>
+            <div className="home-farm-card__metric">
+              <span className="home-farm-card__metric-label">Visibilite</span>
+              <strong className="home-farm-card__metric-value">{farmVisibilityLabel}</strong>
+            </div>
+            <div className="home-farm-card__metric">
+              <span className="home-farm-card__metric-label">Badges</span>
+              <strong className="home-farm-card__metric-value">{farmBadgeCount}</strong>
+            </div>
+          </div>
+
+          <div className="home-farm-card__decor" aria-hidden="true">
+            <span className="home-farm-card__decor-orb orb-a" />
+            <span className="home-farm-card__decor-orb orb-b" />
+            <span className="home-farm-card__decor-orb orb-c" />
+          </div>
+
+          <div className="home-farm-card__actions">
+            <button
+              type="button"
+              className="home-farm-card__cta-btn"
+              onClick={openFarmPage}
+              disabled={!canOpenFarm}
+            >
+              <span>{canOpenFarm ? 'Ouvrir la ferme' : 'Crée une ferme pour activer'}</span>
+              <span aria-hidden>→</span>
+            </button>
+            <button
+              type="button"
+              className="home-farm-card__secondary-btn"
+              onClick={openCommunityPage}
+            >
+              Voir toutes les fermes
+            </button>
           </div>
         </div>
 
-        <div className="home-card">
+        <div className="home-card home-card--quick-actions">
           <div className="home-card__header">
-            <span className="home-chip blue">Actions rapides</span>
+            <h3 className="home-meeting-card__title home-quick-actions__title">Dernier achat</h3>
           </div>
-          <div className="home-actions-list">
-            <button type="button" className="home-action" onClick={() => navigate('/betail-maker')}>
-              Ajouter un nouveau bétail
-              <span aria-hidden>→</span>
-            </button>
-            <button type="button" className="home-action" onClick={() => navigate('/')}
-            >
-              Revenir à l’accueil public
-              <span aria-hidden>→</span>
-            </button>
-            <button type="button" className="home-action" disabled>
-              Gérer la ferme (bientôt)
-              <span aria-hidden>→</span>
-            </button>
+          <div className={`home-last-betail${isLoadingLastPurchased ? ' is-loading' : ''}`} aria-busy={isLoadingLastPurchased}>
+            <div className="home-last-betail__decor" aria-hidden="true">
+              <span className="home-last-betail__spark spark-a" />
+              <span className="home-last-betail__spark spark-b" />
+              <span className="home-last-betail__spark spark-c" />
+            </div>
+
+            <div className="home-last-betail__avatar" aria-hidden={!hasLastPurchasedBetail}>
+              {hasLastPurchasedBetail ? (
+                <img src={lastPurchasedAvatar} alt={lastPurchasedName} loading="lazy" decoding="async" onError={handleImgError} />
+              ) : (
+                <span>?</span>
+              )}
+            </div>
+
+            <p className="home-last-betail__name">{lastPurchasedName}</p>
+            <p className="home-last-betail__matricule">{lastPurchasedMatricule}</p>
+
+            <div className="home-last-betail__actions">
+              <button type="button" className="home-last-betail__cta" onClick={() => navigate('/mes-betails')}>
+                Accéder à mes bétails
+                <span aria-hidden>→</span>
+              </button>
+              <button
+                type="button"
+                className="home-last-betail__secondary-btn"
+                onClick={() => navigate('/betail-register')}
+              >
+                Voir tous les bétails
+              </button>
+            </div>
           </div>
         </div>
       </div>
