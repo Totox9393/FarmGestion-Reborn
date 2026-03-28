@@ -1,9 +1,9 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { ChevronLeft, ChevronRight, Heart, Crown, CalendarDays } from 'lucide-react';
+import { Heart, Crown, CalendarDays } from 'lucide-react';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
 
@@ -37,7 +37,14 @@ const betailsCache = {
   timestamp: 0,
   latest: [],
   top: [],
-  authorMap: {}
+  authorMap: {},
+  likedIds: [],
+  viewerId: null,
+};
+
+const isNotAuthenticatedError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('not authenticated');
 };
 
 const getWeekStart = (value) => {
@@ -96,6 +103,8 @@ function FarmGestion_Home_Mere() {
   const [latestBetails, setLatestBetails] = useState([]);
   const [authorMap, setAuthorMap] = useState({});
   const [topBetailsData, setTopBetailsData] = useState([]);
+  const [likedBetailIds, setLikedBetailIds] = useState([]);
+  const [pendingLikeIds, setPendingLikeIds] = useState([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
 
@@ -244,10 +253,11 @@ function FarmGestion_Home_Mere() {
 
   const fetchBetailsData = useCallback(async () => {
     const now = Date.now();
-    if (now - betailsCache.timestamp < BETAILS_CACHE_TTL_MS) {
+    if (now - betailsCache.timestamp < BETAILS_CACHE_TTL_MS && betailsCache.viewerId === (user?.id || null)) {
       setLatestBetails(betailsCache.latest);
       setTopBetailsData(betailsCache.top);
       setAuthorMap(betailsCache.authorMap);
+      setLikedBetailIds(betailsCache.likedIds || []);
       return;
     }
 
@@ -270,6 +280,7 @@ function FarmGestion_Home_Mere() {
       setLatestBetails([]);
       setTopBetailsData([]);
       setAuthorMap({});
+      setLikedBetailIds([]);
       return;
     }
 
@@ -278,6 +289,21 @@ function FarmGestion_Home_Mere() {
     setLatestBetails(latest);
     setTopBetailsData(top);
 
+    const likeTargetIds = Array.from(new Set(latest.map((item) => item?.id).filter(Boolean)));
+    let likedIds = [];
+    if (user?.id && likeTargetIds.length) {
+      const { data: likesRows, error: likesError } = await supabase
+        .from('betail_likes')
+        .select('betail_id')
+        .eq('user_id', user.id)
+        .in('betail_id', likeTargetIds);
+
+      if (!likesError) {
+        likedIds = (likesRows || []).map((row) => String(row?.betail_id || '')).filter(Boolean);
+      }
+    }
+    setLikedBetailIds(likedIds);
+
     const authorIds = [...new Set([...latest, ...top].map((item) => item.author_id).filter(Boolean))];
     if (!authorIds.length) {
       setAuthorMap({});
@@ -285,6 +311,8 @@ function FarmGestion_Home_Mere() {
       betailsCache.latest = latest;
       betailsCache.top = top;
       betailsCache.authorMap = {};
+      betailsCache.likedIds = likedIds;
+      betailsCache.viewerId = user?.id || null;
       return;
     }
 
@@ -299,6 +327,8 @@ function FarmGestion_Home_Mere() {
       betailsCache.latest = latest;
       betailsCache.top = top;
       betailsCache.authorMap = {};
+      betailsCache.likedIds = likedIds;
+      betailsCache.viewerId = user?.id || null;
       return;
     }
 
@@ -311,7 +341,9 @@ function FarmGestion_Home_Mere() {
     betailsCache.latest = latest;
     betailsCache.top = top;
     betailsCache.authorMap = nextMap;
-  }, []);
+    betailsCache.likedIds = likedIds;
+    betailsCache.viewerId = user?.id || null;
+  }, [user?.id]);
 
   useEffect(() => {
     fetchBetailsData();
@@ -356,6 +388,8 @@ function FarmGestion_Home_Mere() {
   const initial = useMemo(() => (profile?.username ? profile.username[0]?.toUpperCase() : '?'), [profile]);
 
   const visibleBetails = 4;
+  const likedIdsSet = useMemo(() => new Set((likedBetailIds || []).map((id) => String(id))), [likedBetailIds]);
+  const isLikeableId = useCallback((value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '')), []);
   const carouselBetails = useMemo(() => {
     if (!latestBetails.length) return mockBetails;
     const mappedLatest = latestBetails.map((betail, index) => ({
@@ -365,6 +399,8 @@ function FarmGestion_Home_Mere() {
       author: authorMap[betail.author_id] || 'Auteur inconnu',
       img: normalizeAvatar(betail.avatar_url),
       likes: betail.like_count ?? 0,
+      likedByMe: Boolean(betail.liked_by_me) || likedIdsSet.has(String(betail.id || '')),
+      canLike: isLikeableId(betail.id),
     }));
     const merged = [...mockBetails];
     const count = Math.min(mappedLatest.length, merged.length);
@@ -372,7 +408,7 @@ function FarmGestion_Home_Mere() {
       merged[i] = mappedLatest[i];
     }
     return merged;
-  }, [latestBetails, authorMap]);
+  }, [latestBetails, authorMap, likedIdsSet, isLikeableId]);
   const maxIndex = Math.max(0, carouselBetails.length - visibleBetails);
 
   const nextSlide = () => setCarouselIndex(prev => Math.min(prev + 1, maxIndex));
@@ -393,6 +429,101 @@ function FarmGestion_Home_Mere() {
   const openBetailRegister = useCallback(() => {
     navigate('/betail-register');
   }, [navigate]);
+
+  const toggleLikeMutation = useMutation({
+    mutationFn: async ({ betailId, currentlyLiked }) => {
+      const rpcName = currentlyLiked ? 'unlike_betail' : 'like_betail';
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, { p_betail_id: betailId });
+      if (rpcError) throw rpcError;
+      const payload = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult;
+      return {
+        betailId,
+        liked: Boolean(payload?.liked),
+        likeCount: Number(payload?.like_count),
+      };
+    },
+    onError: (error) => {
+      if (isNotAuthenticatedError(error)) {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Connectez-vous pour aimer un bétail.' } }));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Impossible de mettre a jour le like pour le moment.' } }));
+    },
+  });
+
+  const applyLikeToCollections = useCallback((betailId, liked, likeCount) => {
+    const resolvedCount = Number.isFinite(Number(likeCount)) ? Math.max(0, Number(likeCount)) : null;
+
+    setLatestBetails((current) => {
+      const next = (current || []).map((item) =>
+        item?.id === betailId
+          ? {
+              ...item,
+              liked_by_me: liked,
+              like_count: resolvedCount ?? Number(item?.like_count ?? 0),
+            }
+          : item,
+      );
+      betailsCache.latest = next;
+      return next;
+    });
+
+    setTopBetailsData((current) => {
+      const next = (current || []).map((item) =>
+        item?.id === betailId
+          ? {
+              ...item,
+              like_count: resolvedCount ?? Number(item?.like_count ?? 0),
+            }
+          : item,
+      );
+      betailsCache.top = next;
+      return next;
+    });
+
+    setLikedBetailIds((current) => {
+      const currentSet = new Set((current || []).map((id) => String(id)));
+      if (liked) {
+        currentSet.add(String(betailId));
+      } else {
+        currentSet.delete(String(betailId));
+      }
+      const next = Array.from(currentSet);
+      betailsCache.likedIds = next;
+      return next;
+    });
+  }, []);
+
+  const handleToggleCarouselLike = useCallback((event, betail) => {
+    event.stopPropagation();
+    if (!betail?.canLike || pendingLikeIds.includes(String(betail.id))) return;
+    if (!user?.id) {
+      window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Connectez-vous pour aimer un bétail.' } }));
+      return;
+    }
+
+    const betailId = String(betail.id);
+    const currentlyLiked = Boolean(betail.likedByMe);
+    const optimisticCount = Math.max(0, Number(betail.likes || 0) + (currentlyLiked ? -1 : 1));
+
+    setPendingLikeIds((current) => Array.from(new Set([...(current || []), betailId])));
+    applyLikeToCollections(betailId, !currentlyLiked, optimisticCount);
+
+    toggleLikeMutation.mutate(
+      { betailId, currentlyLiked },
+      {
+        onSuccess: ({ liked, likeCount }) => {
+          applyLikeToCollections(betailId, liked, likeCount);
+        },
+        onError: () => {
+          applyLikeToCollections(betailId, currentlyLiked, Number(betail.likes || 0));
+        },
+        onSettled: () => {
+          setPendingLikeIds((current) => (current || []).filter((id) => id !== betailId));
+        },
+      },
+    );
+  }, [applyLikeToCollections, pendingLikeIds, toggleLikeMutation, user?.id]);
 
   const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.betail-like'));
 
@@ -563,7 +694,7 @@ function FarmGestion_Home_Mere() {
               disabled={carouselIndex === 0}
               aria-label="Précédent"
             >
-              <ChevronLeft size={20} />
+              <span className="carousel-btn__arrow" aria-hidden="true">‹</span>
             </button>
             <button
               type="button"
@@ -572,7 +703,7 @@ function FarmGestion_Home_Mere() {
               disabled={carouselIndex >= maxIndex}
               aria-label="Suivant"
             >
-              <ChevronRight size={20} />
+              <span className="carousel-btn__arrow" aria-hidden="true">›</span>
             </button>
           </div>
         </div>
@@ -593,11 +724,13 @@ function FarmGestion_Home_Mere() {
               >
                 <button
                   type="button"
-                  className="betail-like"
-                  aria-label={`Like ${betail.name}`}
-                  onClick={(event) => event.stopPropagation()}
+                  className={`betail-like ${betail.likedByMe ? 'is-liked' : ''}`}
+                  aria-label={betail.likedByMe ? `Retirer le like de ${betail.name}` : `Aimer ${betail.name}`}
+                  title={betail.likedByMe ? 'Retirer le like' : 'Aimer'}
+                  onClick={(event) => handleToggleCarouselLike(event, betail)}
+                  disabled={!betail.canLike || pendingLikeIds.includes(String(betail.id))}
                 >
-                  <Heart size={16} />
+                  <Heart size={16} fill={betail.likedByMe ? 'currentColor' : 'none'} />
                   <span>{betail.likes ?? 0}</span>
                 </button>
                 <div className="betail-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>

@@ -372,21 +372,45 @@
   min-width: 0;
 }
 
-.community-card__username,
-.community-card__farmname {
+.community-card__username {
   margin: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+.community-card__farmname {
+  margin: 1px 0 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--community-muted);
+  font-size: 0.88rem;
+  line-height: 1.2;
+  white-space: normal;
+}
+
 .community-card__username {
   font-weight: 700;
 }
 
-.community-card__farmname {
-  color: var(--community-muted);
-  font-size: 0.88rem;
+.community-card__inline-arrow {
+  opacity: 0.78;
+  flex: 0 0 auto;
+}
+
+.community-hit__cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.79rem;
+  font-weight: 700;
+  color: #4b3bb2;
+  white-space: nowrap;
+}
+
+.community-hit__cta--farm {
+  align-self: flex-start;
 }
 
 .community-status {
@@ -411,6 +435,15 @@
 .community-farm-hit__name,
 .community-farm-hit__meta {
   margin: 0;
+}
+
+.community-farm-hit__label {
+  margin: 0 0 2px;
+  font-size: 0.69rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(67, 53, 152, 0.76);
 }
 
 .community-farm-hit__name {
@@ -614,6 +647,13 @@
 .auth-theme.dark_theme .community-kpi__meta,
 .auth-theme.galactic_theme .community-kpi__meta {
   color: rgba(213, 229, 255, 0.86);
+}
+
+.auth-theme.dark_theme .community-farm-hit__label,
+.auth-theme.galactic_theme .community-farm-hit__label,
+.auth-theme.dark_theme .community-hit__cta,
+.auth-theme.galactic_theme .community-hit__cta {
+  color: #d8e7ff;
 }
 
 .auth-theme.dark_theme .community-mini-farm__outline,

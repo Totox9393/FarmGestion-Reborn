@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Hexagon, Info, Users, Ban, MessageCircle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../authentification/AuthContext';
+import { supabase } from '../authentification/supabaseClient';
 import AuthenticatedLayout from '../home/AuthenticatedLayout';
 import { getLocalThemePreference } from '../settings/themePreferences';
 import './RulesPage.css';
@@ -47,8 +48,35 @@ const sanctions = [
 function RulesPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const isAuthenticated = Boolean(user);
+  const onboardingQuery = useQuery({
+    queryKey: ['rules', 'onboarding', user?.id],
+    enabled: Boolean(user?.id),
+    staleTime: 15000,
+    gcTime: 60000,
+    retry: 1,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users_profiles')
+        .select('farm_id, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const hasFarm = Boolean(data?.farm_id);
+      const hasAvatar = typeof data?.avatar_url === 'string'
+        ? data.avatar_url.trim().length > 0
+        : Boolean(data?.avatar_url);
+
+      return hasFarm && hasAvatar;
+    },
+  });
+
+  const isOnboardingComplete = Boolean(onboardingQuery.data);
+  const checkingOnboarding = Boolean(user?.id) && onboardingQuery.isLoading;
+  const isAuthenticated = Boolean(user) && isOnboardingComplete;
   const [theme, setTheme] = useState(() => getLocalThemePreference());
+
   useEffect(() => {
     const previousTitle = document.title;
     document.title = '📜 Règlement | FarmGestion';
@@ -86,11 +114,7 @@ function RulesPage() {
           </button>
         </div>
       )}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.45 }}
-      >
+      <div>
         <div className="rules-hero">
           <h1>Règlement de FarmGestion</h1>
           <p>Directives et règles à respecter sur la plateforme</p>
@@ -156,7 +180,7 @@ function RulesPage() {
               Sanctions
             </h3>
             <div className="rules-sanctions">
-              <p>En cas de non-respect, les administrateurs peuvent appliquer :</p>
+              <p>En cas de non-respect, les administrateurs peuvent appliquer :</p>
               <ul>
                 {sanctions.map(item => (
                   <li key={item}>{item}</li>
@@ -189,9 +213,9 @@ function RulesPage() {
             </div>
           </div>
 
-          <p className="rules-updated">Dernière mise à jour : 15 septembre 2025</p>
+          <p className="rules-updated">Dernière mise à jour : 15 septembre 2025</p>
         </div>
-      </motion.div>
+      </div>
     </div>
   );
 
@@ -207,7 +231,7 @@ function RulesPage() {
 
   return (
     <div className="rules-page" data-theme="hero">
-      {content}
+      {checkingOnboarding ? null : content}
     </div>
   );
 }

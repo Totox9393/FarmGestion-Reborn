@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Heart } from 'lucide-react'
 import {
   useAuthorsMap,
@@ -40,11 +40,27 @@ const getResourceFrameUrl = (filename) => {
   return `${SUPABASE_URL}/storage/v1/object/public/ressources/${filename}`
 }
 
+const isNotAuthenticatedError = (error) => {
+  const message = String(error?.message || '').toLowerCase()
+  return message.includes('not authenticated')
+}
+
+const dispatchToast = (type, message) => {
+  window.dispatchEvent(
+    new CustomEvent('farmgestion-toast', {
+      detail: { type, message },
+    }),
+  )
+}
+
 function BetailCard({
   betail,
   authorName,
+  likedByMe,
+  isLikePending,
   isSelected,
   isPurchasing,
+  onToggleLike,
   onSelect,
 }) {
   const handleSelect = () => {
@@ -75,11 +91,16 @@ function BetailCard({
       <div className="betail-card-surface">
         <button
           type="button"
-          className="betail-like"
-          aria-label={`Like ${betail.name}`}
-          onClick={(event) => event.stopPropagation()}
+          className={`betail-like ${likedByMe ? 'is-liked' : ''}`}
+          aria-label={likedByMe ? `Retirer le like de ${betail.name}` : `Aimer ${betail.name}`}
+          title={likedByMe ? 'Retirer le like' : 'Aimer'}
+          onClick={(event) => {
+            event.stopPropagation()
+            onToggleLike?.(betail, likedByMe)
+          }}
+          disabled={isLikePending}
         >
-          <Heart size={16} />
+          <Heart size={16} fill={likedByMe ? 'currentColor' : 'none'} />
           <span>{betail.like_count ?? 0}</span>
         </button>
         <div className="betail-avatar">
@@ -179,6 +200,91 @@ function BetailsListPageQuery() {
     },
   })
 
+  const toggleLikeMutation = useMutation({
+    mutationFn: async ({ betailId, currentlyLiked }) => {
+      if (!user?.id) {
+        throw new Error('Not authenticated')
+      }
+
+      const rpcName = currentlyLiked ? 'unlike_betail' : 'like_betail'
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(rpcName, { p_betail_id: betailId })
+      if (rpcError) {
+        throw rpcError
+      }
+
+      const payload = Array.isArray(rpcResult) ? rpcResult[0] : rpcResult
+      return {
+        betailId,
+        liked: Boolean(payload?.liked),
+        likeCount: Number(payload?.like_count),
+      }
+    },
+    onMutate: async ({ betailId, currentlyLiked }) => {
+      await queryClient.cancelQueries({ queryKey: ['betails', 'list'] })
+      const previousList = queryClient.getQueriesData({ queryKey: ['betails', 'list'] })
+      const nextLiked = !currentlyLiked
+
+      queryClient.setQueriesData({ queryKey: ['betails', 'list'] }, (oldData) => {
+        if (!oldData?.pages) return oldData
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            items: (page.items || []).map((item) => {
+              if (item?.id !== betailId) return item
+              const previousCount = Number(item?.like_count ?? 0)
+              const delta = nextLiked ? 1 : -1
+              return {
+                ...item,
+                liked_by_me: nextLiked,
+                like_count: Math.max(0, previousCount + delta),
+              }
+            }),
+          })),
+        }
+      })
+
+      return { previousList }
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousList) {
+        context.previousList.forEach(([key, value]) => {
+          queryClient.setQueryData(key, value)
+        })
+      }
+
+      if (isNotAuthenticatedError(error)) {
+        dispatchToast('error', 'Connectez-vous pour aimer un bétail.')
+        return
+      }
+
+      dispatchToast('error', 'Impossible de mettre a jour le like pour le moment.')
+    },
+    onSuccess: ({ betailId, liked, likeCount }) => {
+      queryClient.setQueriesData({ queryKey: ['betails', 'list'] }, (oldData) => {
+        if (!oldData?.pages) return oldData
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page) => ({
+            ...page,
+            items: (page.items || []).map((item) =>
+              item?.id === betailId
+                ? {
+                    ...item,
+                    liked_by_me: liked,
+                    like_count: Number.isFinite(likeCount) ? Math.max(0, likeCount) : item.like_count,
+                  }
+                : item,
+            ),
+          })),
+        }
+      })
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['betails', 'liked', user?.id || 'anon'] })
+    },
+  })
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm.trim())
@@ -199,6 +305,31 @@ function BetailsListPageQuery() {
   const betails = useMemo(
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data],
+  )
+  const betailIds = useMemo(
+    () => Array.from(new Set((betails || []).map((item) => String(item?.id || '')).filter(Boolean))).sort(),
+    [betails],
+  )
+
+  const { data: likedRows = [] } = useQuery({
+    queryKey: ['betails', 'liked', user?.id || 'anon', betailIds],
+    enabled: Boolean(user?.id) && betailIds.length > 0,
+    queryFn: async () => {
+      const { data: rows, error: likedError } = await supabase
+        .from('betail_likes')
+        .select('betail_id')
+        .eq('user_id', user.id)
+        .in('betail_id', betailIds)
+
+      if (likedError) throw likedError
+      return rows || []
+    },
+    staleTime: 30_000,
+  })
+
+  const likedIdsSet = useMemo(
+    () => new Set((likedRows || []).map((row) => String(row?.betail_id || '')).filter(Boolean)),
+    [likedRows],
   )
 
   const authorIds = useMemo(
@@ -248,6 +379,15 @@ function BetailsListPageQuery() {
     selectedBetail && purchasingId === selectedBetail.id && purchaseMutation.isPending,
   )
   const isSelectedBuyDisabled = !canPurchase || isSelectedPurchasing
+  const isLikedByMe = (betail) => Boolean(betail?.liked_by_me) || likedIdsSet.has(String(betail?.id || ''))
+
+  const handleToggleLike = (betail, currentlyLiked) => {
+    if (!betail?.id || toggleLikeMutation.isPending) return
+    toggleLikeMutation.mutate({
+      betailId: betail.id,
+      currentlyLiked: Boolean(currentlyLiked),
+    })
+  }
 
   const handleLoadMore = () => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -436,8 +576,11 @@ function BetailsListPageQuery() {
                       key={betail.id}
                       betail={betail}
                       authorName={getAuthorName(betail)}
+                      likedByMe={isLikedByMe(betail)}
+                      isLikePending={toggleLikeMutation.isPending}
                       isSelected={selectedBetailId === betail.id}
                       isPurchasing={purchasingId === betail.id && purchaseMutation.isPending}
+                      onToggleLike={handleToggleLike}
                       onSelect={handleSelectBetail}
                     />
                   ))}

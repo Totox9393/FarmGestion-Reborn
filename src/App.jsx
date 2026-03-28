@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import Home from './features/home/Home';
 import BetailMaker from './features/betails/BetailMaker';
 import BetailsListPage from './features/betails/BetailsListPageQuery';
@@ -199,7 +200,7 @@ function AppRoutes() {
               className={`global-toast ${toast.type === 'success' ? 'is-success' : toast.type === 'error' ? 'is-error' : toast.type === 'warning' ? 'is-warning' : ''} ${toast.visible ? 'is-visible' : ''}`}
             >
               <span className="global-toast__icon">
-                {toast.type === 'error' ? '❌' : toast.type === 'warning' ? '⚠️' : '✅'}
+                {toast.type === 'error' ? <XCircle size={15} /> : toast.type === 'warning' ? <AlertTriangle size={15} /> : <CheckCircle2 size={15} />}
               </span>
               <span>{toast.message}</span>
             </div>,

@@ -115,6 +115,46 @@ create table public.user_settings (
 ) TABLESPACE pg_default; 
 ```
 
+## Table `public.user_relations`
+
+```sql
+create table public.user_relations (
+  id bigserial not null,
+  user_a uuid not null,
+  user_b uuid not null,
+  initiator uuid not null,
+  status text not null,
+  created_at timestamp with time zone not null default now(),
+  responded_at timestamp with time zone null,
+  pair_left uuid GENERATED ALWAYS as (LEAST(user_a, user_b)) STORED null,
+  pair_right uuid GENERATED ALWAYS as (GREATEST(user_a, user_b)) STORED null,
+  constraint user_relations_pkey primary key (id),
+  constraint user_relations_initiator_fkey foreign KEY (initiator) references users_profiles (id) on delete CASCADE,
+  constraint user_relations_user_a_fkey foreign KEY (user_a) references users_profiles (id) on delete CASCADE,
+  constraint user_relations_user_b_fkey foreign KEY (user_b) references users_profiles (id) on delete CASCADE,
+  constraint user_relations_initiator_in_pair check (
+    (
+      (initiator = user_a)
+      or (initiator = user_b)
+    )
+  ),
+  constraint user_relations_no_self check ((user_a <> user_b)),
+  constraint user_relations_status_check check (
+    (
+      status = any (
+        array[
+          'pending'::text,
+          'accepted'::text,
+          'declined'::text,
+          'cancelled'::text,
+          'blocked'::text
+        ]
+      )
+    )
+  )
+) TABLESPACE pg_default;
+```
+
 ## Table `public.betails_reports`
 
 ```sql

@@ -4,11 +4,18 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Users, ChevronRight } from 'lucide-react';
 import miloFriends from '../../assets/img/milo_friends_happy2nb.png';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
+import { useAuth } from '../authentification/AuthContext';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
 import { fetchActiveUserIdsThisMonth, fetchCommunityPage, fetchCommunityStats } from './communityApi';
+import { fetchAcceptedFriendIdsForUser } from './friendsApi';
 import './CommunityPage.css';
 
 const SEARCH_DEBOUNCE_MS = 320;
+
+const isRetriableError = (error) => {
+  const status = Number(error?.status || 0);
+  return status >= 500;
+};
 
 const toAvatarFallback = (username) => {
   const safe = String(username || '').trim();
@@ -129,11 +136,12 @@ const MiniFarmPreview = ({ siteColors, centerStyle, label }) => {
 };
 
 function CommunityPage() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchInput, setSearchInput] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
-  const [showActiveOnly, setShowActiveOnly] = useState(false);
+  const [profileFilterMode, setProfileFilterMode] = useState('all');
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -146,19 +154,21 @@ function CommunityPage() {
   const activeUsersQuery = useQuery({
     queryKey: ['community', 'active-users-month'],
     queryFn: fetchActiveUserIdsThisMonth,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 20 * 60 * 1000,
+    staleTime: 20 * 60 * 1000,
+    gcTime: 40 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: (failureCount, error) => failureCount < 2 && isRetriableError(error),
+    retryDelay: (attemptIndex) => Math.min(1500 * (2 ** attemptIndex), 7000),
   });
 
   const statsQuery = useQuery({
     queryKey: ['community', 'stats'],
     queryFn: fetchCommunityStats,
-    staleTime: 10 * 60 * 1000,
-    gcTime: 20 * 60 * 1000,
+    staleTime: 20 * 60 * 1000,
+    gcTime: 40 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: (failureCount, error) => failureCount < 2 && isRetriableError(error),
+    retryDelay: (attemptIndex) => Math.min(1500 * (2 ** attemptIndex), 7000),
   });
 
   const activeUserIds = activeUsersQuery.data?.activeUserIds || [];
@@ -167,11 +177,23 @@ function CommunityPage() {
     queryKey: ['community', 'farms', page, searchTerm, activeUsersQuery.data?.monthStartIso || 'month'],
     queryFn: () => fetchCommunityPage({ page, searchTerm, activeUserIds }),
     enabled: !activeUsersQuery.isLoading,
-    staleTime: 90 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 12 * 60 * 1000,
     keepPreviousData: true,
     refetchOnWindowFocus: false,
-    retry: 1,
+    retry: (failureCount, error) => failureCount < 2 && isRetriableError(error),
+    retryDelay: (attemptIndex) => Math.min(1500 * (2 ** attemptIndex), 7000),
+  });
+
+  const friendsFilterQuery = useQuery({
+    queryKey: ['community', 'friends-filter', user?.id || 'anon'],
+    enabled: Boolean(user?.id),
+    queryFn: () => fetchAcceptedFriendIdsForUser(user.id),
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    refetchOnWindowFocus: false,
+    retry: (failureCount, error) => failureCount < 2 && isRetriableError(error),
+    retryDelay: (attemptIndex) => Math.min(1200 * (2 ** attemptIndex), 6000),
   });
 
   const items = communityQuery.data?.items || [];
@@ -180,10 +202,37 @@ function CommunityPage() {
   const totalVisibleFarms = statsQuery.data?.totalVisibleFarms || 0;
   const totalUsers = statsQuery.data?.totalUsers || 0;
 
-  const visibleItems = useMemo(
-    () => (showActiveOnly ? items.filter((item) => item.isActive) : items),
-    [items, showActiveOnly],
+  const friendIdSet = useMemo(
+    () => new Set((friendsFilterQuery.data || []).filter(Boolean)),
+    [friendsFilterQuery.data],
   );
+
+  const visibleItems = useMemo(
+    () => {
+      if (profileFilterMode === 'active') return items.filter((item) => item.isActive);
+      if (profileFilterMode === 'friends') return items.filter((item) => friendIdSet.has(item.ownerId));
+      return items;
+    },
+    [friendIdSet, items, profileFilterMode],
+  );
+
+  const visibleUserItems = useMemo(
+    () => {
+      if (profileFilterMode === 'friends') return userItems.filter((item) => friendIdSet.has(item.id));
+      return userItems;
+    },
+    [friendIdSet, profileFilterMode, userItems],
+  );
+
+  const isFriendsFilterLoading = profileFilterMode === 'friends' && Boolean(user?.id) && friendsFilterQuery.isLoading;
+
+  const cycleProfileFilterMode = () => {
+    setProfileFilterMode((current) => {
+      if (current === 'all') return 'active';
+      if (current === 'active') return 'friends';
+      return 'all';
+    });
+  };
 
   const handleUserClick = (userId, username) => {
     const path = buildCommunityProfilePath(username, userId);
@@ -227,18 +276,24 @@ function CommunityPage() {
 
               <button
                 type="button"
-                className={`community-active-toggle ${showActiveOnly ? 'is-on' : ''}`}
-                onClick={() => setShowActiveOnly((current) => !current)}
-                aria-pressed={showActiveOnly}
+                className={`community-active-toggle ${profileFilterMode !== 'all' ? 'is-on' : ''}`}
+                onClick={cycleProfileFilterMode}
+                aria-pressed={profileFilterMode !== 'all'}
               >
                 <span className="community-active-toggle__dot" />
-                <span>{showActiveOnly ? 'Actifs uniquement' : 'Tous les profils'}</span>
+                <span>
+                  {profileFilterMode === 'all'
+                    ? 'Tous les profils'
+                    : profileFilterMode === 'active'
+                      ? 'Actifs uniquement'
+                      : 'Amis uniquement'}
+                </span>
               </button>
             </div>
           </div>
         </header>
 
-        {communityQuery.isLoading ? (
+        {communityQuery.isLoading || isFriendsFilterLoading ? (
           <p className="community-state">Chargement de la communauté...</p>
         ) : communityQuery.isError ? (
           <p className="community-state is-error">Impossible de charger la communauté pour le moment.</p>
@@ -246,11 +301,11 @@ function CommunityPage() {
           <p className="community-state">Aucune ferme publique ne correspond à ta recherche.</p>
         ) : (
           <>
-            {userItems.length ? (
+            {visibleUserItems.length ? (
               <section className="community-profiles-strip" aria-label="Profils sans ferme publique">
                 <p className="community-profiles-strip__title">Profils trouvés (sans ferme publique)</p>
                 <div className="community-profiles-strip__list">
-                  {userItems.map((userItem) => (
+                  {visibleUserItems.map((userItem) => (
                     <button
                       key={userItem.id}
                       type="button"
@@ -284,9 +339,10 @@ function CommunityPage() {
                     </div>
                     <div className="community-card__identity">
                       <p className="community-card__username">{item.username}</p>
-                      <p className="community-card__farmname">Mère</p>
+                      <p className="community-card__farmname">
+                        Accéder au profil <ChevronRight size={12} className="community-card__inline-arrow" />
+                      </p>
                     </div>
-                    <ChevronRight size={14} className="community-hit__arrow" />
                   </button>
                   {item.isActive ? <span className="community-status">Actif</span> : null}
                 </div>
@@ -299,12 +355,15 @@ function CommunityPage() {
                 >
                   <div className="community-farm-hit__title-row">
                     <div>
+                      <p className="community-farm-hit__label">Ferme publique</p>
                       <p className="community-farm-hit__name">{item.farmName}</p>
                       <p className="community-farm-hit__meta">
-                        {item.farmState || 'État libre'} · créée le {formatDate(item.creationDate)}
+                        Créée le {formatDate(item.creationDate)}
                       </p>
                     </div>
-                    <ChevronRight size={15} className="community-hit__arrow" />
+                    <span className="community-hit__cta community-hit__cta--farm">
+                      Voir ferme <ChevronRight size={15} className="community-hit__arrow" />
+                    </span>
                   </div>
                   <MiniFarmPreview
                     siteColors={item.siteColors}

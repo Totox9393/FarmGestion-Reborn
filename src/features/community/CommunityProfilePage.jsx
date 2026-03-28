@@ -1,10 +1,24 @@
-import { useEffect, useMemo, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { UserRound, Lock, Home, UserPlus, Pin, Heart, MessageSquare } from 'lucide-react';
+import { UserRound, Lock, Home, UserPlus, UserMinus, ShieldBan, Check, X, Users, Pin, Heart, MessageSquare } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
+import {
+  acceptFriendRequestById,
+  blockRelation,
+  cancelFriendRequestById,
+  declineFriendRequestById,
+  fetchAcceptedFriendsForUser,
+  fetchRelationBetweenUsers,
+  isFriendRequestsDisabledError,
+  isUserAllowingFriendRequests,
+  removeFriendRelationById,
+  sendFriendRequest,
+  unblockRelationById,
+} from './friendsApi';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
+import blockedProfileFailSound from '../../assets/sounds/JIN_EVENT_FAIL.WAV';
 import './CommunityProfilePage.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -13,6 +27,11 @@ const isMissingRpcError = (error) => {
   const code = String(error?.code || '');
   const message = String(error?.message || '').toLowerCase();
   return code === '42883' || message.includes('function') || message.includes('rpc');
+};
+
+const isNotAuthenticatedError = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return message.includes('not authenticated');
 };
 
 const buildAvatarCandidates = (value) => {
@@ -91,6 +110,10 @@ const resolveBetailImageUrl = (value) => {
   return `${SUPABASE_URL}/storage/v1/object/public/betails/${raw}`;
 };
 
+const dispatchToast = (message, type = 'info') => {
+  window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type, message } }));
+};
+
 function AvatarMedia({ avatarUrl }) {
   const candidates = useMemo(() => buildAvatarCandidates(avatarUrl), [avatarUrl]);
   const [index, setIndex] = useState(0);
@@ -154,7 +177,10 @@ function CommunityProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const blockedSoundPlayedRef = useRef(false);
+  const confirmResetTimerRef = useRef(null);
   const [flippedBetailIds, setFlippedBetailIds] = useState(() => new Set());
+  const [confirmAction, setConfirmAction] = useState('');
 
   const profileQuery = useQuery({
     queryKey: ['community', 'profile', handle],
@@ -170,6 +196,211 @@ function CommunityProfilePage() {
 
   const profile = profileQuery.data;
   const isOwnProfile = Boolean(user?.id && profile?.id && user.id === profile.id);
+  const pinnedBetailsQueryKey = ['community', 'profile', 'pinned-betails', profile?.id];
+
+  const relationQuery = useQuery({
+    queryKey: ['community', 'profile', 'relation', user?.id || 'anon', profile?.id || 'none'],
+    enabled: Boolean(user?.id && profile?.id && !isOwnProfile),
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: () => fetchRelationBetweenUsers(user.id, profile.id),
+  });
+
+  const friendsListQuery = useQuery({
+    queryKey: ['community', 'profile', 'friends-list', profile?.id || 'none'],
+    enabled: Boolean(profile?.id),
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: () => fetchAcceptedFriendsForUser(profile.id),
+  });
+
+  const allowFriendRequestsQuery = useQuery({
+    queryKey: ['community', 'profile', 'allow-friend-requests', profile?.id || 'none'],
+    enabled: Boolean(profile?.id),
+    staleTime: 0,
+    gcTime: 10 * 60 * 1000,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: () => isUserAllowingFriendRequests(profile.id),
+  });
+
+  const relation = relationQuery.data || null;
+  const relationStatus = String(relation?.status || '');
+  const isIncomingPending = relationStatus === 'pending' && Boolean(relation?.initiator && relation.initiator !== user?.id);
+  const isOutgoingPending = relationStatus === 'pending' && Boolean(relation?.initiator && relation.initiator === user?.id);
+  const isFriend = relationStatus === 'accepted';
+  const canReceiveFriendRequests = allowFriendRequestsQuery.data ?? true;
+  const isFriendRequestsDisabledByUser = !canReceiveFriendRequests;
+  const isBlockedByCurrentUser = relationStatus === 'blocked' && relation?.initiator === user?.id;
+  const isBlockedByOtherUser = relationStatus === 'blocked' && Boolean(relation?.initiator && relation.initiator !== user?.id);
+  const isProfileAccessBlocked = Boolean(!isOwnProfile && isBlockedByOtherUser);
+
+  useEffect(() => {
+    if (!isProfileAccessBlocked) {
+      blockedSoundPlayedRef.current = false;
+      return;
+    }
+
+    if (blockedSoundPlayedRef.current) return;
+    blockedSoundPlayedRef.current = true;
+
+    try {
+      const audio = new Audio(blockedProfileFailSound);
+      audio.volume = 0.72;
+      void audio.play().catch(() => {});
+    } catch {
+      // Ignore playback errors (autoplay permissions, etc.)
+    }
+  }, [isProfileAccessBlocked]);
+
+  const refreshRelations = () => {
+    queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'relation', user?.id || 'anon', profile?.id || 'none'] });
+    queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'friends-list', profile?.id || 'none'] });
+    window.dispatchEvent(new CustomEvent('farmgestion-friends-updated'));
+  };
+
+  const sendRequestMutation = useMutation({
+    mutationFn: () => sendFriendRequest(user.id, profile.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Demande d\'ami envoyée.', 'success');
+    },
+    onError: (error) => {
+      if (isFriendRequestsDisabledError(error)) {
+        dispatchToast('Cet utilisateur a désactivé les demandes d\'amis.', 'warning');
+        return;
+      }
+      dispatchToast('Impossible d\'envoyer la demande d\'ami.', 'error');
+    },
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: () => acceptFriendRequestById(relation.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Demande d\'ami acceptée.', 'success');
+    },
+    onError: () => dispatchToast('Impossible d\'accepter la demande.', 'error'),
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: () => declineFriendRequestById(relation.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Demande d\'ami refusée.', 'info');
+    },
+    onError: () => dispatchToast('Impossible de refuser la demande.', 'error'),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => cancelFriendRequestById(relation.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Demande d\'ami annulée.', 'info');
+    },
+    onError: () => dispatchToast('Impossible d\'annuler la demande.', 'error'),
+  });
+
+  const removeFriendMutation = useMutation({
+    mutationFn: () => removeFriendRelationById(relation.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Ami supprimé.', 'success');
+    },
+    onError: () => dispatchToast('Impossible de supprimer cet ami.', 'error'),
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: () => blockRelation(user.id, profile.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Utilisateur bloqué.', 'success');
+    },
+    onError: () => dispatchToast('Impossible de bloquer cet utilisateur.', 'error'),
+  });
+
+  const unblockMutation = useMutation({
+    mutationFn: () => unblockRelationById(relation.id),
+    onSuccess: () => {
+      refreshRelations();
+      dispatchToast('Utilisateur débloqué.', 'success');
+    },
+    onError: () => dispatchToast('Impossible de débloquer cet utilisateur.', 'error'),
+  });
+
+  const isFriendActionBusy =
+    sendRequestMutation.isPending ||
+    acceptMutation.isPending ||
+    declineMutation.isPending ||
+    cancelMutation.isPending ||
+    removeFriendMutation.isPending ||
+    blockMutation.isPending ||
+    unblockMutation.isPending;
+
+  const scheduleConfirmReset = () => {
+    if (confirmResetTimerRef.current) {
+      window.clearTimeout(confirmResetTimerRef.current);
+    }
+    confirmResetTimerRef.current = window.setTimeout(() => {
+      setConfirmAction('');
+      confirmResetTimerRef.current = null;
+    }, 3800);
+  };
+
+  useEffect(() => () => {
+    if (confirmResetTimerRef.current) {
+      window.clearTimeout(confirmResetTimerRef.current);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isFriendActionBusy) return;
+    setConfirmAction('');
+    if (confirmResetTimerRef.current) {
+      window.clearTimeout(confirmResetTimerRef.current);
+      confirmResetTimerRef.current = null;
+    }
+  }, [isFriendActionBusy]);
+
+  const handleRemoveFriend = () => {
+    if (!relation?.id) return;
+    if (!window.confirm('Supprimer cet ami ?')) return;
+    removeFriendMutation.mutate();
+  };
+
+  const handleBlockUser = () => {
+    if (!user?.id || !profile?.id) return;
+    if (confirmAction !== 'block') {
+      setConfirmAction('block');
+      scheduleConfirmReset();
+      dispatchToast('Clique encore sur "Bloquer" pour confirmer.', 'warning');
+      return;
+    }
+    setConfirmAction('');
+    blockMutation.mutate();
+  };
+
+  const handleUnblockUser = () => {
+    if (!relation?.id) return;
+    if (confirmAction !== 'unblock') {
+      setConfirmAction('unblock');
+      scheduleConfirmReset();
+      dispatchToast('Clique encore sur "Débloquer" pour confirmer.', 'warning');
+      return;
+    }
+    setConfirmAction('');
+    unblockMutation.mutate();
+  };
+
+  const friendsList = friendsListQuery.data || [];
+
   const togglePinnedCard = (betailId) => {
     setFlippedBetailIds((current) => {
       const next = new Set(current);
@@ -183,7 +414,7 @@ function CommunityProfilePage() {
   };
 
   const pinnedBetailsQuery = useQuery({
-    queryKey: ['community', 'profile', 'pinned-betails', profile?.id],
+    queryKey: pinnedBetailsQueryKey,
     enabled: Boolean(profile?.id),
     staleTime: 0,
     gcTime: 10 * 60 * 1000,
@@ -192,12 +423,13 @@ function CommunityProfilePage() {
     refetchInterval: 4_000,
     retry: 1,
     queryFn: async () => {
-      const mapPinnedRows = (rows) =>
+      const mapPinnedRows = (rows, likedIds = new Set()) =>
         (rows || []).map((row) => ({
           id: row.id,
           name: row.name || 'Betail',
           matricule: row.matricule || '—',
           likes: Number(row.like_count || 0),
+          likedByMe: Boolean(row.liked_by_me) || likedIds.has(String(row.id)),
           comments: String(row.comments || '').trim(),
           avatarUrl: resolveBetailImageUrl(row.avatar_url),
         }));
@@ -245,7 +477,23 @@ function CommunityProfilePage() {
           .map((id) => rowById.get(String(id)))
           .filter(Boolean);
 
-        return mapPinnedRows(rows);
+        const likedIds = new Set();
+        if (user?.id && rows.length) {
+          const betailIds = rows.map((row) => row.id).filter(Boolean);
+          if (betailIds.length) {
+            const { data: likedRows } = await supabase
+              .from('betail_likes')
+              .select('betail_id')
+              .eq('user_id', user.id)
+              .in('betail_id', betailIds);
+
+            (likedRows || []).forEach((entry) => {
+              if (entry?.betail_id) likedIds.add(String(entry.betail_id));
+            });
+          }
+        }
+
+        return mapPinnedRows(rows, likedIds);
       }
 
       return [];
@@ -254,12 +502,83 @@ function CommunityProfilePage() {
 
   const pinnedBetails = pinnedBetailsQuery.data || [];
 
+  const togglePinnedLikeMutation = useMutation({
+    mutationFn: async ({ betailId, currentlyLiked }) => {
+      const rpcName = currentlyLiked ? 'unlike_betail' : 'like_betail';
+      const { data, error } = await supabase.rpc(rpcName, { p_betail_id: betailId });
+      if (error) throw error;
+
+      const payload = Array.isArray(data) ? data[0] : data;
+      return {
+        betailId,
+        currentlyLiked,
+        liked: Boolean(payload?.liked),
+        likeCount: Number(payload?.like_count ?? 0),
+      };
+    },
+    onMutate: async ({ betailId, currentlyLiked }) => {
+      await queryClient.cancelQueries({ queryKey: pinnedBetailsQueryKey });
+      const previousRows = queryClient.getQueryData(pinnedBetailsQueryKey);
+
+      queryClient.setQueryData(pinnedBetailsQueryKey, (currentRows = []) =>
+        currentRows.map((row) => {
+          if (row?.id !== betailId) return row;
+          const nextLiked = !currentlyLiked;
+          const currentLikes = Number(row?.likes || 0);
+          return {
+            ...row,
+            likedByMe: nextLiked,
+            likes: Math.max(0, currentLikes + (nextLiked ? 1 : -1)),
+          };
+        }),
+      );
+
+      return { previousRows };
+    },
+    onError: (error, _variables, context) => {
+      if (context?.previousRows) {
+        queryClient.setQueryData(pinnedBetailsQueryKey, context.previousRows);
+      }
+
+      if (isNotAuthenticatedError(error)) {
+        dispatchToast('Connecte-toi pour liker un bétail.', 'warning');
+        return;
+      }
+
+      dispatchToast('Impossible de mettre à jour le like.', 'error');
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(pinnedBetailsQueryKey, (currentRows = []) =>
+        currentRows.map((row) => {
+          if (row?.id !== result.betailId) return row;
+          return {
+            ...row,
+            likedByMe: result.liked,
+            likes: result.likeCount,
+          };
+        }),
+      );
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: pinnedBetailsQueryKey });
+    },
+  });
+
+  const handleTogglePinnedLike = (betail) => {
+    if (!betail?.id || togglePinnedLikeMutation.isPending) return;
+    togglePinnedLikeMutation.mutate({
+      betailId: betail.id,
+      currentlyLiked: Boolean(betail.likedByMe),
+    });
+  };
+
   useEffect(() => {
     if (!profile?.id) return;
 
     const invalidateProfile = () => {
       queryClient.invalidateQueries({ queryKey: ['community', 'profile', handle] });
       queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'pinned-betails', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'allow-friend-requests', profile.id] });
     };
 
     const channel = supabase
@@ -294,6 +613,26 @@ function CommunityProfilePage() {
         },
         invalidateProfile,
       )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_relations',
+          filter: `user_a=eq.${profile.id}`,
+        },
+        invalidateProfile,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_relations',
+          filter: `user_b=eq.${profile.id}`,
+        },
+        invalidateProfile,
+      )
       .subscribe();
 
     return () => {
@@ -310,6 +649,31 @@ function CommunityProfilePage() {
           <p className="community-profile-state is-error">Impossible de charger ce profil.</p>
         ) : !profile ? (
           <p className="community-profile-state">Profil introuvable.</p>
+        ) : isProfileAccessBlocked ? (
+          <article className="community-profile-blocked" aria-live="polite">
+            <div className="community-profile-blocked__lock" aria-hidden="true">
+              <div className="community-profile-blocked__shackle" />
+              <div className="community-profile-blocked__body">
+                <Lock size={52} strokeWidth={2.2} />
+              </div>
+            </div>
+
+            <p className="community-profile-blocked__eyebrow">Accès verrouillé</p>
+            <h1>
+              {isBlockedByCurrentUser
+                ? 'Profil inaccessible : tu as bloqué cet utilisateur'
+                : 'Profil inaccessible : cet utilisateur t\'a bloqué'}
+            </h1>
+            <p className="community-profile-blocked__text">
+              Ce profil est actuellement verrouillé. Les interactions sociales sont suspendues entre vos comptes.
+            </p>
+
+            <div className="community-profile-blocked__actions">
+              <button type="button" className="community-profile-back" onClick={() => navigate('/community')}>
+                <UserRound size={16} /> Retour communauté
+              </button>
+            </div>
+          </article>
         ) : (
           <article className="community-profile-card">
             <div className="community-profile-head">
@@ -322,13 +686,111 @@ function CommunityProfilePage() {
                 <p className="community-profile-role">{profile.role_ingame || 'Membre non-vérifié'}</p>
               </div>
               {!isOwnProfile ? (
-                <button
-                  type="button"
-                  className="community-profile-add-friend"
-                  onClick={() => window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'info', message: 'Systeme d\'amis a venir.' } }))}
-                >
-                  <UserPlus size={16} /> Ajouter en ami
-                </button>
+                <div className="community-profile-friend-actions">
+                  {relationQuery.isLoading || allowFriendRequestsQuery.isLoading ? (
+                    <span className="community-profile-friend-hint">Chargement relation...</span>
+                  ) : isIncomingPending ? (
+                    <>
+                      <button
+                        type="button"
+                        className="community-profile-add-friend"
+                        disabled={isFriendActionBusy}
+                        onClick={() => acceptMutation.mutate()}
+                      >
+                        <Check size={16} /> Accepter
+                      </button>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        disabled={isFriendActionBusy}
+                        onClick={() => declineMutation.mutate()}
+                      >
+                        <X size={16} /> Refuser
+                      </button>
+                    </>
+                  ) : isOutgoingPending ? (
+                    <button
+                      type="button"
+                      className="community-profile-friend-btn community-profile-friend-btn--ghost"
+                      disabled={isFriendActionBusy}
+                      onClick={() => cancelMutation.mutate()}
+                    >
+                      <X size={16} /> Annuler la demande
+                    </button>
+                  ) : isFriend ? (
+                    <>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--warn"
+                        disabled={isFriendActionBusy}
+                        onClick={handleRemoveFriend}
+                      >
+                        <UserMinus size={16} /> Supprimer ami
+                      </button>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        disabled={isFriendActionBusy}
+                        onClick={handleBlockUser}
+                      >
+                        <ShieldBan size={16} /> {confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
+                      </button>
+                    </>
+                  ) : isBlockedByCurrentUser ? (
+                    <button
+                      type="button"
+                      className="community-profile-friend-btn community-profile-friend-btn--warn"
+                      disabled={isFriendActionBusy}
+                      onClick={handleUnblockUser}
+                    >
+                      <ShieldBan size={16} /> {confirmAction === 'unblock' ? 'Confirmer déblocage' : 'Débloquer'}
+                    </button>
+                  ) : isBlockedByOtherUser ? (
+                    <button type="button" className="community-profile-friend-btn community-profile-friend-btn--blocked" disabled>
+                      <ShieldBan size={16} /> Tu es bloqué
+                    </button>
+                  ) : isFriendRequestsDisabledByUser ? (
+                    <>
+                      <div className="community-profile-friend-disabled" aria-live="polite">
+                        <button
+                          type="button"
+                          className="community-profile-friend-btn community-profile-friend-btn--disabled-request"
+                          disabled
+                          tabIndex={-1}
+                        >
+                          <UserPlus size={16} /> Demandes désactivées
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        disabled={isFriendActionBusy}
+                        onClick={handleBlockUser}
+                      >
+                        <ShieldBan size={16} /> {confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        className="community-profile-add-friend"
+                        disabled={isFriendActionBusy}
+                        onClick={() => sendRequestMutation.mutate()}
+                      >
+                        <UserPlus size={16} /> Ajouter en ami
+                      </button>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        disabled={isFriendActionBusy}
+                        onClick={handleBlockUser}
+                      >
+                        <ShieldBan size={16} /> {confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
+                      </button>
+                    </>
+                  )}
+                </div>
               ) : null}
             </div>
 
@@ -346,16 +808,51 @@ function CommunityProfilePage() {
               </button>
             </div>
 
-            <section className="community-profile-pinned" aria-label="Betails epingles">
+            <section className="community-profile-friends" aria-label="Liste d'amis">
+              <div className="community-profile-friends__head">
+                <h2><Users size={16} /> Liste d'amis</h2>
+                <span>{friendsList.length}</span>
+              </div>
+
+              {friendsListQuery.isLoading ? (
+                <p className="community-profile-friends__state">Chargement des amis...</p>
+              ) : friendsListQuery.isError ? (
+                <p className="community-profile-friends__state is-error">Impossible de charger la liste d'amis.</p>
+              ) : !friendsList.length ? (
+                <p className="community-profile-friends__state">Aucun ami affiché pour le moment.</p>
+              ) : (
+                <div className="community-profile-friends__grid">
+                  {friendsList.map((friend) => (
+                    <button
+                      key={friend.friendId}
+                      type="button"
+                      className="community-profile-friend-card"
+                      title={friend.username}
+                      onClick={() => navigate(`/community/profile/${encodeURIComponent(friend.username)}`)}
+                    >
+                      <span className="community-profile-friend-card__avatar" aria-hidden="true">
+                        <AvatarMedia avatarUrl={friend.avatarUrl} />
+                      </span>
+                      <span className="community-profile-friend-card__content">
+                        <span className="community-profile-friend-card__name">{friend.username}</span>
+                        <span className="community-profile-friend-card__role">{friend.roleIngame || 'Membre'}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="community-profile-pinned" aria-label="Betails epinglés">
               <div className="community-profile-pinned__head">
-                <h2><Pin size={16} /> Betails epingles</h2>
+                <h2><Pin size={16} /> Betails epinglés</h2>
               </div>
               {pinnedBetailsQuery.isLoading ? (
-                <p className="community-profile-pinned__state">Chargement des betails epingles...</p>
+                <p className="community-profile-pinned__state">Chargement des betails épinglés...</p>
               ) : pinnedBetailsQuery.isError ? (
-                <p className="community-profile-pinned__state is-error">Impossible de charger les betails epingles.</p>
+                <p className="community-profile-pinned__state is-error">Impossible de charger les betails épinglés.</p>
               ) : !pinnedBetails.length ? (
-                <p className="community-profile-pinned__state">Aucun betail epingle pour le moment.</p>
+                <p className="community-profile-pinned__state">Aucun betail épinglé pour le moment.</p>
               ) : (
                 <div className="community-profile-pinned__grid">
                   {pinnedBetails.map((betail) => (
@@ -377,15 +874,17 @@ function CommunityProfilePage() {
                         <div className="community-pinned-card__face community-pinned-card__face--front">
                           <button
                             type="button"
-                            className="community-pinned-like"
+                            className={`community-pinned-like ${betail.likedByMe ? 'is-liked' : ''}`}
                             onClick={(event) => {
                               event.preventDefault();
                               event.stopPropagation();
+                              handleTogglePinnedLike(betail);
                             }}
-                            aria-label={`Aimer ${betail.name} (bientot)`}
-                            title="Like bientot"
+                            disabled={togglePinnedLikeMutation.isPending}
+                            aria-label={betail.likedByMe ? `Retirer le like de ${betail.name}` : `Aimer ${betail.name}`}
+                            title={betail.likedByMe ? 'Retirer le like' : 'Aimer'}
                           >
-                            <Heart size={14} /> {betail.likes}
+                            <Heart size={14} fill={betail.likedByMe ? 'currentColor' : 'none'} /> {betail.likes}
                           </button>
                           <div className="community-pinned-avatar" aria-hidden="true">
                             {betail.avatarUrl ? (

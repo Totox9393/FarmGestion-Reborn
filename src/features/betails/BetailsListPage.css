@@ -473,10 +473,31 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+.betail-like:focus {
+  outline: none;
+}
+
+.betail-like:focus-visible {
+  outline: 2px solid rgba(92, 59, 220, 0.45);
+  outline-offset: 2px;
+}
+
 .betail-like:hover {
   transform: translateY(-1px);
   background: rgba(122, 91, 255, 0.08);
   box-shadow: 0 8px 18px rgba(88, 65, 168, 0.18);
+}
+
+.betail-like.is-liked {
+  background: rgba(122, 91, 255, 0.16);
+  border-color: rgba(92, 59, 220, 0.45);
+  color: #4f2ec5;
+}
+
+.betail-like:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
 }
 
 .betail-avatar {

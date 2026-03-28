@@ -54,14 +54,23 @@ body {
 }
 
 .global-toast__icon {
+  flex: 0 0 28px;
   width: 28px;
   height: 28px;
-  display: grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 50%;
   background: rgba(32, 201, 151, 0.15);
   color: #20c997;
   font-size: 14px;
+  line-height: 0;
+}
+
+.global-toast__icon svg {
+  display: block;
+  width: 15px;
+  height: 15px;
 }
 
 .global-toast.is-error .global-toast__icon {
@@ -72,4 +81,8 @@ body {
 .global-toast.is-warning .global-toast__icon {
   background: rgba(255, 167, 38, 0.18);
   color: #ff9a1a;
+}
+
+.global-toast.is-warning .global-toast__icon svg {
+  transform: translateY(0.5px);
 }

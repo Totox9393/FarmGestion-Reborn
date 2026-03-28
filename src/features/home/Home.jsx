@@ -25,6 +25,7 @@ import milo18 from '../../assets/img/milo_emotions/milo18.png';
 import HomeBlock3Count from './Home_Block3_Count';
 import HomeBlock4Farm from './Home_Block4_Farm';
 import AuthFlowManager from '../authentification/AuthFlowManager';
+import { supabase } from '../authentification/supabaseClient';
 
 function Home() {
   const sectionRefs = useRef([]);

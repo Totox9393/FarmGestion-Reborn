@@ -2,9 +2,44 @@ import { supabase } from '../authentification/supabaseClient';
 import { normalizeCenterStyle, normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
 
 const PAGE_SIZE = 20;
-const MAX_CREATION_ROWS = 1800;
-const MAX_PURCHASE_ROWS = 1800;
+const MAX_CREATION_ROWS = 900;
+const MAX_PURCHASE_ROWS = 900;
 const SEARCH_USER_LIMIT = 120;
+const RETRY_ATTEMPTS = 2;
+
+const sleep = (ms) => new Promise((resolve) => {
+  window.setTimeout(resolve, ms);
+});
+
+const isRetriableSupabaseError = (error) => {
+  if (!error) return false;
+  const status = Number(error?.status || 0);
+  const code = String(error?.code || '').toUpperCase();
+  if (status >= 500) return true;
+  return code === '57014' || code === '53300' || code === '08006' || code === '08001';
+};
+
+const runWithRetry = async (runQuery, { attempts = RETRY_ATTEMPTS, fallbackData, throwOnError = true } = {}) => {
+  let lastError = null;
+
+  for (let attempt = 0; attempt <= attempts; attempt += 1) {
+    const response = await runQuery();
+    if (!response?.error) {
+      return response;
+    }
+
+    lastError = response.error;
+    if (attempt >= attempts || !isRetriableSupabaseError(response.error)) {
+      break;
+    }
+
+    const backoffMs = 180 * (2 ** attempt) + Math.floor(Math.random() * 120);
+    await sleep(backoffMs);
+  }
+
+  if (throwOnError && lastError) throw lastError;
+  return { data: fallbackData, error: lastError };
+};
 
 const normalizeSearchTerm = (value) =>
   String(value || '')
@@ -29,11 +64,14 @@ const buildInClause = (ids) => {
 const fetchMatchingProfileIds = async (searchTerm) => {
   if (!searchTerm) return [];
 
-  const { data, error } = await supabase
-    .from('users_profiles')
-    .select('id')
-    .ilike('username', `%${searchTerm}%`)
-    .limit(SEARCH_USER_LIMIT);
+  const { data, error } = await runWithRetry(
+    () => supabase
+      .from('users_profiles')
+      .select('id')
+      .ilike('username', `%${searchTerm}%`)
+      .limit(SEARCH_USER_LIMIT),
+    { throwOnError: false, fallbackData: [] },
+  );
 
   if (error || !Array.isArray(data)) return [];
   return Array.from(new Set(data.map((row) => row?.id).filter(Boolean)));
@@ -43,18 +81,20 @@ export const fetchActiveUserIdsThisMonth = async () => {
   const monthStartIso = getMonthStartIso();
 
   const [createdRowsResponse, purchasedRowsResponse] = await Promise.all([
-    supabase
-      .from('betails')
-      .select('author_id')
-      .gte('created_at', monthStartIso)
-      .order('created_at', { ascending: false })
-      .limit(MAX_CREATION_ROWS),
-    supabase
-      .from('betails')
-      .select('owner_id')
-      .gte('purchased_at', monthStartIso)
-      .order('purchased_at', { ascending: false })
-      .limit(MAX_PURCHASE_ROWS),
+    runWithRetry(() =>
+      supabase
+        .from('betails')
+        .select('author_id')
+        .gte('created_at', monthStartIso)
+        .order('created_at', { ascending: false })
+        .limit(MAX_CREATION_ROWS)),
+    runWithRetry(() =>
+      supabase
+        .from('betails')
+        .select('owner_id')
+        .gte('purchased_at', monthStartIso)
+        .order('purchased_at', { ascending: false })
+        .limit(MAX_PURCHASE_ROWS)),
   ]);
 
   if (createdRowsResponse.error) throw createdRowsResponse.error;
@@ -76,18 +116,24 @@ export const fetchActiveUserIdsThisMonth = async () => {
     .map(([userId]) => userId);
 
   const { data: spotlightProfiles } = spotlightIds.length
-    ? await supabase
-        .from('users_profiles')
-        .select('id, username, avatar_url')
-        .in('id', spotlightIds)
+    ? await runWithRetry(
+        () => supabase
+          .from('users_profiles')
+          .select('id, username, avatar_url')
+          .in('id', spotlightIds),
+        { throwOnError: false, fallbackData: [] },
+      )
     : { data: [] };
 
   const { data: spotlightVisibleFarms } = spotlightIds.length
-    ? await supabase
-        .from('farms_list')
-        .select('proprietaire')
-        .eq('visible', true)
-        .in('proprietaire', spotlightIds)
+    ? await runWithRetry(
+        () => supabase
+          .from('farms_list')
+          .select('proprietaire')
+          .eq('visible', true)
+          .in('proprietaire', spotlightIds),
+        { throwOnError: false, fallbackData: [] },
+      )
     : { data: [] };
 
   const profileById = new Map((spotlightProfiles || []).map((row) => [row.id, row]));
@@ -135,7 +181,7 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
     }
   }
 
-  const { data: farmsRows, error } = await query;
+  const { data: farmsRows, error } = await runWithRetry(() => query);
   if (error) {
     throw error;
   }
@@ -146,10 +192,13 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
   const ownerIds = Array.from(new Set(currentRows.map((row) => row?.proprietaire).filter(Boolean)));
 
   const { data: profileRows } = ownerIds.length
-    ? await supabase
-        .from('users_profiles')
-        .select('id, username, avatar_url')
-        .in('id', ownerIds)
+    ? await runWithRetry(
+        () => supabase
+          .from('users_profiles')
+          .select('id, username, avatar_url')
+          .in('id', ownerIds),
+        { throwOnError: false, fallbackData: [] },
+      )
     : { data: [] };
 
   const profileById = new Map((profileRows || []).map((row) => [row.id, row]));
@@ -180,19 +229,25 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
 
   let userItems = [];
   if (searchPattern) {
-    const { data: matchingProfiles } = await supabase
-      .from('users_profiles')
-      .select('id, username, avatar_url, farm_id')
-      .ilike('username', searchPattern)
-      .limit(12);
+    const { data: matchingProfiles } = await runWithRetry(
+      () => supabase
+        .from('users_profiles')
+        .select('id, username, avatar_url, farm_id')
+        .ilike('username', searchPattern)
+        .limit(12),
+      { throwOnError: false, fallbackData: [] },
+    );
 
     const profileRows = Array.isArray(matchingProfiles) ? matchingProfiles : [];
     const profileFarmIds = Array.from(new Set(profileRows.map((row) => row?.farm_id).filter(Boolean)));
     const { data: profileFarms } = profileFarmIds.length
-      ? await supabase
-          .from('farms_list')
-          .select('id, visible')
-          .in('id', profileFarmIds)
+      ? await runWithRetry(
+          () => supabase
+            .from('farms_list')
+            .select('id, visible')
+            .in('id', profileFarmIds),
+          { throwOnError: false, fallbackData: [] },
+        )
       : { data: [] };
 
     const visibleFarmSet = new Set((profileFarms || []).filter((row) => row?.visible).map((row) => row?.id));
@@ -223,17 +278,16 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
 
 export const fetchCommunityStats = async () => {
   const [farmsResponse, usersResponse] = await Promise.all([
-    supabase
-      .from('farms_list')
-      .select('id', { count: 'planned', head: true })
-      .eq('visible', true),
-    supabase
-      .from('users_profiles')
-      .select('id', { count: 'planned', head: true }),
+    runWithRetry(() =>
+      supabase
+        .from('farms_list')
+        .select('id', { count: 'planned', head: true })
+        .eq('visible', true), { throwOnError: false, fallbackData: null }),
+    runWithRetry(() =>
+      supabase
+        .from('users_profiles')
+        .select('id', { count: 'planned', head: true }), { throwOnError: false, fallbackData: null }),
   ]);
-
-  if (farmsResponse.error) throw farmsResponse.error;
-  if (usersResponse.error) throw usersResponse.error;
 
   return {
     totalVisibleFarms: Number(farmsResponse.count || 0),

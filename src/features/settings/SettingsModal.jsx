@@ -29,6 +29,7 @@ const SECTIONS = {
 };
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
+const ALLOW_FRIEND_REQUESTS_SETTING_NAME = 'allow_friend_requests';
 const ADMIN_REPORTS_PENDING_COUNT_QUERY_KEY = ['settings', 'admin', 'reports', 'pending-count'];
 
 const parseNewsletterSettingValue = (value) => {
@@ -50,16 +51,23 @@ const resolveNewsletterEnabled = (row) => {
   return parseNewsletterSettingValue(row.setting_value);
 };
 
+const resolveFriendRequestsEnabled = (row) => {
+  if (!row) return true;
+  return parseNewsletterSettingValue(row.setting_value);
+};
+
 function SettingsModal({ isOpen, onClose, user, profile }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('account');
   const [theme, setTheme] = useState(() => getLocalThemePreference());
   const [newsletterEnabled, setNewsletterEnabled] = useState(false);
+  const [friendRequestsEnabled, setFriendRequestsEnabled] = useState(false);
   const [farmVisible, setFarmVisible] = useState(false);
   const [farmId, setFarmId] = useState(null);
   const [loadingPreferences, setLoadingPreferences] = useState(false);
   const [savingNewsletter, setSavingNewsletter] = useState(false);
+  const [savingFriendRequests, setSavingFriendRequests] = useState(false);
   const [savingFarm, setSavingFarm] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const isDark = theme === 'dark';
@@ -164,7 +172,11 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     setLoadingPreferences(true);
     (async () => {
       try {
-        const [{ data: profileData }, { data: newsletterSetting, error: newsletterError }] = await Promise.all([
+        const [
+          { data: profileData },
+          { data: newsletterSetting, error: newsletterError },
+          { data: friendRequestsSetting, error: friendRequestsError },
+        ] = await Promise.all([
           supabase
             .from('users_profiles')
             .select('farm_id')
@@ -176,6 +188,12 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
             .eq('user_id', user.id)
             .eq('setting_name', NEWSLETTER_SETTING_NAME)
             .maybeSingle(),
+          supabase
+            .from('user_settings')
+            .select('setting_value')
+            .eq('user_id', user.id)
+            .eq('setting_name', ALLOW_FRIEND_REQUESTS_SETTING_NAME)
+            .maybeSingle(),
         ]);
         if (!isMounted) return;
         if (newsletterError) {
@@ -183,6 +201,12 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
           setNewsletterEnabled(true);
         } else {
           setNewsletterEnabled(resolveNewsletterEnabled(newsletterSetting));
+        }
+        if (friendRequestsError) {
+          console.error('Impossible de lire la préférence de demandes d\'amis', friendRequestsError);
+          setFriendRequestsEnabled(true);
+        } else {
+          setFriendRequestsEnabled(resolveFriendRequestsEnabled(friendRequestsSetting));
         }
         setFarmId(profileData?.farm_id || null);
 
@@ -287,6 +311,42 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
       setFarmVisible(!nextValue);
     }
     setSavingFarm(false);
+  };
+
+  const handleFriendRequestsToggle = async () => {
+    if (!user || savingFriendRequests) return;
+    const nextValue = !friendRequestsEnabled;
+    setFriendRequestsEnabled(nextValue);
+    setSavingFriendRequests(true);
+
+    let error = null;
+    if (nextValue) {
+      const { error: deleteError } = await supabase
+        .from('user_settings')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('setting_name', ALLOW_FRIEND_REQUESTS_SETTING_NAME);
+      error = deleteError;
+    } else {
+      const { error: upsertError } = await supabase
+        .from('user_settings')
+        .upsert(
+          {
+            user_id: user.id,
+            setting_name: ALLOW_FRIEND_REQUESTS_SETTING_NAME,
+            setting_value: false,
+          },
+          { onConflict: 'user_id,setting_name' },
+        );
+      error = upsertError;
+    }
+
+    if (error) {
+      console.error('Impossible de mettre à jour la préférence des demandes d\'amis', error);
+      setFriendRequestsEnabled(!nextValue);
+    }
+
+    setSavingFriendRequests(false);
   };
 
   const handleCopyId = async () => {
@@ -516,8 +576,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                       <p className="settings-item-title">Recevoir des demandes d’amis</p>
                       <p className="settings-item-subtitle">Activez les invitations sociales.</p>
                     </div>
-                    <label className="settings-switch">
-                      <input type="checkbox" disabled />
+                    <label className={`settings-switch ${savingFriendRequests ? 'is-busy' : ''}`}>
+                      <input
+                        type="checkbox"
+                        onChange={handleFriendRequestsToggle}
+                        checked={friendRequestsEnabled}
+                        disabled={savingFriendRequests || loadingPreferences}
+                      />
                       <span className="settings-slider" />
                     </label>
                   </div>

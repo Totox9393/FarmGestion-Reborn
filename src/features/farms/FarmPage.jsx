@@ -7,7 +7,6 @@ import { useAuth } from '../authentification/AuthContext';
 import { FarmDesignPreview } from '../utils/FarmDesign';
 import { normalizeCenterStyle, normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
 import badgesManifest from '../../assets/manifest.json';
-import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import './FarmPage.css';
 
 const ROTATION_STORAGE_KEY = 'farmgestion_farm_hex_rotate';
@@ -59,37 +58,6 @@ const BADGE_FOLDER_BY_FILE = Object.entries(badgesManifest || {}).reduce((acc, [
   });
   return acc;
 }, {});
-
-const buildAvatarCandidates = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return [raw];
-  if (!SUPABASE_URL) return [raw];
-
-  const candidates = [raw];
-  if (raw.startsWith('/storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-  } else if (raw.startsWith('storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}/${raw}`);
-  } else if (raw.startsWith('/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-    const normalized = raw.replace(/^\/+/, '');
-    candidates.push(`${SUPABASE_URL}/${normalized}`);
-  } else if (raw.includes('/')) {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/${raw}`);
-  } else {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/avatars/${raw}`);
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/ressources/${raw}`);
-  }
-
-  return Array.from(new Set(candidates));
-};
-
-const buildCommunityProfilePath = (username, userId) => {
-  const normalizedUsername = String(username || '').trim();
-  if (normalizedUsername) return `/community/profile/${encodeURIComponent(normalizedUsername)}`;
-  return '';
-};
 
 const normalizeEquippedBadges = (value) => {
   if (Array.isArray(value)) {
@@ -337,17 +305,14 @@ const fetchUserFarmId = async (userId) => {
   return data?.farm_id ?? null;
 };
 
-const fetchOwnerProfile = async (userId) => {
+const fetchUsername = async (userId) => {
   const { data, error } = await supabase
     .from('users_profiles')
-    .select('username, avatar_url')
+    .select('username')
     .eq('id', userId)
     .maybeSingle();
   if (error) throw error;
-  return {
-    username: data?.username ?? '',
-    avatarUrl: data?.avatar_url ?? '',
-  };
+  return data?.username ?? '';
 };
 
 const fetchFarmBetailStats = async (farmId) => {
@@ -400,7 +365,6 @@ function FarmPage() {
   const [isCenterImageDragging, setIsCenterImageDragging] = useState(false);
   const [centerImageDragStart, setCenterImageDragStart] = useState({ x: 0, y: 0 });
   const [centerImageDragOrigin, setCenterImageDragOrigin] = useState({ x: 0, y: 0 });
-  const [ownerAvatarIndex, setOwnerAvatarIndex] = useState(0);
   const [centerPreviewSize, setCenterPreviewSize] = useState(0);
   const [centerCustomBackground, setCenterCustomBackground] = useState(DEFAULT_CENTER_BACKGROUND_COLOR);
   const [centerCustomSymbol, setCenterCustomSymbol] = useState(DEFAULT_CENTER_SYMBOL);
@@ -438,9 +402,9 @@ function FarmPage() {
     retry: 1,
   });
 
-  const ownerProfileQuery = useQuery({
-    queryKey: ['farm', 'owner-profile', farmQuery.data?.proprietaire],
-    queryFn: () => fetchOwnerProfile(farmQuery.data.proprietaire),
+  const ownerNameQuery = useQuery({
+    queryKey: ['farm', 'owner-name', farmQuery.data?.proprietaire],
+    queryFn: () => fetchUsername(farmQuery.data.proprietaire),
     enabled: Boolean(farmQuery.data?.proprietaire),
     staleTime: 300000,
     gcTime: 1200000,
@@ -453,12 +417,7 @@ function FarmPage() {
   const accessDenied = Boolean(farm) && !isOwner && farm.visible === false;
 
   const farmLabel = farm?.name || (farm?.id ? `Ferme #${farm.id}` : 'Ferme');
-  const ownerName = ownerProfileQuery.data?.username || '';
-  const ownerAvatarCandidates = useMemo(
-    () => buildAvatarCandidates(ownerProfileQuery.data?.avatarUrl),
-    [ownerProfileQuery.data?.avatarUrl],
-  );
-  const ownerAvatarSrc = ownerAvatarCandidates[ownerAvatarIndex] || '';
+  const ownerName = ownerNameQuery.data || '';
   const myFarmId = myFarmIdQuery.data ?? null;
   const equippedBadges = useMemo(() => {
     const filenames = normalizeEquippedBadges(farm?.equipped_badges);
@@ -1067,10 +1026,6 @@ function FarmPage() {
     setCenterWidgetState({ farmId: farm.id, isOpen: willOpen });
   };
 
-  useEffect(() => {
-    setOwnerAvatarIndex(0);
-  }, [farm?.proprietaire, ownerProfileQuery.data?.avatarUrl]);
-
   if (!validFarmId) {
     return (
       <div className="farm-page farm-page--error">
@@ -1091,57 +1046,14 @@ function FarmPage() {
     );
   }
 
-  if (farmQuery.isError || !farm) {
+  if (farmQuery.isError || !farm || accessDenied) {
     return (
       <div className="farm-page farm-page--error">
         <h1>Page de ferme</h1>
-        <p>Ferme introuvable.</p>
+        <p>{accessDenied ? 'Cette ferme est privée.' : 'Ferme introuvable.'}</p>
         <button type="button" className="farm-page-btn" onClick={() => navigate('/home')}>
           Retour au tableau de bord
         </button>
-      </div>
-    );
-  }
-
-  if (accessDenied) {
-    return (
-      <div className="farm-page farm-page--private">
-        <div className="farm-private-card" role="status" aria-live="polite">
-          <div className="farm-private-lock" aria-hidden="true">
-            <div className="farm-private-lock-shackle" />
-            <div className="farm-private-lock-body">
-              <div className="farm-private-lock-keyhole" />
-            </div>
-          </div>
-
-          <div className="farm-private-orbit" aria-hidden="true">
-            <div className="farm-private-crypto-shell">
-              <div className="farm-private-crypto-track">
-                <span className="farm-private-crypto-bit c1">A1F3</span>
-                <span className="farm-private-crypto-bit c2">7D9C</span>
-                <span className="farm-private-crypto-bit c3">0x5E</span>
-                <span className="farm-private-crypto-bit c4">B2A8</span>
-                <span className="farm-private-crypto-bit c5">31CF</span>
-              </div>
-              <div className="farm-private-crypto-scan" />
-            </div>
-          </div>
-
-          <p className="farm-private-eyebrow">Accès restreint</p>
-          <h1 className="farm-private-title">Cette ferme est privée</h1>
-          <p className="farm-private-text">
-            Le propriétaire a choisi de garder cette ferme hors de la communauté pour le moment.
-          </p>
-
-          <div className="farm-private-actions">
-            <button type="button" className="farm-page-btn" onClick={() => navigate('/community')}>
-              Retour à la communauté
-            </button>
-            <button type="button" className="farm-page-btn ghost" onClick={() => navigate('/home')}>
-              Tableau de bord
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
@@ -1152,39 +1064,9 @@ function FarmPage() {
         <div>
           <p className="farm-page-eyebrow">{isOwner ? 'Votre ferme' : 'Mode visiteur'}</p>
           <h1 className="farm-page-title">{farmLabel}</h1>
-          <div className="farm-page-owner-row">
-            <button
-              type="button"
-              className="farm-page-owner-link"
-              onClick={() => {
-                const path = buildCommunityProfilePath(ownerName, farm?.proprietaire);
-                if (path) navigate(path);
-              }}
-              disabled={!farm?.proprietaire || !ownerName}
-              title={ownerName ? `Voir le profil de ${ownerName}` : 'Voir le profil du propriétaire'}
-            >
-              <span className="farm-page-owner-avatar" aria-hidden="true">
-                {ownerAvatarSrc ? (
-                  <img
-                    src={ownerAvatarSrc}
-                    alt="Avatar propriétaire"
-                    loading="lazy"
-                    onError={() => {
-                      if (ownerAvatarIndex < ownerAvatarCandidates.length - 1) {
-                        setOwnerAvatarIndex((current) => current + 1);
-                        return;
-                      }
-                      setOwnerAvatarIndex(ownerAvatarCandidates.length);
-                    }}
-                  />
-                ) : (
-                  <img src={defaultProfileUser} alt="Avatar propriétaire" loading="lazy" />
-                )}
-              </span>
-              <span className="farm-page-owner-name">{ownerName || 'Propriétaire inconnu'}</span>
-            </button>
-            <p className="farm-page-subtitle">État : {farm.state || '-'}</p>
-          </div>
+          <p className="farm-page-subtitle">
+            {ownerName ? `Propriétaire : ${ownerName}` : 'Propriétaire inconnu'} - État : {farm.state || '-'}
+          </p>
         </div>
         <div className="farm-page-actions">
           {myFarmId && Number(myFarmId) !== Number(farm.id) ? (

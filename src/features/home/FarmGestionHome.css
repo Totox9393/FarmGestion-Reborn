@@ -933,8 +933,22 @@
   box-shadow: 0 8px 18px rgba(35, 26, 70, 0.12);
 }
 
-.carousel-btn svg {
+.carousel-btn__arrow {
   display: block;
+  font-size: 1.2rem;
+  font-weight: 800;
+  line-height: 1;
+  color: currentColor;
+  transform: translateY(-1px);
+}
+
+.carousel-btn:focus {
+  outline: none;
+}
+
+.carousel-btn:focus-visible {
+  outline: 2px solid rgba(122, 91, 255, 0.45);
+  outline-offset: 2px;
 }
 
 .carousel-btn:hover:not(:disabled) {
@@ -944,7 +958,9 @@
 }
 
 .carousel-btn:disabled {
-  opacity: 0.4;
+  color: rgba(42, 32, 71, 0.55);
+  border-color: rgba(72, 52, 130, 0.14);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.78), rgba(238, 235, 255, 0.72));
   cursor: not-allowed;
 }
 
@@ -1009,10 +1025,31 @@
   transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
 }
 
+.betail-like:focus {
+  outline: none;
+}
+
+.betail-like:focus-visible {
+  outline: 2px solid rgba(92, 59, 220, 0.45);
+  outline-offset: 2px;
+}
+
 .betail-like:hover {
   transform: translateY(-1px);
   background: rgba(122, 91, 255, 0.08);
   box-shadow: 0 8px 18px rgba(88, 65, 168, 0.18);
+}
+
+.betail-like.is-liked {
+  background: rgba(122, 91, 255, 0.16);
+  border-color: rgba(92, 59, 220, 0.45);
+  color: #4f2ec5;
+}
+
+.betail-like:disabled {
+  opacity: 0.7;
+  cursor: wait;
+  transform: none;
 }
 
 .home-podium {
