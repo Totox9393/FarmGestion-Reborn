@@ -20,7 +20,14 @@ import {
 } from './hooks'
 import { useAuth } from '../authentification/AuthContext'
 import { supabase } from '../authentification/supabaseClient'
-import badgesManifest from '../../assets/manifest.json'
+import {
+  MAX_BADGE_SLOTS,
+  equipBetailBadgeReborn,
+  fetchBetailBadgesEquipsReborn,
+  fetchUserBadgesEquipsReborn,
+  fetchUserBadgesInventoryReborn,
+  unequipBetailBadgeReborn,
+} from '../badges'
 import premiumSuccessSound from '../../assets/sounds/GOCHISOU_7.WAV'
 import pinInSound from '../../assets/sounds/pinin_005.ogg'
 import pinOutSound from '../../assets/sounds/pinout_006.ogg'
@@ -30,31 +37,6 @@ import './MyBetailsPage.css'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const BADGES_BUCKET_URL = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/badges` : ''
-const BADGE_RARITY_LABELS = {
-  '0_auto': 'Auto',
-  '1_common': 'Common',
-  '2_rare': 'Rare',
-  '3_epic': 'Epic',
-  '4_legendary': 'Legendary',
-}
-const BADGE_RARITY_ORDER = {
-  '4_legendary': 5,
-  '3_epic': 4,
-  '2_rare': 3,
-  '1_common': 2,
-  '0_auto': 1,
-}
-const MAX_EQUIPPED_BADGE_SLOTS = 3
-const BADGE_FOLDER_BY_FILE = Object.entries(badgesManifest || {}).reduce((acc, [folder, files]) => {
-  if (!Array.isArray(files)) return acc
-  files.forEach((file) => {
-    if (typeof file === 'string' && file.length) {
-      acc[file] = folder
-    }
-  })
-  return acc
-}, {})
 
 const formatFrenchDate = (value) => {
   if (!value) return 'Date inconnue'
@@ -82,32 +64,6 @@ const getResourceFrameUrl = (filename, options = {}) => {
   if (Number.isFinite(quality) && quality > 0) params.set('quality', String(Math.round(quality)))
   const query = params.toString()
   return query ? `${baseUrl}?${query}` : baseUrl
-}
-
-const normalizeEquippedBadges = (value) => {
-  if (Array.isArray(value)) {
-    return value.filter((item) => typeof item === 'string' && item.trim().length > 0)
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim()
-    if (!trimmed) return []
-    try {
-      const parsed = JSON.parse(trimmed)
-      return Array.isArray(parsed)
-        ? parsed.filter((item) => typeof item === 'string' && item.trim().length > 0)
-        : []
-    } catch {
-      return []
-    }
-  }
-
-  return []
-}
-
-const getBadgeImageUrl = (filename, folder) => {
-  if (!BADGES_BUCKET_URL || !filename || !folder) return ''
-  return `${BADGES_BUCKET_URL}/${folder}/${filename}`
 }
 
 const toast = (type, message) => {
@@ -241,6 +197,8 @@ function MyBetailsPageQuery() {
   const [premiumConfirmState, setPremiumConfirmState] = useState(null)
   const [isShippingPanelOpen, setIsShippingPanelOpen] = useState(false)
   const [shippingTarget, setShippingTarget] = useState(null)
+  const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false)
+  const [badgeModalSlot, setBadgeModalSlot] = useState(null)
   const premiumAnimationTimeoutRef = useRef(null)
   const shippingPanelTimeoutRef = useRef(null)
   const panelRef = useRef(null)
@@ -357,6 +315,31 @@ function MyBetailsPageQuery() {
     },
   })
 
+  const equipBadgeMutation = useMutation({
+    mutationFn: ({ badgeId, slot }) => equipBetailBadgeReborn({
+      badgeId,
+      betailId: selectedBetail?.id,
+      slot,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'] })
+      queryClient.invalidateQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'] })
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips'] })
+    },
+  })
+
+  const unequipBadgeMutation = useMutation({
+    mutationFn: ({ badgeId }) => unequipBetailBadgeReborn({
+      badgeId,
+      betailId: selectedBetail?.id,
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'] })
+      queryClient.invalidateQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'] })
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips'] })
+    },
+  })
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedSearch(searchTerm.trim())
@@ -426,6 +409,27 @@ function MyBetailsPageQuery() {
     Boolean(selectedBetailId),
   )
 
+  const { data: userInventoryBadges = [] } = useQuery({
+    queryKey: ['badges', 'inventory', user?.id || 'anon'],
+    enabled: Boolean(user?.id),
+    queryFn: () => fetchUserBadgesInventoryReborn(user.id),
+    staleTime: 60_000,
+  })
+
+  const { data: userEquippedBadges = [] } = useQuery({
+    queryKey: ['badges', 'equips', user?.id || 'anon'],
+    enabled: Boolean(user?.id),
+    queryFn: () => fetchUserBadgesEquipsReborn(user.id),
+    staleTime: 30_000,
+  })
+
+  const { data: selectedBetailEquips = [] } = useQuery({
+    queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'],
+    enabled: Boolean(selectedBetail?.id && user?.id),
+    queryFn: () => fetchBetailBadgesEquipsReborn(selectedBetail.id),
+    staleTime: 20_000,
+  })
+
   const authorMap = useMemo(
     () =>
       (authors || []).reduce((acc, author) => {
@@ -467,28 +471,27 @@ function MyBetailsPageQuery() {
     ? formatFrenchDate(selectedBetail.shipping_scheduled_for)
     : ''
   const selectedEquippedBadges = useMemo(() => {
-    const raw = selectedDetails?.equipped_badges ?? selectedBetail?.equipped_badges
-    const filenames = normalizeEquippedBadges(raw)
-    if (!filenames.length) return []
-
-    return filenames
-      .map((filename) => {
-        const folder = BADGE_FOLDER_BY_FILE[filename] || null
-        return {
-          id: filename,
-          filename,
-          folder,
-          rarityOrder: BADGE_RARITY_ORDER[folder] || 0,
-          rarityLabel: folder ? (BADGE_RARITY_LABELS[folder] || folder) : 'Inconnue',
-          imageUrl: getBadgeImageUrl(filename, folder),
-        }
-      })
-      .sort((a, b) => {
-        if (b.rarityOrder !== a.rarityOrder) return b.rarityOrder - a.rarityOrder
-        return a.filename.localeCompare(b.filename, 'fr')
-      })
-  }, [selectedDetails?.equipped_badges, selectedBetail?.equipped_badges])
-  const selectedBadgeSlotsRemaining = Math.max(0, MAX_EQUIPPED_BADGE_SLOTS - selectedEquippedBadges.length)
+    return [...(selectedBetailEquips || [])]
+      .sort((a, b) => (a.slot || 99) - (b.slot || 99))
+  }, [selectedBetailEquips])
+  const selectedBadgesBySlot = useMemo(() => {
+    const map = new Map()
+    selectedEquippedBadges.forEach((badge) => {
+      if (Number.isFinite(Number(badge?.slot))) {
+        map.set(Number(badge.slot), badge)
+      }
+    })
+    return map
+  }, [selectedEquippedBadges])
+  const selectedBadgeSlotsRemaining = Math.max(0, MAX_BADGE_SLOTS - selectedEquippedBadges.length)
+  const userEquippedBadgeIdSet = useMemo(
+    () => new Set((userEquippedBadges || []).map((badge) => badge.id)),
+    [userEquippedBadges],
+  )
+  const availableInventoryBadges = useMemo(() => {
+    return (userInventoryBadges || []).filter((badge) => !userEquippedBadgeIdSet.has(badge.id))
+  }, [userInventoryBadges, userEquippedBadgeIdSet])
+  const canEquipSelectedBetail = Boolean(selectedBetail?.id) && !selectedIsShippingScheduled
   const isPremiumAnimationVisible = premiumAnimationPhase !== 'idle'
   const isPremiumAnimationSuccess = premiumAnimationPhase === 'success'
 
@@ -545,10 +548,19 @@ function MyBetailsPageQuery() {
     }
   }, [])
 
+  const handleCloseBadgeModal = useCallback(() => {
+    setIsBadgeModalOpen(false)
+    setBadgeModalSlot(null)
+  }, [])
+
   useEffect(() => {
-    if (!selectedBetailId && !isShippingPanelOpen) return
+    if (!selectedBetailId && !isShippingPanelOpen && !isBadgeModalOpen) return
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
+        if (isBadgeModalOpen) {
+          handleCloseBadgeModal()
+          return
+        }
         clearShippingPanelTimeout()
         setSelectedBetailId(null)
         setIsShippingPanelOpen(false)
@@ -557,7 +569,7 @@ function MyBetailsPageQuery() {
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [selectedBetailId, isShippingPanelOpen, clearShippingPanelTimeout])
+  }, [selectedBetailId, isShippingPanelOpen, isBadgeModalOpen, clearShippingPanelTimeout, handleCloseBadgeModal])
 
   useEffect(() => {
     if (!selectedBetailId || isInitialLoading) return
@@ -571,6 +583,8 @@ function MyBetailsPageQuery() {
     if (!selectedBetail) {
       setEditingComment(false)
       setPremiumConfirmState(null)
+      setIsBadgeModalOpen(false)
+      setBadgeModalSlot(null)
       return
     }
     setCommentDraft(selectedComment || '')
@@ -592,6 +606,7 @@ function MyBetailsPageQuery() {
 
   const handleSelectBetail = (betailId) => {
     clearShippingPanelTimeout()
+    handleCloseBadgeModal()
     setIsShippingPanelOpen(false)
     setShippingTarget(null)
     setSelectedBetailId((prev) => (prev === betailId ? null : betailId))
@@ -636,9 +651,90 @@ function MyBetailsPageQuery() {
     navigate('/gce')
   }, [navigate])
 
-  const handleOpenBadgeEquipModal = useCallback(() => {
-    toast('success', 'Le modal pour équiper un badge arrive bientôt.')
-  }, [])
+  const handleOpenBadgeEquipModal = useCallback((slot) => {
+    if (!selectedBetail?.id) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
+    if (selectedEquippedBadges.length >= MAX_BADGE_SLOTS) {
+      toast('error', 'Tous les emplacements de badges sont deja occupes.')
+      return
+    }
+    setBadgeModalSlot(Number.isFinite(Number(slot)) ? Number(slot) : null)
+    setIsBadgeModalOpen(true)
+  }, [selectedBetail?.id, selectedIsShippingScheduled, selectedShippingLockReason, selectedEquippedBadges.length])
+
+  const handleEquipBadgeOnSelectedBetail = useCallback(async (badgeId) => {
+    if (!selectedBetail?.id || !badgeId || equipBadgeMutation.isPending) return
+    try {
+      const result = await equipBadgeMutation.mutateAsync({
+        badgeId,
+        slot: badgeModalSlot,
+      })
+
+      if (!result?.success) {
+        const reason = result?.reason || 'UNKNOWN'
+        if (reason === 'SHIPPING_LOCKED') {
+          toast('error', selectedShippingLockReason)
+        } else if (reason === 'NO_FREE_SLOT' || reason === 'SLOT_OCCUPIED') {
+          toast('error', 'Slot indisponible.')
+        } else if (reason === 'BADGE_ALREADY_EQUIPPED') {
+          toast('error', 'Ce badge est deja equipe ailleurs.')
+        } else if (reason === 'BADGE_NOT_OWNED') {
+          toast('error', 'Ce badge nest pas dans ton inventaire.')
+        } else {
+          toast('error', 'Equipement impossible pour le moment.')
+        }
+        return
+      }
+
+      toast('success', 'Badge equipe sur le betail.')
+      setIsBadgeModalOpen(false)
+      setBadgeModalSlot(null)
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase()
+      if (error?.code === '42883' || message.includes('equip_betail_badge_reborn')) {
+        toast('error', 'Fonction SQL equip_betail_badge_reborn absente.')
+      } else {
+        toast('error', 'Erreur pendant equipement du badge.')
+      }
+    }
+  }, [
+    selectedBetail?.id,
+    equipBadgeMutation,
+    badgeModalSlot,
+    selectedShippingLockReason,
+  ])
+
+  const handleUnequipBadgeFromSelectedBetail = useCallback(async (badgeId) => {
+    if (!selectedBetail?.id || !badgeId || unequipBadgeMutation.isPending) return
+    if (selectedIsShippingScheduled) {
+      toast('error', selectedShippingLockReason)
+      return
+    }
+
+    try {
+      const result = await unequipBadgeMutation.mutateAsync({ badgeId })
+      if (!result?.success) {
+        const reason = result?.reason || 'UNKNOWN'
+        if (reason === 'SHIPPING_LOCKED') {
+          toast('error', selectedShippingLockReason)
+        } else {
+          toast('error', 'Desequipement impossible pour le moment.')
+        }
+        return
+      }
+      toast('success', 'Badge retire du betail.')
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase()
+      if (error?.code === '42883' || message.includes('unequip_betail_badge_reborn')) {
+        toast('error', 'Fonction SQL unequip_betail_badge_reborn absente.')
+      } else {
+        toast('error', 'Erreur pendant desequipement du badge.')
+      }
+    }
+  }, [selectedBetail?.id, selectedIsShippingScheduled, selectedShippingLockReason, unequipBadgeMutation])
 
   const handlePreviewShippingGrowth = useCallback(async (betailId) => {
     if (!betailId) {
@@ -1408,47 +1504,69 @@ function MyBetailsPageQuery() {
                       <span className="my-betail-badge-count">{selectedEquippedBadges.length}</span>
                     </div>
                     <div className="my-betail-badges-grid" role="list" aria-label="Badges équipés">
-                      {selectedEquippedBadges.map((badge) => (
-                        <article
-                          key={badge.id}
-                          className={`my-betail-badge-card ${badge.folder ? `is-${badge.folder}` : 'is-unknown'}`}
-                          role="listitem"
-                        >
-                          {badge.imageUrl ? (
-                            <img
-                              src={badge.imageUrl}
-                              alt={badge.filename}
-                              className="my-betail-badge-image"
-                              loading="lazy"
-                              decoding="async"
-                              onError={(event) => {
-                                event.currentTarget.style.display = 'none'
-                              }}
-                            />
-                          ) : (
-                            <div className="my-betail-badge-fallback" aria-hidden="true">
-                              ?
-                            </div>
-                          )}
-                          <p className="my-betail-badge-name">{badge.filename.replace('.gif', '')}</p>
-                          <p className="my-betail-badge-rarity">{badge.rarityLabel}</p>
-                        </article>
-                      ))}
-                      {Array.from({ length: selectedBadgeSlotsRemaining }, (_, index) => (
-                        <button
-                          key={`badge-empty-slot-${index}`}
-                          type="button"
-                          className="my-betail-badge-card my-betail-badge-slot"
-                          onClick={handleOpenBadgeEquipModal}
-                          aria-label="Équiper un badge (bientôt disponible)"
-                        >
-                          <span className="my-betail-badge-slot-plus" aria-hidden="true">+</span>
-                          <p className="my-betail-badge-slot-name">Emplacement vide</p>
-                          <p className="my-betail-badge-slot-hint">Équiper un badge</p>
-                        </button>
-                      ))}
+                      {Array.from({ length: MAX_BADGE_SLOTS }, (_, index) => {
+                        const slot = index + 1
+                        const badge = selectedBadgesBySlot.get(slot)
+                        if (badge) {
+                          return (
+                            <article
+                              key={badge.id}
+                              className={`my-betail-badge-card ${badge.rarity ? `is-${badge.rarity}` : 'is-unknown'}`}
+                              role="listitem"
+                            >
+                              {badge.imageUrl ? (
+                                <img
+                                  src={badge.imageUrl}
+                                  alt={badge.filename}
+                                  className="my-betail-badge-image"
+                                  loading="lazy"
+                                  decoding="async"
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = 'none'
+                                  }}
+                                />
+                              ) : (
+                                <div className="my-betail-badge-fallback" aria-hidden="true">
+                                  ?
+                                </div>
+                              )}
+                              <p className="my-betail-badge-name">{badge.name}</p>
+                              <p className="my-betail-badge-rarity">
+                                {badge.rarityLabel} • Slot {slot}
+                              </p>
+                              <button
+                                type="button"
+                                className="my-betail-badge-remove"
+                                onClick={() => handleUnequipBadgeFromSelectedBetail(badge.id)}
+                                disabled={unequipBadgeMutation.isPending || selectedIsShippingScheduled}
+                              >
+                                Retirer
+                              </button>
+                            </article>
+                          )
+                        }
+
+                        return (
+                          <button
+                            key={`badge-empty-slot-${slot}`}
+                            type="button"
+                            className="my-betail-badge-card my-betail-badge-slot"
+                            onClick={() => handleOpenBadgeEquipModal(slot)}
+                            aria-label={`Équiper un badge sur le slot ${slot}`}
+                            disabled={!canEquipSelectedBetail}
+                          >
+                            <span className="my-betail-badge-slot-plus" aria-hidden="true">+</span>
+                            <p className="my-betail-badge-slot-name">Slot {slot}</p>
+                            <p className="my-betail-badge-slot-hint">Équiper un badge</p>
+                          </button>
+                        )
+                      })}
                     </div>
-                    {/* TODO: Bloquer l’équipement/déséquipement des badges quand selectedIsShippingScheduled est true dès que l’UI badges devient interactive. */}
+                    {selectedIsShippingScheduled ? (
+                      <p className="my-betail-ship-status" role="status" aria-live="polite">
+                        {selectedShippingLockReason}
+                      </p>
+                    ) : null}
                     <button
                       type="button"
                       className="my-betail-btn ghost my-betail-shop-btn"
@@ -1456,6 +1574,9 @@ function MyBetailsPageQuery() {
                     >
                       Boutique badges
                     </button>
+                    {selectedBadgeSlotsRemaining > 0 ? (
+                      <p className="my-betail-badge-helper">{selectedBadgeSlotsRemaining} emplacement(s) libre(s).</p>
+                    ) : null}
                   </section>
 
                   <section className="my-betail-section my-betail-shipping-section">
@@ -1505,6 +1626,89 @@ function MyBetailsPageQuery() {
             isShippingPending={confirmShippingScheduleMutation.isPending}
             onGoToGce={handleGoToGce}
           />
+        ) : null}
+        {isBadgeModalOpen ? (
+          <div
+            className="my-betail-badge-modal-backdrop"
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                handleCloseBadgeModal()
+              }
+            }}
+          >
+            <div
+              className="my-betail-badge-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="my-betail-badge-modal-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <p className="my-betail-badge-modal-kicker">Gestion badges</p>
+              <h3 id="my-betail-badge-modal-title">Equiper un badge</h3>
+              <p className="my-betail-badge-modal-subtitle">
+                Selectionne un badge libre pour le slot {badgeModalSlot || 'auto'}.
+              </p>
+
+              {availableInventoryBadges.length ? (
+                <div className="my-betail-badge-modal-grid" role="list" aria-label="Inventaire badges disponibles">
+                  {availableInventoryBadges.map((badge) => (
+                    <button
+                      key={badge.id}
+                      type="button"
+                      className={`my-betail-badge-modal-card ${badge.rarity ? `is-${badge.rarity}` : 'is-unknown'}`}
+                      role="listitem"
+                      onClick={() => handleEquipBadgeOnSelectedBetail(badge.id)}
+                      disabled={equipBadgeMutation.isPending}
+                    >
+                      {badge.imageUrl ? (
+                        <img
+                          src={badge.imageUrl}
+                          alt={badge.filename}
+                          className="my-betail-badge-modal-image"
+                          loading="lazy"
+                          decoding="async"
+                          onError={(event) => {
+                            event.currentTarget.style.display = 'none'
+                          }}
+                        />
+                      ) : (
+                        <span className="my-betail-badge-modal-fallback" aria-hidden="true">?</span>
+                      )}
+                      <span className="my-betail-badge-modal-name">{badge.name}</span>
+                      <span className="my-betail-badge-modal-rarity">{badge.rarityLabel}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="my-betail-badge-modal-empty">
+                  Aucun badge libre. Retire un badge d'un autre emplacement ou achete-en en boutique.
+                </p>
+              )}
+
+              <div className="my-betail-badge-modal-actions">
+                <button
+                  type="button"
+                  className="my-betail-btn ghost"
+                  onClick={handleCloseBadgeModal}
+                  disabled={equipBadgeMutation.isPending}
+                >
+                  Fermer
+                </button>
+                <button
+                  type="button"
+                  className="my-betail-btn ghost my-betail-shop-btn"
+                  onClick={() => {
+                    handleCloseBadgeModal()
+                    navigate('/boutique')
+                  }}
+                  disabled={equipBadgeMutation.isPending}
+                >
+                  Boutique badges
+                </button>
+              </div>
+            </div>
+          </div>
         ) : null}
       </div>
     </div>

@@ -2185,6 +2185,11 @@
   outline-offset: 2px;
 }
 
+.my-betail-badge-slot:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .my-betail-badge-slot-plus {
   width: 44px;
   height: 44px;
@@ -2325,6 +2330,147 @@
   font-size: 0.68rem;
   font-weight: 700;
   color: rgba(71, 56, 125, 0.85);
+}
+
+.my-betail-badge-remove {
+  border: 1px solid rgba(187, 86, 86, 0.38);
+  border-radius: 999px;
+  background: rgba(242, 108, 108, 0.14);
+  color: #8b2f2f;
+  font-size: 0.66rem;
+  font-weight: 800;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.my-betail-badge-remove:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.my-betail-badge-helper {
+  margin: 8px 0 0;
+  font-size: 0.76rem;
+  color: rgba(72, 95, 144, 0.9);
+}
+
+.my-betail-badge-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 4100;
+  background: rgba(11, 14, 24, 0.56);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.my-betail-badge-modal {
+  width: min(620px, 100%);
+  border: 1px solid rgba(122, 91, 255, 0.26);
+  border-radius: 16px;
+  background: rgba(248, 250, 255, 0.96);
+  box-shadow: 0 22px 46px rgba(10, 14, 24, 0.4);
+  padding: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.my-betail-badge-modal-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #5f4ccc;
+  font-weight: 800;
+}
+
+.my-betail-badge-modal h3 {
+  margin: 0;
+}
+
+.my-betail-badge-modal-subtitle {
+  margin: 0;
+  color: rgba(63, 74, 108, 0.9);
+}
+
+.my-betail-badge-modal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.my-betail-badge-modal-card {
+  border: 1px solid rgba(122, 91, 255, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 8px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: transform 0.14s ease, filter 0.14s ease, border-color 0.14s ease;
+}
+
+.my-betail-badge-modal-card:hover:not(:disabled) {
+  transform: translateY(-2px);
+  filter: brightness(1.02);
+}
+
+.my-betail-badge-modal-card:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.my-betail-badge-modal-image,
+.my-betail-badge-modal-fallback {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+}
+
+.my-betail-badge-modal-image {
+  object-fit: contain;
+}
+
+.my-betail-badge-modal-fallback {
+  display: grid;
+  place-items: center;
+  border: 1px dashed rgba(122, 91, 255, 0.34);
+  color: rgba(79, 49, 188, 0.78);
+  font-weight: 800;
+}
+
+.my-betail-badge-modal-name {
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #3b2a77;
+  width: 100%;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.my-betail-badge-modal-rarity {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: rgba(71, 56, 125, 0.85);
+}
+
+.my-betail-badge-modal-empty {
+  margin: 0;
+  border: 1px dashed rgba(122, 91, 255, 0.35);
+  border-radius: 12px;
+  padding: 10px;
+  color: rgba(63, 74, 108, 0.9);
+}
+
+.my-betail-badge-modal-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 }
 
 .my-betail-panel .betail-details-body {
@@ -2980,6 +3126,50 @@
 .auth-theme.dark_theme .my-betail-badge-rarity,
 .auth-theme.galactic_theme .my-betail-badge-rarity {
   color: rgba(187, 211, 250, 0.86);
+}
+
+.auth-theme.dark_theme .my-betail-badge-remove,
+.auth-theme.galactic_theme .my-betail-badge-remove {
+  border-color: rgba(255, 145, 145, 0.42);
+  background: rgba(145, 66, 66, 0.34);
+  color: #ffd5d5;
+}
+
+.auth-theme.dark_theme .my-betail-badge-helper,
+.auth-theme.galactic_theme .my-betail-badge-helper {
+  color: rgba(172, 205, 255, 0.88);
+}
+
+.auth-theme.dark_theme .my-betail-badge-modal,
+.auth-theme.galactic_theme .my-betail-badge-modal {
+  background: rgba(21, 33, 54, 0.96);
+  border-color: rgba(141, 179, 255, 0.36);
+}
+
+.auth-theme.dark_theme .my-betail-badge-modal-kicker,
+.auth-theme.galactic_theme .my-betail-badge-modal-kicker {
+  color: #d8e7ff;
+}
+
+.auth-theme.dark_theme .my-betail-badge-modal-subtitle,
+.auth-theme.galactic_theme .my-betail-badge-modal-subtitle,
+.auth-theme.dark_theme .my-betail-badge-modal-empty,
+.auth-theme.galactic_theme .my-betail-badge-modal-empty {
+  color: rgba(213, 229, 255, 0.88);
+  border-color: rgba(141, 179, 255, 0.36);
+}
+
+.auth-theme.dark_theme .my-betail-badge-modal-card,
+.auth-theme.galactic_theme .my-betail-badge-modal-card {
+  background: rgba(28, 43, 72, 0.82);
+  border-color: rgba(141, 179, 255, 0.36);
+}
+
+.auth-theme.dark_theme .my-betail-badge-modal-name,
+.auth-theme.dark_theme .my-betail-badge-modal-rarity,
+.auth-theme.galactic_theme .my-betail-badge-modal-name,
+.auth-theme.galactic_theme .my-betail-badge-modal-rarity {
+  color: #d9e8ff;
 }
 
 .auth-theme.dark_theme .my-betail-badge-fallback,

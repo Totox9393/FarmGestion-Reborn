@@ -192,3 +192,132 @@ create table public.betails_reports (
   )
 ) TABLESPACE pg_default;
 ```
+
+## Table `public.badges_catalog_reborn`
+
+```sql
+create table public.badges_catalog_reborn (
+  id uuid not null default gen_random_uuid(),
+  filename text not null,
+  name text not null,
+  rarity text not null,
+  price integer not null default 0,
+  stock_total integer not null default 50,
+  sold_count integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamp with time zone not null default now(),
+  updated_at timestamp with time zone not null default now(),
+  created_by uuid null,
+  constraint badges_catalog_reborn_pkey primary key (id),
+  constraint badges_catalog_reborn_filename_key unique (filename),
+  constraint badges_catalog_reborn_created_by_fkey foreign key (created_by) references users_profiles (id) on delete set null,
+  constraint badges_catalog_reborn_price_check check (price >= 0),
+  constraint badges_catalog_reborn_stock_total_check check (stock_total >= 0),
+  constraint badges_catalog_reborn_sold_count_check check (sold_count >= 0 and sold_count <= stock_total),
+  constraint badges_catalog_reborn_rarity_check check (
+    rarity = any (array['0_auto'::text, '1_common'::text, '2_rare'::text, '3_epic'::text, '4_legendary'::text])
+  )
+) TABLESPACE pg_default;
+```
+
+## Table `public.badges_inventory_reborn`
+
+```sql
+create table public.badges_inventory_reborn (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null,
+  badge_id uuid not null,
+  purchase_price integer not null default 0,
+  purchased_at timestamp with time zone not null default now(),
+  constraint badges_inventory_reborn_pkey primary key (id),
+  constraint badges_inventory_reborn_user_id_fkey foreign key (user_id) references users_profiles (id) on delete cascade,
+  constraint badges_inventory_reborn_badge_id_fkey foreign key (badge_id) references badges_catalog_reborn (id) on delete cascade,
+  constraint badges_inventory_reborn_unique_user_badge unique (user_id, badge_id),
+  constraint badges_inventory_reborn_purchase_price_check check (purchase_price >= 0)
+) TABLESPACE pg_default;
+```
+
+## Table `public.badges_equips_reborn`
+
+```sql
+create table public.badges_equips_reborn (
+  id uuid not null default gen_random_uuid(),
+  user_id uuid not null,
+  badge_id uuid not null,
+  farm_id bigint null,
+  betail_id uuid null,
+  slot integer not null,
+  equipped_at timestamp with time zone not null default now(),
+  constraint badges_equips_reborn_pkey primary key (id),
+  constraint badges_equips_reborn_user_id_fkey foreign key (user_id) references users_profiles (id) on delete cascade,
+  constraint badges_equips_reborn_badge_id_fkey foreign key (badge_id) references badges_catalog_reborn (id) on delete cascade,
+  constraint badges_equips_reborn_farm_id_fkey foreign key (farm_id) references farms_list (id) on delete cascade,
+  constraint badges_equips_reborn_betail_id_fkey foreign key (betail_id) references betails (id) on delete cascade,
+  constraint badges_equips_reborn_unique_badge unique (badge_id),
+  constraint badges_equips_reborn_slot_check check (slot >= 1 and slot <= 3),
+  constraint badges_equips_reborn_target_check check (((farm_id is not null) <> (betail_id is not null)))
+) TABLESPACE pg_default;
+
+create unique index if not exists badges_equips_reborn_farm_slot_unique
+  on public.badges_equips_reborn (farm_id, slot)
+  where farm_id is not null;
+
+create unique index if not exists badges_equips_reborn_betail_slot_unique
+  on public.badges_equips_reborn (betail_id, slot)
+  where betail_id is not null;
+```
+
+## Vue `public.user_badges_profile_reborn`
+
+```sql
+create or replace view public.user_badges_profile_reborn as
+select
+  i.user_id,
+  i.badge_id,
+  c.filename,
+  c.name,
+  c.rarity,
+  c.price,
+  i.purchased_at
+from public.badges_inventory_reborn i
+join public.badges_catalog_reborn c on c.id = i.badge_id
+where c.is_active = true;
+```
+
+## Fonctions SQL (Badges Reborn)
+
+```sql
+buy_badge_reborn(p_badge_id uuid) returns jsonb
+equip_betail_badge_reborn(p_badge_id uuid, p_betail_id uuid, p_slot integer default null) returns jsonb
+unequip_betail_badge_reborn(p_badge_id uuid, p_betail_id uuid) returns jsonb
+equip_farm_badge_reborn(p_badge_id uuid, p_slot integer default null) returns jsonb
+unequip_farm_badge_reborn(p_badge_id uuid) returns jsonb
+admin_create_badge_reborn(...) returns jsonb
+admin_increase_badge_stock_reborn(...) returns jsonb
+admin_delete_badge_reborn(...) returns jsonb
+cleanup_delivered_badges_reborn() returns jsonb
+process_shipping_with_badge_cleanup_reborn(...) returns jsonb
+```
+
+## Storage badges (upload admin)
+
+```text
+- Bucket: `badges` (public), fichiers ranges sous:
+  - `0_auto/`
+  - `1_common/`
+  - `2_rare/`
+  - `3_epic/`
+  - `4_legendary/`
+- Pour autoriser l'upload depuis le panneau admin, executer:
+  - `supabase/storage_badges_admin_policies.sql`
+- Pour autoriser la creation/modification/suppression directe en table (fallback admin):
+  - `supabase/badges_catalog_admin_policies.sql`
+```
+
+## Note migration badges legacy
+
+```text
+- Legacy `badges_achetes` -> migre vers `badges_inventory_reborn`.
+- Legacy `badges_equipes` -> migre vers `badges_equips_reborn`.
+- Les colonnes JSON `equipped_badges` (farms_list / betails) sont legacy et ne sont plus la source de verite du systeme badges reborn.
+```

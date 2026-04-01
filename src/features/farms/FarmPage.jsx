@@ -6,7 +6,7 @@ import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
 import { FarmDesignPreview } from '../utils/FarmDesign';
 import { normalizeCenterStyle, normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
-import badgesManifest from '../../assets/manifest.json';
+import { fetchFarmBadgesEquipsReborn } from '../badges';
 import './FarmPage.css';
 
 const ROTATION_STORAGE_KEY = 'farmgestion_farm_hex_rotate';
@@ -17,21 +17,6 @@ const FARM_BACKGROUND_DARK_URL = SUPABASE_URL
 const FARM_BACKGROUND_LIGHT_URL = SUPABASE_URL
   ? `${SUPABASE_URL}/storage/v1/object/public/ressources/fond_farm3.png`
   : '';
-const BADGES_BUCKET_URL = SUPABASE_URL ? `${SUPABASE_URL}/storage/v1/object/public/badges` : '';
-const BADGE_RARITY_ORDER = {
-  '4_legendary': 5,
-  '3_epic': 4,
-  '2_rare': 3,
-  '1_common': 2,
-  '0_auto': 1,
-};
-const BADGE_RARITY_LABELS = {
-  '4_legendary': 'Légendaire',
-  '3_epic': 'Épique',
-  '2_rare': 'Rare',
-  '1_common': 'Commun',
-  '0_auto': 'Auto',
-};
 const SITE_COLOR_PRESETS = ['#FFB3BA', '#BAFFC9', '#BAE1FF', '#FFFFBA', '#E0BBE4', '#FFDFBA', '#FF8FA3', '#42C6FF', '#84CC16', '#F59E0B', '#A78BFA'];
 const DEFAULT_CUSTOM_COLOR = '#ffffff';
 const FARM_CENTER_BUCKET = 'farms';
@@ -49,37 +34,6 @@ const DEFAULT_CENTER_IMAGE_POSITION = { x: 0, y: 0 };
 const CENTER_MODE_UPLOAD = 'upload';
 const CENTER_MODE_URL = 'url';
 const CENTER_MODE_CUSTOMIZE = 'customize';
-const BADGE_FOLDER_BY_FILE = Object.entries(badgesManifest || {}).reduce((acc, [folder, files]) => {
-  if (!Array.isArray(files)) return acc;
-  files.forEach((file) => {
-    if (typeof file === 'string' && file.length) {
-      acc[file] = folder;
-    }
-  });
-  return acc;
-}, {});
-
-const normalizeEquippedBadges = (value) => {
-  if (Array.isArray(value)) {
-    return value.filter((item) => typeof item === 'string' && item.trim().length > 0);
-  }
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return [];
-    try {
-      const parsed = JSON.parse(trimmed);
-      return Array.isArray(parsed)
-        ? parsed.filter((item) => typeof item === 'string' && item.trim().length > 0)
-        : [];
-    } catch {
-      return [];
-    }
-  }
-
-  return [];
-};
-
 const colorEquals = (left, right) => String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
 
 const parseFiniteNumber = (value, fallback = 0) => {
@@ -288,7 +242,7 @@ const uploadCenterImageWithFallback = async ({ farmId, userId, canvas }) => {
 const fetchFarmById = async (farmId) => {
   const { data, error } = await supabase
     .from('farms_list')
-    .select('id, name, proprietaire, state, visible, site_colors, center_style, creation_date, equipped_badges')
+    .select('id, name, proprietaire, state, visible, site_colors, center_style, creation_date')
     .eq('id', farmId)
     .maybeSingle();
   if (error) throw error;
@@ -413,6 +367,15 @@ function FarmPage() {
   });
 
   const farm = farmQuery.data ?? null;
+  const farmBadgesQuery = useQuery({
+    queryKey: ['farm', 'equips', farm?.id || null],
+    queryFn: () => fetchFarmBadgesEquipsReborn(farm.id),
+    enabled: Boolean(farm?.id),
+    staleTime: 20_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
   const isOwner = Boolean(user?.id) && Boolean(farm?.proprietaire) && farm.proprietaire === user.id;
   const accessDenied = Boolean(farm) && !isOwner && farm.visible === false;
 
@@ -420,33 +383,16 @@ function FarmPage() {
   const ownerName = ownerNameQuery.data || '';
   const myFarmId = myFarmIdQuery.data ?? null;
   const equippedBadges = useMemo(() => {
-    const filenames = normalizeEquippedBadges(farm?.equipped_badges);
-    if (!filenames.length) return [];
-
-    return filenames
-      .map((filename) => {
-        const folder = BADGE_FOLDER_BY_FILE[filename] || null;
-        return {
-          id: filename,
-          filename,
-          folder,
-          rarityOrder: BADGE_RARITY_ORDER[folder] || 0,
-          rarityLabel: folder ? (BADGE_RARITY_LABELS[folder] || folder) : 'Inconnue',
-          imageUrl: folder && BADGES_BUCKET_URL ? `${BADGES_BUCKET_URL}/${folder}/${filename}` : '',
-        };
-      })
-      .sort((a, b) => {
-        if (b.rarityOrder !== a.rarityOrder) return b.rarityOrder - a.rarityOrder;
-        return a.filename.localeCompare(b.filename, 'fr');
-      });
-  }, [farm?.equipped_badges]);
+    return [...(farmBadgesQuery.data || [])]
+      .sort((a, b) => (a.slot || 99) - (b.slot || 99));
+  }, [farmBadgesQuery.data]);
   const siteColors = useMemo(() => normalizeSiteColors(farm?.site_colors), [farm?.site_colors]);
   const normalizedCenterStyle = useMemo(() => normalizeCenterStyle(farm?.center_style), [farm?.center_style]);
   const storedCenterImageDraft = useMemo(() => readStoredCenterImageDraft(farm?.center_style), [farm?.center_style]);
   const selectedSiteIndex = selectedSiteState.farmId === farm?.id ? selectedSiteState.siteIndex : null;
   const hoveredSiteIndex = hoveredSiteState.farmId === farm?.id ? hoveredSiteState.siteIndex : null;
   const isCenterWidgetOpen = centerWidgetState.farmId === farm?.id && centerWidgetState.isOpen;
-  const visibleBadges = equippedBadges.slice(0, 8);
+  const visibleBadges = equippedBadges.slice(0, 3);
   const hiddenBadgesCount = Math.max(0, equippedBadges.length - visibleBadges.length);
   const selectedSiteNumber = selectedSiteIndex == null ? null : selectedSiteIndex + 1;
   const selectedSiteColor = selectedSiteIndex == null ? '' : siteColors[selectedSiteIndex] || '';
@@ -1123,9 +1069,9 @@ function FarmPage() {
               {visibleBadges.map((badge) => (
                 <div
                   key={badge.id}
-                  className={`farm-page-badge-chip ${badge.folder ? `is-${badge.folder}` : 'is-unknown'}`}
+                  className={`farm-page-badge-chip ${badge.rarity ? `is-${badge.rarity}` : 'is-unknown'}`}
                   role="listitem"
-                  title={`${badge.filename.replace('.gif', '')} • ${badge.rarityLabel}`}
+                  title={`${badge.name} • ${badge.rarityLabel}`}
                 >
                   {badge.imageUrl ? (
                     <img

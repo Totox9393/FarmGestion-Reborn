@@ -889,6 +889,233 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.settings-action--tiny {
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.settings-item--column {
+  align-items: stretch;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.settings-badge-slot-grid,
+.settings-badge-free-grid,
+.settings-badge-owned-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 10px;
+  width: 100%;
+}
+
+.settings-badge-slot-card,
+.settings-badge-free-card,
+.settings-badge-owned-card {
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  background: var(--settings-panel);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 132px;
+}
+
+.settings-badge-slot-card.is-empty {
+  opacity: 0.72;
+}
+
+.settings-badge-slot-card.is-clickable {
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.settings-badge-slot-card.is-clickable:hover {
+  border-color: var(--settings-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(20, 18, 40, 0.12);
+}
+
+.settings-badge-slot-card.is-clickable:focus,
+.settings-badge-slot-card.is-clickable:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-badge-slot-image,
+.settings-badge-slot-fallback {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+}
+
+.settings-badge-slot-image {
+  object-fit: cover;
+  border: 1px solid var(--settings-border);
+}
+
+.settings-badge-slot-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed var(--settings-border);
+  color: var(--settings-muted);
+  font-weight: 700;
+}
+
+.settings-badge-slot-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.settings-badge-slot-meta {
+  margin: 0;
+  font-size: 12px;
+  color: var(--settings-muted);
+  text-align: center;
+}
+
+.settings-badge-slot-hint {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--settings-accent);
+  text-align: center;
+}
+
+.settings-badge-owned-status {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--settings-accent);
+}
+
+.settings-badge-picker-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(8, 10, 18, 0.48);
+  backdrop-filter: blur(5px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 24;
+  padding: 16px;
+}
+
+.settings-badge-picker-modal {
+  width: min(560px, 100%);
+  max-height: min(520px, 84vh);
+  overflow-y: auto;
+  border-radius: 14px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-bg);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+  padding: 14px;
+}
+
+.settings-badge-picker-kicker {
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--settings-muted);
+}
+
+.settings-badge-picker-title {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+.settings-badge-picker-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--settings-muted);
+}
+
+.settings-badge-picker-grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
+  gap: 10px;
+}
+
+.settings-badge-picker-card {
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  min-height: 108px;
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.settings-badge-picker-card:hover {
+  border-color: var(--settings-accent);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(20, 18, 40, 0.12);
+}
+
+.settings-badge-picker-card:focus,
+.settings-badge-picker-card:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-badge-picker-card:disabled {
+  opacity: 0.68;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.settings-badge-picker-name {
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.settings-badge-picker-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.settings-badge-slot-card.is-1_common,
+.settings-badge-free-card.is-1_common,
+.settings-badge-owned-card.is-1_common {
+  border-color: rgba(132, 170, 255, 0.45);
+}
+
+.settings-badge-slot-card.is-2_rare,
+.settings-badge-free-card.is-2_rare,
+.settings-badge-owned-card.is-2_rare {
+  border-color: rgba(193, 134, 255, 0.5);
+}
+
+.settings-badge-slot-card.is-3_epic,
+.settings-badge-free-card.is-3_epic,
+.settings-badge-owned-card.is-3_epic {
+  border-color: rgba(255, 175, 95, 0.56);
+}
+
+.settings-badge-slot-card.is-4_legendary,
+.settings-badge-free-card.is-4_legendary,
+.settings-badge-owned-card.is-4_legendary {
+  border-color: rgba(255, 220, 120, 0.62);
+}
+
 .settings-theme-item {
   align-items: center;
 }
@@ -1203,6 +1430,148 @@
   outline: none;
   border-color: var(--settings-accent);
   box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-badges-create {
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.settings-admin-badges-loader-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.settings-admin-badge-source-switch {
+  margin-top: 10px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-admin-badges-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.settings-admin-badge-label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--settings-muted);
+}
+
+.settings-admin-badge-input {
+  height: 36px;
+  border-radius: 9px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  padding: 0 10px;
+  font-size: 13px;
+}
+
+.settings-admin-badge-input:focus,
+.settings-admin-badge-input:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-badge-file-input {
+  padding: 6px 10px;
+  height: auto;
+}
+
+.settings-admin-badge-preview {
+  margin-top: 10px;
+  width: 82px;
+  height: 82px;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  object-fit: cover;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.settings-admin-badges-create-actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.settings-admin-badges-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-admin-badge-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 12px;
+}
+
+.settings-admin-badge-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.settings-admin-badge-avatar {
+  border-radius: 10px;
+  flex: 0 0 auto;
+}
+
+.settings-admin-badge-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-end;
+}
+
+.settings-action--danger {
+  border-color: rgba(255, 85, 85, 0.65);
+  color: #ff8f8f;
+}
+
+.settings-admin-badge-stock-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings-admin-badge-stock-edit .settings-admin-badge-input {
+  width: 92px;
+}
+
+.settings-admin-badge-row.is-1_common {
+  border-color: rgba(132, 170, 255, 0.35);
+}
+
+.settings-admin-badge-row.is-2_rare {
+  border-color: rgba(193, 134, 255, 0.4);
+}
+
+.settings-admin-badge-row.is-3_epic {
+  border-color: rgba(255, 175, 95, 0.45);
+}
+
+.settings-admin-badge-row.is-4_legendary {
+  border-color: rgba(255, 220, 120, 0.52);
 }
 
 .settings-admin-feedback {
@@ -1610,6 +1979,37 @@
   .settings-admin-shipping-row {
     grid-template-columns: 1fr;
     gap: 10px;
+  }
+
+  .settings-admin-badges-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-admin-badges-loader-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-admin-badge-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-admin-badge-row-main {
+    align-items: flex-start;
+  }
+
+  .settings-admin-badge-actions {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .settings-admin-badge-stock-edit {
+    width: 100%;
+  }
+
+  .settings-admin-badge-stock-edit .settings-admin-badge-input {
+    flex: 1;
+    min-width: 0;
   }
 
   .settings-admin-shipping-actions {

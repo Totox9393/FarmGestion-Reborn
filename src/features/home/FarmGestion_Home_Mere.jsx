@@ -84,47 +84,6 @@ const buildWeeklyShippingPlaceholder = () =>
     isToday: false,
   }));
 
-const countEquippedBadges = (value) => {
-  const walk = (entry) => {
-    if (Array.isArray(entry)) {
-      return entry.reduce((sum, item) => sum + walk(item), 0);
-    }
-
-    if (!entry) return 0;
-
-    if (typeof entry === 'string') {
-      const trimmed = entry.trim();
-      if (!trimmed) return 0;
-      if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
-        try {
-          return walk(JSON.parse(trimmed));
-        } catch {
-          return 1;
-        }
-      }
-      return 1;
-    }
-
-    if (typeof entry === 'object') {
-      return Object.values(entry).reduce((sum, item) => sum + walk(item), 0);
-    }
-
-    return 0;
-  };
-
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    if (!trimmed) return 0;
-    try {
-      return walk(JSON.parse(trimmed));
-    } catch {
-      return 0;
-    }
-  }
-
-  return walk(value);
-};
-
 const parseVisibilityFromState = (value) => {
   if (typeof value === 'boolean') return value;
   if (typeof value !== 'string') return null;
@@ -447,14 +406,15 @@ function FarmGestion_Home_Mere() {
       try {
         if (!user?.id || !profile?.farm_id) return { farmId: null, farmState: null, betailCount: 0, farmName: null, farmVisible: null, badgeCount: 0 }
 
-        const [farmRes, countRes] = await Promise.all([
-          supabase.from('farms_list').select('id,name,state,visible,equipped_badges').eq('id', profile.farm_id).maybeSingle(),
+        const [farmRes, countRes, badgesRes] = await Promise.all([
+          supabase.from('farms_list').select('id,name,state,visible').eq('id', profile.farm_id).maybeSingle(),
           supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id).eq('visible', true),
+          supabase.from('badges_equips_reborn').select('id', { count: 'exact', head: true }).eq('farm_id', profile.farm_id),
         ])
 
         const farmObj = farmRes?.data ?? null
         const count = typeof countRes?.count === 'number' ? countRes.count : 0
-        const badgeCount = countEquippedBadges(farmObj?.equipped_badges)
+        const badgeCount = typeof badgesRes?.count === 'number' ? badgesRes.count : 0
         const stateVisibility = parseVisibilityFromState(farmObj?.state)
         const resolvedVisibility = stateVisibility ?? (typeof farmObj?.visible === 'boolean' ? farmObj.visible : null)
 

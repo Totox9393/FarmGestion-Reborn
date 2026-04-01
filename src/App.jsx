@@ -75,17 +75,22 @@ function AppRoutes() {
 
   useEffect(() => {
     if (!toast) return undefined;
+
+    if (!toast.visible) {
+      const clearTimer = setTimeout(() => {
+        setToast(null);
+      }, 220);
+      return () => clearTimeout(clearTimer);
+    }
+
     const hideTimer = setTimeout(() => {
       setToast((current) => (current ? { ...current, visible: false } : current));
     }, 4200);
-    const clearTimer = setTimeout(() => {
-      setToast(null);
-    }, 4700);
+
     return () => {
       clearTimeout(hideTimer);
-      clearTimeout(clearTimer);
     };
-  }, [toast]);
+  }, [toast?.message, toast?.type, toast?.visible]);
 
   return (
     <>

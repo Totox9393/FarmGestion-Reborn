@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Fingerprint, ChevronsRight } from 'lucide-react';
+import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck } from 'lucide-react';
 import './BetailMaker.css';
+import './AdminBetailMaker.css';
 import miloImage from '../../assets/milo_CLASSIQUE.png';
 import digitSound1 from '../../assets/sounds/COUNT_DOWN_10.wav';
 import digitSound2 from '../../assets/sounds/COUNT_DOWN_10.wav';
@@ -10,9 +11,11 @@ import digitSound4 from '../../assets/sounds/COUNT_DOWN_3.wav';
 import digitSound5 from '../../assets/sounds/COUNT_DOWN_1.wav';
 import ageTickSound from '../../assets/sounds/drop_003.ogg';
 import defaultProfileImage from '../../assets/defaut_profile.png';
+import AdminBetailMaker from './AdminBetailMaker';
 import BetailMaker_QualiteGame1 from './BetailMaker_QualiteGame1';
 import BetailMaker_QualiteGame2 from './BetailMaker_QualiteGame2';
 import BetailMaker_QualiteGame3 from './BetailMaker_QualiteGame3';
+import { useUserRole } from './hooks';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { qualityStandardSound, qualityPremiumSound } from './qualitySounds';
@@ -23,8 +26,10 @@ const formatMoney = (value) => MONEY_FORMATTER.format(Math.max(0, Math.round(Num
 
 function BetailMaker() {
   const { user } = useAuth();
+  const userRoleQuery = useUserRole(user?.id);
   const [qualityRevealEffect, setQualityRevealEffect] = useState('');
   const [isQualityRevealActive, setIsQualityRevealActive] = useState(false);
+  const [isAdminCreatorOpen, setIsAdminCreatorOpen] = useState(false);
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [prenom, setPrenom] = useState('');
@@ -76,6 +81,8 @@ function BetailMaker() {
   const totalSteps = 7;
   const glowPalette = ['#ff6b6b', '#968eff', '#f2b3ff', '#ffd166', '#a6e3e9', '#c3f0ca'];
   const confettiPalette = ['#FFD166', '#FFC857', '#FFB703', '#F4C430', '#E6B800', '#FFDE7A'];
+  const normalizedRoles = String(userRoleQuery.data || '').trim().toUpperCase();
+  const isAdmin = normalizedRoles.includes('ADMIN');
 
   const getBaseScale = () => {
     if (!imageNaturalSize.width || !imageNaturalSize.height) {
@@ -670,10 +677,22 @@ function BetailMaker() {
             <div className="image-container">
               <img src={miloImage} alt="Milo" className="milo-image" />
             </div>
-            <button className="create-button" onClick={handleCreateBetail}>
-              <span className="button-icon">✨</span>
-              Créer un bétail
-            </button>
+            <div className="maker-entry-actions">
+              <button className="create-button" onClick={handleCreateBetail}>
+                <span className="button-icon">✨</span>
+                Créer un bétail
+              </button>
+              {isAdmin ? (
+                <button
+                  type="button"
+                  className="create-button create-button--admin"
+                  onClick={() => setIsAdminCreatorOpen(true)}
+                >
+                  <ShieldCheck size={18} />
+                  Création admin
+                </button>
+              ) : null}
+            </div>
           </div>
         );
 
@@ -1227,6 +1246,10 @@ function BetailMaker() {
     }
   };
 
+  if (isAdminCreatorOpen && isAdmin) {
+    return <AdminBetailMaker onExitAdmin={() => setIsAdminCreatorOpen(false)} />;
+  }
+
   return (
     <div className="betail-maker">
       <div className={`betail-container${isQualityRevealActive ? ' blurred' : ''}`}>
@@ -1237,7 +1260,7 @@ function BetailMaker() {
             aria-label="Afficher l'aide sur l'enregistrement"
             onClick={() => setIsHelpOpen(true)}
           >
-            ?
+            <CircleHelp size={16} strokeWidth={2.3} aria-hidden="true" />
           </button>
           {currentStep > 0 && (
             <div className="progress-bar">
@@ -1273,7 +1296,7 @@ function BetailMaker() {
         >
           <div className="help-modal" onClick={(event) => event.stopPropagation()}>
             <div className="help-modal-header">
-              <span className="help-modal-icon">ℹ️</span>
+              <Info size={24} className="help-modal-icon" aria-hidden="true" />
               <div>
                 <p className="help-modal-eyebrow">Besoin d'un coup de pouce ?</p>
                 <h3>Informations sur l'enregistrement</h3>
@@ -1284,17 +1307,13 @@ function BetailMaker() {
                 aria-label="Fermer l'aide"
                 onClick={() => setIsHelpOpen(false)}
               >
-                ×
+                <X size={18} strokeWidth={2.3} aria-hidden="true" />
               </button>
             </div>
             <ul className="help-list">
               <li>
                 <span className="help-pill positive">Public</span>
                 Le bétail sera ajouté au registre public et pourra être acheté par d'autres mères.
-              </li>
-              <li>
-                <span className="help-pill neutral">Affiliation</span>
-                L'affiliation sera automatiquement Grace Field House et le bétail sera enregistré sur le site N°5.
               </li>
               <li>
                 <span className="help-pill warning">Restriction</span>

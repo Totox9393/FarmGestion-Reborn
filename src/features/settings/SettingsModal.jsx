@@ -1,14 +1,22 @@
-import { useEffect, useState } from 'react';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Moon, Sun } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
+import {
+  MAX_BADGE_SLOTS,
+  equipFarmBadgeReborn,
+  fetchUserBadgesEquipsReborn,
+  fetchUserBadgesInventoryReborn,
+  unequipFarmBadgeReborn,
+} from '../badges';
 import Settings_ChangePassword from './Settings_ChangePassword';
 import Settings_ChangeEmail from './Settings_ChangeEmail';
 import Settings_ChangeAvatar from './Settings_ChangeAvatar';
 import Settings_AdminShippingPanel from './Settings_AdminShippingPanel';
 import Settings_AdminInvisibleBetailsPanel from './Settings_AdminInvisibleBetailsPanel';
 import Settings_ReportsPanel from './Settings_ReportsPanel';
+import Settings_AdminBadgesPanel from './Settings_AdminBadgesPanel';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -23,6 +31,7 @@ const SECTIONS = {
   badges: 'Badges',
   import: 'Importer',
   administration: 'Administration',
+  adminBadges: 'Badges admin',
   expeditions: 'Expéditions',
   invisibleBetails: 'Bétails invisibles',
   reports: 'Signalements',
@@ -73,6 +82,8 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
   const [savingFriendRequests, setSavingFriendRequests] = useState(false);
   const [savingFarm, setSavingFarm] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
+  const [badgePickerSlot, setBadgePickerSlot] = useState(null);
+  const [isBadgePickerOpen, setIsBadgePickerOpen] = useState(false);
   const isDark = theme === 'dark';
   const themeClass =
     theme === 'dark'
@@ -114,17 +125,98 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
 
   const pendingReportsCount = pendingReportsCountQuery.data ?? 0;
   const pendingReportsBadgeCount = pendingReportsCount > 9999 ? '9999+' : String(pendingReportsCount);
+  const emitToast = (type, message) => {
+    window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type, message } }));
+  };
+
+  const badgeInventoryQuery = useQuery({
+    queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'],
+    enabled: Boolean(isOpen && user?.id),
+    queryFn: () => fetchUserBadgesInventoryReborn(user.id),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    retry: 1,
+  });
+
+  const badgeEquipsQuery = useQuery({
+    queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'],
+    enabled: Boolean(isOpen && user?.id),
+    queryFn: () => fetchUserBadgesEquipsReborn(user.id),
+    staleTime: 20_000,
+    gcTime: 300_000,
+    retry: 1,
+  });
+
+  const equipFarmBadgeMutation = useMutation({
+    mutationFn: ({ badgeId, slot = null }) => equipFarmBadgeReborn({ badgeId, slot }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farmId || null] });
+    },
+  });
+
+  const unequipFarmBadgeMutation = useMutation({
+    mutationFn: ({ badgeId }) => unequipFarmBadgeReborn({ badgeId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farmId || null] });
+    },
+  });
+
+  const inventoryBadges = badgeInventoryQuery.data || [];
+  const equippedBadges = badgeEquipsQuery.data || [];
+  const equippedBadgeIdSet = useMemo(
+    () => new Set(equippedBadges.map((badge) => badge.id)),
+    [equippedBadges],
+  );
+  const farmEquippedBadges = useMemo(
+    () => equippedBadges.filter((badge) => Number(badge.farmId) === Number(farmId)),
+    [equippedBadges, farmId],
+  );
+  const farmEquippedBySlot = useMemo(() => {
+    const map = new Map();
+    farmEquippedBadges.forEach((badge) => {
+      if (Number.isFinite(Number(badge.slot))) {
+        map.set(Number(badge.slot), badge);
+      }
+    });
+    return map;
+  }, [farmEquippedBadges]);
+  const freeInventoryBadges = useMemo(
+    () => inventoryBadges.filter((badge) => !equippedBadgeIdSet.has(badge.id)),
+    [inventoryBadges, equippedBadgeIdSet],
+  );
+  const selectedSlotBadge = useMemo(() => {
+    if (!Number.isFinite(Number(badgePickerSlot))) return null;
+    return farmEquippedBySlot.get(Number(badgePickerSlot)) || null;
+  }, [badgePickerSlot, farmEquippedBySlot]);
+  const isBadgeMutationPending = equipFarmBadgeMutation.isPending || unequipFarmBadgeMutation.isPending;
 
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (event) => {
       if (event.key === 'Escape') {
+        if (isBadgePickerOpen) {
+          setIsBadgePickerOpen(false);
+          setBadgePickerSlot(null);
+          return;
+        }
         onClose?.();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isBadgePickerOpen, onClose]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (activeSection !== 'badges' && isBadgePickerOpen) {
+      setIsBadgePickerOpen(false);
+      setBadgePickerSlot(null);
+    }
+  }, [activeSection, isBadgePickerOpen, isOpen]);
 
   useEffect(() => {
     if (isOpen) {
@@ -138,6 +230,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
       setActiveSection('account');
     }
   }, [activeSection, canAccessAdministration]);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    if (activeSection === 'administration_badges') {
+      setActiveSection('account');
+    }
+  }, [activeSection, isAdmin]);
 
   useEffect(() => {
     if (isOpen) {
@@ -363,6 +462,91 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     }
   };
 
+  const handleEquipFarmBadge = async (badgeId, slot = null) => {
+    if (!badgeId || !farmId || equipFarmBadgeMutation.isPending) return;
+    try {
+      const result = await equipFarmBadgeMutation.mutateAsync({ badgeId, slot });
+      if (!result?.success) {
+        const reason = result?.reason || 'UNKNOWN';
+        if (reason === 'NO_FREE_SLOT') {
+          emitToast('error', 'Tous les slots ferme sont occupés.');
+        } else if (reason === 'BADGE_ALREADY_EQUIPPED') {
+          emitToast('error', 'Ce badge est déjà équipé ailleurs.');
+        } else if (reason === 'BADGE_NOT_OWNED') {
+          emitToast('error', 'Ce badge n’est pas dans ton inventaire.');
+        } else {
+          emitToast('error', 'Équipement ferme impossible pour le moment.');
+        }
+        return;
+      }
+      emitToast('success', 'Badge équipé sur la ferme.');
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (error?.code === '42883' || message.includes('equip_farm_badge_reborn')) {
+        emitToast('error', 'Fonction SQL equip_farm_badge_reborn absente.');
+      } else {
+        emitToast('error', 'Erreur pendant l’équipement de la ferme.');
+      }
+    }
+  };
+
+  const handleUnequipFarmBadge = async (badgeId) => {
+    if (!badgeId || unequipFarmBadgeMutation.isPending) return;
+    try {
+      const result = await unequipFarmBadgeMutation.mutateAsync({ badgeId });
+      if (!result?.success) {
+        emitToast('error', 'Déséquipement ferme impossible pour le moment.');
+        return;
+      }
+      emitToast('success', 'Badge retiré de la ferme.');
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (error?.code === '42883' || message.includes('unequip_farm_badge_reborn')) {
+        emitToast('error', 'Fonction SQL unequip_farm_badge_reborn absente.');
+      } else {
+        emitToast('error', 'Erreur pendant le déséquipement de la ferme.');
+      }
+    }
+  };
+
+  const openBadgePickerForSlot = (slot) => {
+    if (!Number.isFinite(Number(slot))) return;
+    setBadgePickerSlot(Number(slot));
+    setIsBadgePickerOpen(true);
+  };
+
+  const closeBadgePicker = () => {
+    setIsBadgePickerOpen(false);
+    setBadgePickerSlot(null);
+  };
+
+  const handleEquipBadgeFromSlotPicker = async (badge) => {
+    const slot = Number(badgePickerSlot);
+    if (!Number.isFinite(slot) || !badge?.id || !farmId || isBadgeMutationPending) return;
+
+    const currentlyEquipped = farmEquippedBySlot.get(slot);
+    if (currentlyEquipped?.id === badge.id) {
+      closeBadgePicker();
+      return;
+    }
+
+    if (currentlyEquipped?.id) {
+      try {
+        const unequipResult = await unequipFarmBadgeMutation.mutateAsync({ badgeId: currentlyEquipped.id });
+        if (!unequipResult?.success) {
+          emitToast('error', 'Impossible de remplacer le badge sur ce slot.');
+          return;
+        }
+      } catch {
+        emitToast('error', 'Impossible de remplacer le badge sur ce slot.');
+        return;
+      }
+    }
+
+    await handleEquipFarmBadge(badge.id, slot);
+    closeBadgePicker();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -464,6 +648,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   <p className="settings-category-title">{SECTIONS.administration}</p>
                   {isAdmin && (
                     <>
+                      <button
+                        type="button"
+                        className={`settings-link ${activeSection === 'administration_badges' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_badges')}
+                      >
+                        {SECTIONS.adminBadges}
+                      </button>
                       <button
                         type="button"
                         className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
@@ -619,10 +810,120 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                 <div className="settings-list">
                   <div className="settings-item">
                     <div>
-                      <p className="settings-item-title">Gestion des badges</p>
-                      <p className="settings-item-subtitle">Badges de fermes et de bétails.</p>
+                      <p className="settings-item-title">Inventaire badges</p>
+                      <p className="settings-item-subtitle">
+                        {badgeInventoryQuery.isLoading
+                          ? 'Chargement de tes badges...'
+                          : `${inventoryBadges.length} badge(s) possédé(s), ${equippedBadges.length} équipé(s).`}
+                      </p>
                     </div>
-                    <button type="button" className="settings-action">Gérer</button>
+                    <button
+                      type="button"
+                      className="settings-action"
+                      onClick={() => {
+                        queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'] });
+                        queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'] });
+                      }}
+                      disabled={badgeInventoryQuery.isLoading || badgeEquipsQuery.isLoading}
+                    >
+                      Rafraîchir
+                    </button>
+                  </div>
+                  <div className="settings-item settings-item--column">
+                    <div>
+                      <p className="settings-item-title">Badges équipés sur la ferme</p>
+                      <p className="settings-item-subtitle">Clique sur un slot pour équiper ou changer un badge.</p>
+                    </div>
+                    <div className="settings-badge-slot-grid" role="list" aria-label="Slots badges de la ferme">
+                      {Array.from({ length: MAX_BADGE_SLOTS }, (_, index) => {
+                        const slot = index + 1;
+                        const badge = farmEquippedBySlot.get(slot);
+                        if (!badge) {
+                          return (
+                            <article
+                              key={`farm-slot-empty-${slot}`}
+                              className="settings-badge-slot-card is-empty is-clickable"
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => openBadgePickerForSlot(slot)}
+                              onKeyDown={(event) => {
+                                if (event.key === 'Enter' || event.key === ' ') {
+                                  event.preventDefault();
+                                  openBadgePickerForSlot(slot);
+                                }
+                              }}
+                            >
+                              <p className="settings-badge-slot-title">Slot {slot}</p>
+                              <p className="settings-badge-slot-meta">Emplacement vide</p>
+                              <p className="settings-badge-slot-hint">Cliquer pour équiper</p>
+                            </article>
+                          );
+                        }
+
+                        return (
+                          <article
+                            key={`farm-slot-${badge.id}`}
+                            className={`settings-badge-slot-card is-${badge.rarity} is-clickable`}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => openBadgePickerForSlot(slot)}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openBadgePickerForSlot(slot);
+                              }
+                            }}
+                          >
+                            {badge.imageUrl ? (
+                              <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                            ) : (
+                              <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                            )}
+                            <p className="settings-badge-slot-title">Slot {slot}</p>
+                            <p className="settings-badge-slot-meta">{badge.name}</p>
+                            <p className="settings-badge-slot-hint">Cliquer pour changer</p>
+                            <button
+                              type="button"
+                              className="settings-action settings-action--tiny"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleUnequipFarmBadge(badge.id);
+                              }}
+                              disabled={isBadgeMutationPending}
+                            >
+                              Retirer
+                            </button>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  <div className="settings-item settings-item--column">
+                    <div>
+                      <p className="settings-item-title">Tous les badges possédés</p>
+                      <p className="settings-item-subtitle">Visible aussi depuis le profil communautaire.</p>
+                    </div>
+                    {inventoryBadges.length ? (
+                      <div className="settings-badge-owned-grid" role="list" aria-label="Badges possédés">
+                        {inventoryBadges.map((badge) => {
+                          const isEquipped = equippedBadgeIdSet.has(badge.id);
+                          return (
+                            <article key={`owned-badge-${badge.id}`} className={`settings-badge-owned-card is-${badge.rarity}`} role="listitem">
+                              {badge.imageUrl ? (
+                                <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                              ) : (
+                                <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                              )}
+                              <p className="settings-badge-slot-title">{badge.name}</p>
+                              <p className="settings-badge-slot-meta">{badge.rarityLabel}</p>
+                              <p className="settings-badge-owned-status">{isEquipped ? 'Équipé' : 'Libre'}</p>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="settings-item-subtitle">Tu ne possèdes encore aucun badge.</p>
+                    )}
                   </div>
                   <div className="settings-item">
                     <div>
@@ -663,6 +964,14 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               <Settings_AdminShippingPanel isActive={activeSection === 'administration_expeditions'} isAdmin={isAdmin} />
             )}
 
+            {isAdmin && activeSection === 'administration_badges' && (
+              <Settings_AdminBadgesPanel
+                isActive={activeSection === 'administration_badges'}
+                isAdmin={isAdmin}
+                currentUserId={user?.id || null}
+              />
+            )}
+
             {isAdmin && activeSection === 'administration_invisible_betails' && (
               <Settings_AdminInvisibleBetailsPanel
                 isActive={activeSection === 'administration_invisible_betails'}
@@ -679,9 +988,59 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
             )}
           </section>
         </div>
+
+        {isBadgePickerOpen ? (
+          <div className="settings-badge-picker-backdrop" role="presentation" onMouseDown={closeBadgePicker}>
+            <div
+              className="settings-badge-picker-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="settings-badge-picker-title"
+              onMouseDown={(event) => event.stopPropagation()}
+            >
+              <p className="settings-badge-picker-kicker">Slot {badgePickerSlot || '-'}</p>
+              <h4 id="settings-badge-picker-title" className="settings-badge-picker-title">
+                {selectedSlotBadge ? 'Changer le badge du slot' : 'Équiper un badge'}
+              </h4>
+              <p className="settings-badge-picker-subtitle">
+                {freeInventoryBadges.length
+                  ? `${freeInventoryBadges.length} badge(s) libre(s) et équipable(s).`
+                  : 'Aucun badge libre à équiper pour le moment.'}
+              </p>
+
+              {freeInventoryBadges.length ? (
+                <div className="settings-badge-picker-grid" role="list" aria-label="Badges libres équipables">
+                  {freeInventoryBadges.map((badge) => (
+                    <button
+                      key={`slot-picker-${badge.id}`}
+                      type="button"
+                      className={`settings-badge-picker-card is-${badge.rarity}`}
+                      onClick={() => handleEquipBadgeFromSlotPicker(badge)}
+                      disabled={isBadgeMutationPending}
+                    >
+                      {badge.imageUrl ? (
+                        <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                      )}
+                      <span className="settings-badge-picker-name">{badge.name}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="settings-badge-picker-actions">
+                <button type="button" className="settings-action" onClick={closeBadgePicker} disabled={isBadgeMutationPending}>
+                  Annuler
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
 }
 
 export default SettingsModal;
+

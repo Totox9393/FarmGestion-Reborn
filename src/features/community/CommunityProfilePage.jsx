@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { UserRound, Lock, Home, UserPlus, UserMinus, ShieldBan, Check, X, Users, Pin, Heart, MessageSquare } from 'lucide-react';
+import { UserRound, Lock, Home, UserPlus, UserMinus, ShieldBan, Check, X, Users, Pin, Heart, MessageSquare, ListChecks } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
+import { fetchUserProfileBadgesReborn } from '../badges';
 import {
   acceptFriendRequestById,
   blockRelation,
@@ -197,6 +198,15 @@ function CommunityProfilePage() {
   const profile = profileQuery.data;
   const isOwnProfile = Boolean(user?.id && profile?.id && user.id === profile.id);
   const pinnedBetailsQueryKey = ['community', 'profile', 'pinned-betails', profile?.id];
+  const profileBadgesQuery = useQuery({
+    queryKey: ['community', 'profile', 'badges', profile?.id || 'none'],
+    enabled: Boolean(profile?.id),
+    staleTime: 20_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    queryFn: () => fetchUserProfileBadgesReborn(profile.id),
+  });
 
   const relationQuery = useQuery({
     queryKey: ['community', 'profile', 'relation', user?.id || 'anon', profile?.id || 'none'],
@@ -400,6 +410,7 @@ function CommunityProfilePage() {
   };
 
   const friendsList = friendsListQuery.data || [];
+  const profileBadges = profileBadgesQuery.data || [];
 
   const togglePinnedCard = (betailId) => {
     setFlippedBetailIds((current) => {
@@ -579,6 +590,7 @@ function CommunityProfilePage() {
       queryClient.invalidateQueries({ queryKey: ['community', 'profile', handle] });
       queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'pinned-betails', profile.id] });
       queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'allow-friend-requests', profile.id] });
+      queryClient.invalidateQueries({ queryKey: ['community', 'profile', 'badges', profile.id] });
     };
 
     const channel = supabase
@@ -590,6 +602,16 @@ function CommunityProfilePage() {
           schema: 'public',
           table: 'betails',
           filter: `owner_id=eq.${profile.id}`,
+        },
+        invalidateProfile,
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'badges_inventory_reborn',
+          filter: `user_id=eq.${profile.id}`,
         },
         invalidateProfile,
       )
@@ -803,10 +825,45 @@ function CommunityProfilePage() {
                 <p className="community-profile-private"><Lock size={16} /> Ferme privée ou indisponible</p>
               )}
 
+              {isOwnProfile ? (
+                <button type="button" onClick={() => navigate('/mes-betails')}>
+                  <ListChecks size={16} /> Accéder à mes bétails
+                </button>
+              ) : null}
+
               <button type="button" className="community-profile-back" onClick={() => navigate('/community')}>
                 <UserRound size={16} /> Retour communauté
               </button>
             </div>
+
+            <section className="community-profile-badges" aria-label="Badges possedes">
+              <div className="community-profile-badges__head">
+                <h2><Pin size={16} /> Badges</h2>
+                <span>{profileBadges.length}</span>
+              </div>
+
+              {profileBadgesQuery.isLoading ? (
+                <p className="community-profile-badges__state">Chargement des badges...</p>
+              ) : profileBadgesQuery.isError ? (
+                <p className="community-profile-badges__state is-error">Impossible de charger les badges.</p>
+              ) : !profileBadges.length ? (
+                <p className="community-profile-badges__state">Aucun badge possede pour le moment.</p>
+              ) : (
+                <div className="community-profile-badges__grid">
+                  {profileBadges.map((badge) => (
+                    <article key={badge.id} className={`community-profile-badge-card is-${badge.rarity || '0_auto'}`}>
+                      {badge.imageUrl ? (
+                        <img src={badge.imageUrl} alt={badge.filename || badge.name} loading="lazy" decoding="async" />
+                      ) : (
+                        <span className="community-profile-badge-card__fallback" aria-hidden="true">?</span>
+                      )}
+                      <p className="community-profile-badge-card__name">{badge.name}</p>
+                      <p className="community-profile-badge-card__meta">{badge.rarityLabel}</p>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
 
             <section className="community-profile-friends" aria-label="Liste d'amis">
               <div className="community-profile-friends__head">

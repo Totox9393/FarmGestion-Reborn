@@ -383,6 +383,114 @@
   padding-top: 14px;
 }
 
+.community-profile-badges {
+  margin-top: 18px;
+  border-top: 1px solid rgba(83, 66, 149, 0.16);
+  padding-top: 14px;
+}
+
+.community-profile-badges__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.community-profile-badges__head h2 {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1rem;
+}
+
+.community-profile-badges__head span {
+  border-radius: 999px;
+  border: 1px solid rgba(99, 86, 213, 0.28);
+  padding: 3px 9px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #4b3daa;
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.community-profile-badges__state {
+  margin-top: 10px;
+  color: var(--community-profile-muted);
+}
+
+.community-profile-badges__state.is-error {
+  color: #9f3a3a;
+}
+
+.community-profile-badges__grid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 10px;
+}
+
+.community-profile-badge-card {
+  border: none;
+  background: transparent;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+}
+
+.community-profile-badge-card img,
+.community-profile-badge-card__fallback {
+  width: 52px;
+  height: 52px;
+  border-radius: 10px;
+}
+
+.community-profile-badge-card img {
+  object-fit: cover;
+  border: 1px solid rgba(83, 66, 149, 0.25);
+}
+
+.community-profile-badge-card__fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(83, 66, 149, 0.26);
+  color: var(--community-profile-muted);
+  font-weight: 700;
+}
+
+.community-profile-badge-card__name {
+  margin: 0;
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: #241c40;
+}
+
+.community-profile-badge-card__meta {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--community-profile-muted);
+}
+
+.community-profile-badge-card.is-1_common {
+  border-color: rgba(90, 145, 255, 0.4);
+}
+
+.community-profile-badge-card.is-2_rare {
+  border-color: rgba(156, 104, 255, 0.44);
+}
+
+.community-profile-badge-card.is-3_epic {
+  border-color: rgba(255, 155, 72, 0.5);
+}
+
+.community-profile-badge-card.is-4_legendary {
+  border-color: rgba(255, 212, 76, 0.56);
+}
+
 .community-profile-friends {
   margin-top: 18px;
   border-top: 1px solid rgba(83, 66, 149, 0.16);
@@ -762,6 +870,16 @@
 
 .auth-theme.dark_theme .community-profile-friend-card__name,
 .auth-theme.galactic_theme .community-profile-friend-card__name {
+  color: #e8f0ff;
+}
+
+.auth-theme.dark_theme .community-profile-badge-card,
+.auth-theme.galactic_theme .community-profile-badge-card {
+  background: transparent;
+}
+
+.auth-theme.dark_theme .community-profile-badge-card__name,
+.auth-theme.galactic_theme .community-profile-badge-card__name {
   color: #e8f0ff;
 }
 
