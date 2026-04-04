@@ -1,3 +1,17 @@
+alter table public.betails
+  add column if not exists admin_reward_badge_ids jsonb not null default '[]'::jsonb;
+
+update public.betails
+set admin_reward_badge_ids = '[]'::jsonb
+where admin_reward_badge_ids is null;
+
+alter table public.betails
+  drop constraint if exists betails_admin_reward_badge_ids_is_array;
+
+alter table public.betails
+  add constraint betails_admin_reward_badge_ids_is_array
+  check (jsonb_typeof(admin_reward_badge_ids) = 'array');
+
 create or replace function public.create_admin_betail_reborn(
   p_name text,
   p_age integer,
@@ -7,7 +21,8 @@ create or replace function public.create_admin_betail_reborn(
   p_comments text default null,
   p_visible boolean default true,
   p_invisible_reason text default null,
-  p_invisible_at timestamp with time zone default null
+  p_invisible_at timestamp with time zone default null,
+  p_reward_badge_ids jsonb default '[]'::jsonb
 )
 returns json
 language plpgsql
@@ -21,6 +36,12 @@ declare
   v_betail_id uuid;
   v_matricule text := btrim(coalesce(p_matricule, ''));
   v_digits text := regexp_replace(coalesce(p_matricule, ''), '\D', '', 'g');
+  v_reward_badge_ids jsonb := coalesce(p_reward_badge_ids, '[]'::jsonb);
+  v_reward_badge_id_array uuid[] := array[]::uuid[];
+  v_reward_badge_text text;
+  v_reward_badge_uuid uuid;
+  v_reward_badge_count integer := 0;
+  v_reward_catalog_count integer := 0;
 begin
   if v_user_id is null then
     return json_build_object('success', false, 'reason', 'NOT_AUTHENTICATED');
@@ -61,6 +82,42 @@ begin
     return json_build_object('success', false, 'reason', 'INVALID_MATRICULE_FORMAT');
   end if;
 
+  if jsonb_typeof(v_reward_badge_ids) <> 'array' then
+    return json_build_object('success', false, 'reason', 'INVALID_REWARD_BADGES');
+  end if;
+
+  for v_reward_badge_text in
+    select jsonb_array_elements_text(v_reward_badge_ids)
+  loop
+    begin
+      v_reward_badge_uuid := v_reward_badge_text::uuid;
+    exception
+      when invalid_text_representation then
+        return json_build_object('success', false, 'reason', 'INVALID_REWARD_BADGES');
+    end;
+
+    if not (v_reward_badge_uuid = any(v_reward_badge_id_array)) then
+      v_reward_badge_id_array := array_append(v_reward_badge_id_array, v_reward_badge_uuid);
+    end if;
+  end loop;
+
+  v_reward_badge_count := coalesce(array_length(v_reward_badge_id_array, 1), 0);
+  if v_reward_badge_count > 3 then
+    return json_build_object('success', false, 'reason', 'TOO_MANY_REWARD_BADGES');
+  end if;
+
+  if v_reward_badge_count > 0 then
+    select count(*)::integer
+    into v_reward_catalog_count
+    from public.badges_catalog_reborn c
+    where c.id = any(v_reward_badge_id_array)
+      and coalesce(c.is_active, true) = true;
+
+    if v_reward_catalog_count <> v_reward_badge_count then
+      return json_build_object('success', false, 'reason', 'INVALID_REWARD_BADGES');
+    end if;
+  end if;
+
   insert into public.betails (
     name,
     age,
@@ -71,6 +128,7 @@ begin
     visible,
     invisible_at,
     invisible_reason,
+    admin_reward_badge_ids,
     author_id,
     created_at
   )
@@ -84,6 +142,7 @@ begin
     coalesce(p_visible, true),
     case when coalesce(p_visible, true) then null else p_invisible_at end,
     case when coalesce(p_visible, true) then null else nullif(btrim(coalesce(p_invisible_reason, '')), '') end,
+    to_jsonb(v_reward_badge_id_array),
     v_user_id,
     now()
   )
@@ -100,4 +159,4 @@ exception
 end;
 $$;
 
-grant execute on function public.create_admin_betail_reborn(text, integer, text, text, boolean, text, boolean, text, timestamp with time zone) to authenticated;
+grant execute on function public.create_admin_betail_reborn(text, integer, text, text, boolean, text, boolean, text, timestamp with time zone, jsonb) to authenticated;

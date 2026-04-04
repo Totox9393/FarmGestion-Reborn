@@ -84,6 +84,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
   const [copiedId, setCopiedId] = useState(false);
   const [badgePickerSlot, setBadgePickerSlot] = useState(null);
   const [isBadgePickerOpen, setIsBadgePickerOpen] = useState(false);
+  const [ownedBadgesPage, setOwnedBadgesPage] = useState(0);
   const isDark = theme === 'dark';
   const themeClass =
     theme === 'dark'
@@ -175,6 +176,49 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     () => equippedBadges.filter((badge) => Number(badge.farmId) === Number(farmId)),
     [equippedBadges, farmId],
   );
+  const equippedBadgeById = useMemo(() => {
+    const map = new Map();
+    equippedBadges.forEach((badge) => {
+      map.set(badge.id, badge);
+    });
+    return map;
+  }, [equippedBadges]);
+  const equippedBetailIds = useMemo(() => {
+    const ids = new Set();
+    equippedBadges.forEach((badge) => {
+      const betailId = badge?.betailId;
+      if (betailId !== null && betailId !== undefined && String(betailId).trim()) {
+        ids.add(String(betailId));
+      }
+    });
+    return Array.from(ids).sort((left, right) => String(left).localeCompare(String(right), 'fr'));
+  }, [equippedBadges]);
+  const equippedBetailsQuery = useQuery({
+    queryKey: ['settings', 'badges', 'equipped-betails', user?.id || 'anon', equippedBetailIds],
+    enabled: Boolean(isOpen && activeSection === 'badges' && equippedBetailIds.length),
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('betails')
+        .select('id,name,matricule')
+        .in('id', equippedBetailIds);
+
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 30_000,
+    gcTime: 300_000,
+    retry: 1,
+  });
+  const equippedBetailById = useMemo(() => {
+    const map = new Map();
+    (equippedBetailsQuery.data || []).forEach((betail) => {
+      map.set(String(betail.id), {
+        name: String(betail.name || 'Bétail'),
+        matricule: String(betail.matricule || '-'),
+      });
+    });
+    return map;
+  }, [equippedBetailsQuery.data]);
   const farmEquippedBySlot = useMemo(() => {
     const map = new Map();
     farmEquippedBadges.forEach((badge) => {
@@ -188,6 +232,17 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     () => inventoryBadges.filter((badge) => !equippedBadgeIdSet.has(badge.id)),
     [inventoryBadges, equippedBadgeIdSet],
   );
+  const ownedBadgesPageSize = 3;
+  const ownedBadgesPages = useMemo(() => {
+    const pages = [];
+    for (let index = 0; index < inventoryBadges.length; index += ownedBadgesPageSize) {
+      pages.push(inventoryBadges.slice(index, index + ownedBadgesPageSize));
+    }
+    return pages;
+  }, [inventoryBadges]);
+  const ownedBadgesPagesCount = ownedBadgesPages.length;
+  const hasOwnedBadgesPrevPage = ownedBadgesPage > 0;
+  const hasOwnedBadgesNextPage = ownedBadgesPage < ownedBadgesPagesCount - 1;
   const selectedSlotBadge = useMemo(() => {
     if (!Number.isFinite(Number(badgePickerSlot))) return null;
     return farmEquippedBySlot.get(Number(badgePickerSlot)) || null;
@@ -217,6 +272,11 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
       setBadgePickerSlot(null);
     }
   }, [activeSection, isBadgePickerOpen, isOpen]);
+
+  useEffect(() => {
+    const maxPage = Math.max(ownedBadgesPagesCount - 1, 0);
+    setOwnedBadgesPage((current) => Math.min(current, maxPage));
+  }, [ownedBadgesPagesCount]);
 
   useEffect(() => {
     if (isOpen) {
@@ -830,11 +890,25 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                     </button>
                   </div>
                   <div className="settings-item settings-item--column">
-                    <div>
-                      <p className="settings-item-title">Badges équipés sur la ferme</p>
-                      <p className="settings-item-subtitle">Clique sur un slot pour équiper ou changer un badge.</p>
+                    <div className="settings-badge-section-header">
+                      <div>
+                        <p className="settings-item-title">Badges équipés sur la ferme</p>
+                        <p className="settings-item-subtitle">Clique sur un slot pour équiper ou changer un badge.</p>
+                      </div>
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny"
+                        onClick={() => {
+                          if (!farmId) return;
+                          onClose?.();
+                          navigate(`/farm/${farmId}`);
+                        }}
+                        disabled={!farmId}
+                      >
+                        Voir ma ferme
+                      </button>
                     </div>
-                    <div className="settings-badge-slot-grid" role="list" aria-label="Slots badges de la ferme">
+                    <div className="settings-badge-slot-grid settings-badge-slot-grid--centered" role="list" aria-label="Slots badges de la ferme">
                       {Array.from({ length: MAX_BADGE_SLOTS }, (_, index) => {
                         const slot = index + 1;
                         const badge = farmEquippedBySlot.get(slot);
@@ -901,25 +975,98 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   <div className="settings-item settings-item--column">
                     <div>
                       <p className="settings-item-title">Tous les badges possédés</p>
-                      <p className="settings-item-subtitle">Visible aussi depuis le profil communautaire.</p>
+                      <p className="settings-item-subtitle">Passez votre souris sur un badge pour voir où il est équipé.</p>
+                      <p className="settings-item-subtitle">Visible aussi depuis votre profil communautaire.</p>
                     </div>
                     {inventoryBadges.length ? (
-                      <div className="settings-badge-owned-grid" role="list" aria-label="Badges possédés">
-                        {inventoryBadges.map((badge) => {
-                          const isEquipped = equippedBadgeIdSet.has(badge.id);
-                          return (
-                            <article key={`owned-badge-${badge.id}`} className={`settings-badge-owned-card is-${badge.rarity}`} role="listitem">
-                              {badge.imageUrl ? (
-                                <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
-                              ) : (
-                                <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
-                              )}
-                              <p className="settings-badge-slot-title">{badge.name}</p>
-                              <p className="settings-badge-slot-meta">{badge.rarityLabel}</p>
-                              <p className="settings-badge-owned-status">{isEquipped ? 'Équipé' : 'Libre'}</p>
-                            </article>
-                          );
-                        })}
+                      <div className="settings-badge-owned-carousel" aria-label="Badges possédés">
+                        <button
+                          type="button"
+                          className={`settings-badge-carousel-nav settings-badge-carousel-nav--prev ${hasOwnedBadgesPrevPage ? '' : 'is-hidden'}`}
+                          onClick={() => setOwnedBadgesPage((page) => Math.max(page - 1, 0))}
+                          aria-label="Badges précédents"
+                          disabled={!hasOwnedBadgesPrevPage}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                              d="M14.5 6.5 9 12l5.5 5.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
+
+                        <div className="settings-badge-owned-viewport" role="list" aria-label="Liste paginée des badges possédés">
+                          <div
+                            className="settings-badge-owned-track"
+                            style={{ transform: `translateX(-${ownedBadgesPage * 100}%)` }}
+                          >
+                            {ownedBadgesPages.map((badgesPage, pageIndex) => (
+                              <div key={`owned-badges-page-${pageIndex}`} className="settings-badge-owned-page">
+                                <div className="settings-badge-owned-grid">
+                                  {badgesPage.map((badge) => {
+                                    const isEquipped = equippedBadgeIdSet.has(badge.id);
+                                    const equipRecord = equippedBadgeById.get(badge.id) || null;
+                                    const isEquippedOnBetail = Boolean(
+                                      equipRecord?.betailId !== null
+                                      && equipRecord?.betailId !== undefined
+                                      && String(equipRecord?.betailId).trim(),
+                                    );
+                                    const equippedBetailInfo = equipRecord?.betailId
+                                      ? equippedBetailById.get(String(equipRecord.betailId))
+                                      : null;
+                                    const equippedHoverLabel = isEquippedOnBetail
+                                      ? (equippedBetailInfo
+                                        ? `${equippedBetailInfo.name} • ${equippedBetailInfo.matricule}`
+                                        : (equippedBetailsQuery.isLoading ? 'Chargement du bétail...' : 'Bétail équipé'))
+                                      : 'Équipé sur la ferme';
+                                    return (
+                                      <article
+                                        key={`owned-badge-${badge.id}`}
+                                        className={`settings-badge-owned-card is-${badge.rarity} ${isEquipped ? 'is-equipped' : ''}`}
+                                        role="listitem"
+                                      >
+                                        {badge.imageUrl ? (
+                                          <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                                        ) : (
+                                          <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                                        )}
+                                        <p className="settings-badge-slot-title">{badge.name}</p>
+                                        <p className="settings-badge-slot-meta">{badge.rarityLabel}</p>
+                                        <div className="settings-badge-owned-status-wrap">
+                                          <p className="settings-badge-owned-status">{isEquipped ? 'Équipé' : 'Libre'}</p>
+                                          {isEquipped ? <p className="settings-badge-owned-status-hover">{equippedHoverLabel}</p> : null}
+                                        </div>
+                                      </article>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          className={`settings-badge-carousel-nav settings-badge-carousel-nav--next ${hasOwnedBadgesNextPage ? '' : 'is-hidden'}`}
+                          onClick={() => setOwnedBadgesPage((page) => Math.min(page + 1, Math.max(ownedBadgesPagesCount - 1, 0)))}
+                          aria-label="Badges suivants"
+                          disabled={!hasOwnedBadgesNextPage}
+                        >
+                          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <path
+                              d="M9.5 6.5 15 12l-5.5 5.5"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        </button>
                       </div>
                     ) : (
                       <p className="settings-item-subtitle">Tu ne possèdes encore aucun badge.</p>
@@ -1009,7 +1156,11 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               </p>
 
               {freeInventoryBadges.length ? (
-                <div className="settings-badge-picker-grid" role="list" aria-label="Badges libres équipables">
+                <div
+                  className={`settings-badge-picker-grid${freeInventoryBadges.length > 8 ? ' is-scrollable' : ''}`}
+                  role="list"
+                  aria-label="Badges libres équipables"
+                >
                   {freeInventoryBadges.map((badge) => (
                     <button
                       key={`slot-picker-${badge.id}`}

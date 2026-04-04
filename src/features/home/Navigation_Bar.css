@@ -124,6 +124,64 @@
   gap: 6px;
 }
 
+.nav-link--dropdown {
+  justify-content: flex-start;
+  min-width: 0;
+}
+
+.nav-link-dropdown-hint {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  color: #3f2f7d;
+}
+
+.nav-link--dropdown[aria-expanded='true'] .nav-link-dropdown-hint svg {
+  transform: rotate(180deg);
+}
+
+.nav-link-dropdown-hint svg {
+  transition: transform 0.15s ease;
+}
+
+.nav-menu-first-tip {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 1700;
+  border: 1px solid rgba(122, 91, 255, 0.35);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  color: #2f2455;
+  box-shadow: 0 10px 22px rgba(88, 65, 168, 0.18);
+  padding: 7px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.nav-menu-first-tip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 16px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid rgba(122, 91, 255, 0.35);
+  border-left: 1px solid rgba(122, 91, 255, 0.35);
+  background: rgba(255, 255, 255, 0.96);
+  transform: rotate(45deg);
+}
+
+.nav-menu-first-tip:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: rgba(122, 91, 255, 0.5);
+}
+
 .nav-dropdown {
   position: absolute;
   top: calc(100% + 6px);
@@ -636,6 +694,25 @@
     text-align: left;
   }
 
+  .nav-link--dropdown {
+    min-width: 0;
+  }
+
+  .nav-link-dropdown-hint {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .nav-menu-first-tip {
+    position: static;
+    margin-top: 6px;
+    white-space: normal;
+  }
+
+  .nav-menu-first-tip::before {
+    display: none;
+  }
+
   .nav-burger {
     display: inline-flex;
   }
@@ -684,6 +761,22 @@
 .auth-theme.dark_theme .nav-link {
   background: rgba(122, 91, 255, 0.14);
   color: #ede9ff;
+}
+
+.auth-theme.dark_theme .nav-link-dropdown-hint {
+  color: #f2eeff;
+}
+
+.auth-theme.dark_theme .nav-menu-first-tip {
+  background: rgba(26, 28, 46, 0.96);
+  border-color: rgba(173, 151, 255, 0.4);
+  color: #ece8ff;
+}
+
+.auth-theme.dark_theme .nav-menu-first-tip::before {
+  background: rgba(26, 28, 46, 0.96);
+  border-top-color: rgba(173, 151, 255, 0.4);
+  border-left-color: rgba(173, 151, 255, 0.4);
 }
 
 .auth-theme.dark_theme .nav-link:hover {

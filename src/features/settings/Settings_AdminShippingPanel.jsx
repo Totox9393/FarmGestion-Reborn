@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 import cancelConfirmedSound from '../../assets/sounds/00111 - WAV_111_GUESS_BNK_SE_COMMON.wav';
 
 const PAGE_SIZE = 8;
@@ -194,9 +195,8 @@ function Settings_AdminShippingPanel({ isActive, isAdmin }) {
 
   const playCancelConfirmedSound = () => {
     try {
-      const audio = new Audio(cancelConfirmedSound);
-      audio.volume = 0.75;
-      audio.play().catch(() => {});
+      const audio = createSafeAudio(cancelConfirmedSound, { volume: 0.75 });
+      void playAudioSafely(audio);
     } catch {
       // Sound playback can fail silently on some browsers/user-gesture policies.
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
@@ -51,11 +51,12 @@ const buildOwnerClause = (ownerIds) => {
   return `,owner_id.in.(${ownerIds.join(',')})`;
 };
 
-const fetchInvisibleBetailsPage = async ({ page, searchTerm }) => {
+const fetchAdminBetailsPage = async ({ page, searchTerm }) => {
   const safePage = Number.isInteger(page) && page >= 0 ? page : 0;
   const normalizedSearch = normalizeSearchTerm(searchTerm);
   const normalizedNeedle = normalizedSearch.toLowerCase();
   const searchPattern = normalizedSearch ? `%${normalizedSearch.replace(/\s+/g, '%')}%` : '';
+  const isSearchMode = Boolean(normalizedSearch);
 
   let ownerIdsFilter = [];
   if (normalizedSearch) {
@@ -68,13 +69,16 @@ const fetchInvisibleBetailsPage = async ({ page, searchTerm }) => {
   let query = supabase
     .from('betails')
     .select('id, name, matricule, avatar_url, owner_id, visible, invisible_at, invisible_reason')
-    .eq('visible', false)
-    .order('invisible_at', { ascending: false })
     .range(from, to);
 
-  if (searchPattern) {
+  if (isSearchMode && searchPattern) {
     const ownerClause = buildOwnerClause(ownerIdsFilter);
     query = query.or(`name.ilike.${searchPattern},matricule.ilike.${searchPattern}${ownerClause}`);
+    query = query.order('name', { ascending: true });
+  } else {
+    query = query
+      .eq('visible', false)
+      .order('invisible_at', { ascending: false });
   }
 
   const { data, error } = await query;
@@ -107,9 +111,10 @@ const fetchInvisibleBetailsPage = async ({ page, searchTerm }) => {
     return {
       betailId: row?.id,
       name: row?.name || 'Bétail inconnu',
-      matricule: row?.matricule || '—',
+      matricule: row?.matricule || 'â€”',
       avatarUrl: row?.avatar_url || '',
       owner,
+      isVisible: Boolean(row?.visible ?? true),
       invisibleAt: row?.invisible_at,
       invisibleReason: row?.invisible_reason || 'Aucune raison précisée',
       isKnownBetail: Boolean(row?.id),
@@ -151,7 +156,7 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
 
   const invisibleBetailsQuery = useQuery({
     queryKey: [...ADMIN_INVISIBLE_BETAILS_QUERY_KEY, page, searchTerm],
-    queryFn: () => fetchInvisibleBetailsPage({ page, searchTerm }),
+    queryFn: () => fetchAdminBetailsPage({ page, searchTerm }),
     enabled: Boolean(isActive && isAdmin),
     staleTime: 30_000,
     gcTime: 300_000,
@@ -160,69 +165,115 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
     refetchOnWindowFocus: false,
   });
 
-  const restoreMutation = useMutation({
-    mutationFn: async ({ betailId }) => {
-      const { error } = await supabase
-        .from('betails')
-        .update({
-          visible: true,
-          invisible_at: null,
-          invisible_reason: null,
-        })
-        .eq('id', betailId);
+  const setVisibilityMutation = useMutation({
+    mutationFn: async ({ betailId, nextVisible, reason }) => {
+      const { data, error } = await supabase.rpc('admin_set_betail_visibility_reborn', {
+        p_betail_id: betailId,
+        p_visible: nextVisible,
+        p_invisible_reason: nextVisible ? null : reason || 'moderation_manual',
+      });
 
       if (error) throw error;
-      return { betailId };
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        const reasonCode = String(result?.reason || 'UNKNOWN');
+        throw new Error(`admin_set_betail_visibility_reborn_failed:${reasonCode}`);
+      }
+
+      return {
+        betailId,
+        nextVisible,
+        removedBadges: Number(result?.removed_badges || 0),
+      };
     },
-    onSuccess: () => {
+    onSuccess: ({ nextVisible, removedBadges }) => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'admin'] });
-      setFeedback({ type: 'success', message: 'Bétail restauré et visible de nouveau.' });
+      const message = nextVisible
+        ? 'Betail restaure et visible de nouveau.'
+        : removedBadges > 0
+          ? `Betail rendu invisible. ${removedBadges} badge(s) retire(s) de l\'inventaire.`
+          : 'Betail rendu invisible.';
+      setFeedback({ type: 'success', message });
       setConfirmDeleteBetailId(null);
     },
     onError: (error) => {
+      const rawMessage = String(error?.message || '').toLowerCase();
+      const message = rawMessage.includes('admin_set_betail_visibility_reborn')
+        ? 'Fonction SQL admin_set_betail_visibility_reborn absente ou signature differente.'
+        : (error?.message || 'Impossible de modifier la visibilite de ce betail.');
       setFeedback({
         type: 'error',
-        message: error?.message || 'Impossible de restaurer ce bétail.',
+        message,
       });
     },
   });
 
   const hardDeleteMutation = useMutation({
     mutationFn: async ({ betailId }) => {
-      const { error } = await supabase
-        .from('betails')
-        .delete()
-        .eq('id', betailId);
+      const { data, error } = await supabase.rpc('admin_delete_betail_reborn', {
+        p_betail_id: betailId,
+      });
+
       if (error) throw error;
-      return { betailId };
+
+      const result = Array.isArray(data) ? data[0] : data;
+      if (!result?.success) {
+        const reason = String(result?.reason || 'UNKNOWN');
+        throw new Error(`admin_delete_betail_reborn_failed:${reason}`);
+      }
+
+      return {
+        betailId,
+        removedBadges: Number(result?.removed_badges || 0),
+      };
     },
-    onSuccess: () => {
+    onSuccess: ({ removedBadges }) => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'admin'] });
-      setFeedback({ type: 'success', message: 'Bétail supprimé définitivement du registre.' });
+      const suffix = removedBadges > 0 ? ` (${removedBadges} badge(s) retire(s) de l'inventaire).` : '.';
+      setFeedback({ type: 'success', message: `Betail supprime definitivement du registre${suffix}` });
       setConfirmDeleteBetailId(null);
     },
     onError: (error) => {
+      const rawMessage = String(error?.message || '').toLowerCase();
+      const message = rawMessage.includes('admin_delete_betail_reborn')
+        ? 'Fonction SQL admin_delete_betail_reborn absente ou signature differente.'
+        : (error?.message || 'Impossible de supprimer definitivement ce betail.');
       setFeedback({
         type: 'error',
-        message: error?.message || 'Impossible de supprimer définitivement ce bétail.',
+        message,
       });
       setConfirmDeleteBetailId(null);
     },
   });
 
-  const isMutating = restoreMutation.isPending || hardDeleteMutation.isPending;
+  const isMutating = setVisibilityMutation.isPending || hardDeleteMutation.isPending;
   const rows = invisibleBetailsQuery.data?.items || [];
   const hasNextPage = Boolean(invisibleBetailsQuery.data?.hasNextPage);
+  const isSearching = Boolean(searchTerm);
 
   const emptyLabel = useMemo(() => {
-    if (searchTerm) return 'Aucun bétail invisible trouvé pour cette recherche.';
-    return 'Aucun bétail invisible pour le moment.';
+    if (searchTerm) return 'Aucun betail correspondant a cette recherche.';
+    return 'Aucun betail invisible pour le moment.';
   }, [searchTerm]);
 
   const handleRestore = (row) => {
     if (!row?.betailId) return;
     setConfirmDeleteBetailId(null);
-    restoreMutation.mutate({ betailId: row.betailId });
+    setVisibilityMutation.mutate({
+      betailId: row.betailId,
+      nextVisible: true,
+    });
+  };
+
+  const handleHide = (row) => {
+    if (!row?.betailId) return;
+    setConfirmDeleteBetailId(null);
+    setVisibilityMutation.mutate({
+      betailId: row.betailId,
+      nextVisible: false,
+      reason: 'Rendu invisible manuellement depuis admin',
+    });
   };
 
   const handleHardDelete = (row) => {
@@ -245,21 +296,21 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
 
   return (
     <div className="settings-section">
-      <h3 className="settings-section-title">Bétails invisibles</h3>
+      <h3 className="settings-section-title">Betails invisibles</h3>
       <div className="settings-admin-toolbar">
         <input
           type="search"
           className="settings-admin-search"
-          placeholder="Rechercher par nom, matricule, owner ou raison..."
+          placeholder="Rechercher un betail (nom/matricule), visible ou invisible..."
           value={searchInput}
           onChange={(event) => setSearchInput(event.target.value)}
-          aria-label="Recherche des bétails invisibles"
+          aria-label="Recherche des betails"
         />
         <button
           type="button"
           className="settings-admin-refresh-icon-btn"
           onClick={handleRefresh}
-          aria-label="Rafraîchir les bétails invisibles"
+          aria-label="Rafraichir la liste des betails"
           disabled={invisibleBetailsQuery.isFetching || isMutating}
         >
           <RefreshCcw
@@ -277,10 +328,12 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
       ) : null}
 
       {invisibleBetailsQuery.isLoading ? (
-        <p className="settings-item-subtitle">Chargement des bétails invisibles...</p>
+        <p className="settings-item-subtitle">
+          {isSearching ? 'Recherche des betails...' : 'Chargement des betails invisibles...'}
+        </p>
       ) : invisibleBetailsQuery.isError ? (
         <p className="settings-admin-feedback is-error">
-          {invisibleBetailsQuery.error?.message || 'Impossible de charger les bétails invisibles.'}
+          {invisibleBetailsQuery.error?.message || 'Impossible de charger les betails.'}
         </p>
       ) : rows.length === 0 ? (
         <p className="settings-item-subtitle">{emptyLabel}</p>
@@ -302,22 +355,39 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
                   <p className="settings-admin-shipping-meta">
                     Matricule: {row.matricule} · Owner: {row.owner}
                   </p>
-                  <p className="settings-admin-shipping-meta">
-                    Invisible depuis le {formatInvisibleDate(row.invisibleAt)}
-                  </p>
-                  <p className="settings-admin-shipping-meta">Raison: {row.invisibleReason}</p>
+                  {row.isVisible ? (
+                    <p className="settings-admin-shipping-meta">Statut: Visible</p>
+                  ) : (
+                    <>
+                      <p className="settings-admin-shipping-meta">
+                        Invisible depuis le {formatInvisibleDate(row.invisibleAt)}
+                      </p>
+                      <p className="settings-admin-shipping-meta">Raison: {row.invisibleReason}</p>
+                    </>
+                  )}
                 </div>
               </div>
 
               <div className="settings-admin-shipping-actions">
-                <button
-                  type="button"
-                  className="settings-admin-btn settings-admin-btn--restore"
-                  onClick={() => handleRestore(row)}
-                  disabled={isMutating}
-                >
-                  Restaurer
-                </button>
+                {row.isVisible ? (
+                  <button
+                    type="button"
+                    className="settings-admin-btn settings-admin-btn--delete-hard"
+                    onClick={() => handleHide(row)}
+                    disabled={isMutating}
+                  >
+                    Rendre invisible
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="settings-admin-btn settings-admin-btn--restore"
+                    onClick={() => handleRestore(row)}
+                    disabled={isMutating}
+                  >
+                    Restaurer
+                  </button>
+                )}
                 <button
                   type="button"
                   className="settings-admin-btn settings-admin-btn--delete-hard"

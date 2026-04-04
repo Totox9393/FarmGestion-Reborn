@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft,
-  BadgeCheck,
   Check,
   ChevronsRight,
   Crown,
@@ -26,15 +25,11 @@ import templateBetail2 from '../../assets/template_betail2.png';
 import templateBetail3 from '../../assets/template_betail3.png';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
+import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges';
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 
-const ADMIN_BADGE_OPTIONS = [
-  { id: 'solar-crown', name: 'Couronne solaire', rarity: 'Legendaire', accent: 'gold' },
-  { id: 'night-veil', name: 'Voile nocturne', rarity: 'Epic', accent: 'violet' },
-  { id: 'bloom-seal', name: 'Sceau fleuri', rarity: 'Rare', accent: 'pink' },
-  { id: 'crystal-mark', name: 'Marque cristal', rarity: 'Rare', accent: 'blue' },
-  { id: 'ember-sigil', name: 'Sigil braise', rarity: 'Common', accent: 'orange' },
-  { id: 'pearl-loop', name: 'Boucle perlee', rarity: 'Common', accent: 'mint' },
-];
+const ADMIN_BADGES_PAGE_SIZE = 18;
+const ADMIN_BADGE_ALLOWED_RARITIES = ['0_auto', '1_common', '2_rare', '3_epic', '4_legendary'];
 
 const sanitizeMatriculeInput = (value) => String(value || '').replace(/\D/g, '');
 const glowPalette = ['#ff6b6b', '#968eff', '#f2b3ff', '#ffd166', '#a6e3e9', '#c3f0ca'];
@@ -113,6 +108,56 @@ const buildTemplateComment = ({ commentPrefix, author, visible }) => {
   return `${commentPrefix}\nCréation : ${formatTemplateDateTime()} par ${author}. Lors de la création VISIBLE = "${visibilityLabel}"`;
 };
 
+const normalizeAdminBadgeRow = (row) => {
+  const id = String(row?.id || '').trim();
+  const filename = String(row?.filename || '').trim();
+  const rarity = String(row?.rarity || '').trim();
+  if (!id || !filename || !ADMIN_BADGE_ALLOWED_RARITIES.includes(rarity)) return null;
+
+  return {
+    id,
+    filename,
+    name: String(row?.name || filename.replace(/\.[^.]+$/i, '')).trim(),
+    rarity,
+    rarityLabel: BADGE_RARITY_LABELS[rarity] || rarity,
+    imageUrl: getBadgeImageUrl(filename, rarity),
+  };
+};
+
+const mergeUniqueBadgesById = (rows) => {
+  const map = new Map();
+  (rows || []).forEach((badge) => {
+    if (badge?.id) {
+      map.set(badge.id, badge);
+    }
+  });
+  return Array.from(map.values());
+};
+
+const fetchAdminBadgeCatalogPage = async ({ search = '', offset = 0, limit = ADMIN_BADGES_PAGE_SIZE }) => {
+  let query = supabase
+    .from('badges_catalog_reborn')
+    .select('id,filename,name,rarity,is_active')
+    .eq('is_active', true)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  const safeSearch = String(search || '')
+    .trim()
+    .replace(/[%]/g, '')
+    .replace(/,/g, ' ');
+  if (safeSearch.length >= 2) {
+    query = query.or(`name.ilike.%${safeSearch}%,filename.ilike.%${safeSearch}%`);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  return (data || [])
+    .map((row) => normalizeAdminBadgeRow(row))
+    .filter(Boolean);
+};
+
 function AdminBetailMaker({ onExitAdmin }) {
   const { user } = useAuth();
   const [currentStep, setCurrentStep] = useState(0);
@@ -144,6 +189,14 @@ function AdminBetailMaker({ onExitAdmin }) {
   const [isPremium, setIsPremium] = useState(false);
   const [commentaire, setCommentaire] = useState('');
   const [selectedBadges, setSelectedBadges] = useState([]);
+  const [badgeSearchInput, setBadgeSearchInput] = useState('');
+  const [adminBadgeRows, setAdminBadgeRows] = useState([]);
+  const [adminBadgeKnownRows, setAdminBadgeKnownRows] = useState([]);
+  const [adminBadgeOffset, setAdminBadgeOffset] = useState(0);
+  const [adminBadgeHasMore, setAdminBadgeHasMore] = useState(true);
+  const [adminBadgeLoading, setAdminBadgeLoading] = useState(false);
+  const [adminBadgeLoadingMore, setAdminBadgeLoadingMore] = useState(false);
+  const [adminBadgeError, setAdminBadgeError] = useState('');
   const [authorLabel, setAuthorLabel] = useState(() => getFallbackAuthorLabel(user));
   const [isTemplatePickerOpen, setIsTemplatePickerOpen] = useState(false);
   const [activeTemplateId, setActiveTemplateId] = useState('');
@@ -158,11 +211,19 @@ function AdminBetailMaker({ onExitAdmin }) {
   const totalSteps = 8;
   const defaultPhotoZoom = 1.15;
   const defaultPhotoOffset = { x: 0, y: 12 };
-  const selectedBadgeItems = ADMIN_BADGE_OPTIONS.filter((badge) => selectedBadges.includes(badge.id));
+  const adminBadgeMap = new Map((adminBadgeKnownRows || []).map((badge) => [badge.id, badge]));
+  const selectedBadgeItems = selectedBadges
+    .map((badgeId) => adminBadgeMap.get(badgeId))
+    .filter(Boolean);
   const animationTimersRef = useRef({ intervals: [], timeouts: [] });
   const digitSounds = [digitSound1, digitSound2, digitSound3, digitSound4, digitSound5];
   const digitAudiosRef = useRef([]);
   const lastAgeRef = useRef(age);
+  const adminBadgeRequestRef = useRef(0);
+  const adminBadgeSearchDebounceRef = useRef(null);
+  const adminBadgeOffsetRef = useRef(0);
+  const adminBadgeHasMoreRef = useRef(true);
+  const adminBadgeLoadingRef = useRef(false);
 
   const resetPhotoPlacement = () => {
     setPhotoZoom(1);
@@ -183,9 +244,8 @@ function AdminBetailMaker({ onExitAdmin }) {
 
   const playAgeTick = () => {
     try {
-      const audio = new Audio(ageTickSound);
-      audio.volume = 0.6;
-      audio.play();
+      const audio = createSafeAudio(ageTickSound, { volume: 0.6 });
+      void playAudioSafely(audio);
     } catch {
       // ignore audio play errors
     }
@@ -195,9 +255,8 @@ function AdminBetailMaker({ onExitAdmin }) {
     const src = digitSounds[index];
     if (!src) return;
     try {
-      const audio = new Audio(src);
-      audio.volume = 0.8;
-      audio.play();
+      const audio = createSafeAudio(src, { volume: 0.8 });
+      void playAudioSafely(audio);
       digitAudiosRef.current.push(audio);
     } catch {
       // ignore audio play errors
@@ -246,6 +305,14 @@ function AdminBetailMaker({ onExitAdmin }) {
     setIsPremium(false);
     setCommentaire('');
     setSelectedBadges([]);
+    setBadgeSearchInput('');
+    setAdminBadgeRows([]);
+    setAdminBadgeKnownRows([]);
+    setAdminBadgeOffset(0);
+    setAdminBadgeHasMore(true);
+    setAdminBadgeLoading(false);
+    setAdminBadgeLoadingMore(false);
+    setAdminBadgeError('');
     setAuthorLabel(getFallbackAuthorLabel(user));
     setIsTemplatePickerOpen(false);
     setActiveTemplateId('');
@@ -265,6 +332,14 @@ function AdminBetailMaker({ onExitAdmin }) {
       }
     });
     digitAudiosRef.current = [];
+    adminBadgeRequestRef.current += 1;
+    adminBadgeOffsetRef.current = 0;
+    adminBadgeHasMoreRef.current = true;
+    adminBadgeLoadingRef.current = false;
+    if (adminBadgeSearchDebounceRef.current) {
+      clearTimeout(adminBadgeSearchDebounceRef.current);
+      adminBadgeSearchDebounceRef.current = null;
+    }
   };
 
   const getBaseScale = () => {
@@ -732,7 +807,67 @@ function AdminBetailMaker({ onExitAdmin }) {
     setMatriculeStatus('done');
   };
 
+  const loadAdminBadges = useCallback(async ({ reset = false, search = '' } = {}) => {
+    if (!reset && (!adminBadgeHasMoreRef.current || adminBadgeLoadingRef.current)) {
+      return;
+    }
+
+    const trimmedSearch = String(search || '').trim();
+    const offset = reset ? 0 : adminBadgeOffsetRef.current;
+    const requestId = adminBadgeRequestRef.current + 1;
+    adminBadgeRequestRef.current = requestId;
+    adminBadgeLoadingRef.current = true;
+    if (reset) {
+      setAdminBadgeLoading(true);
+    } else {
+      setAdminBadgeLoadingMore(true);
+    }
+    setAdminBadgeError('');
+
+    try {
+      const rows = await fetchAdminBadgeCatalogPage({
+        search: trimmedSearch,
+        offset,
+        limit: ADMIN_BADGES_PAGE_SIZE,
+      });
+
+      if (requestId !== adminBadgeRequestRef.current) {
+        return;
+      }
+
+      const nextOffset = offset + rows.length;
+      const hasMore = rows.length === ADMIN_BADGES_PAGE_SIZE;
+
+      setAdminBadgeRows((current) => (reset ? rows : mergeUniqueBadgesById([...current, ...rows])));
+      setAdminBadgeKnownRows((current) => mergeUniqueBadgesById([...current, ...rows]));
+      setAdminBadgeOffset(nextOffset);
+      setAdminBadgeHasMore(hasMore);
+
+      adminBadgeOffsetRef.current = nextOffset;
+      adminBadgeHasMoreRef.current = hasMore;
+    } catch {
+      if (requestId !== adminBadgeRequestRef.current) {
+        return;
+      }
+      if (reset) {
+        setAdminBadgeRows([]);
+        setAdminBadgeOffset(0);
+        setAdminBadgeHasMore(false);
+        adminBadgeOffsetRef.current = 0;
+        adminBadgeHasMoreRef.current = false;
+      }
+      setAdminBadgeError('Impossible de charger les badges. Reessaie.');
+    } finally {
+      if (requestId === adminBadgeRequestRef.current) {
+        adminBadgeLoadingRef.current = false;
+        setAdminBadgeLoading(false);
+        setAdminBadgeLoadingMore(false);
+      }
+    }
+  }, []);
+
   const handleToggleBadge = (badgeId) => {
+    setSaveError('');
     setSelectedBadges((current) => {
       if (current.includes(badgeId)) {
         return current.filter((id) => id !== badgeId);
@@ -756,6 +891,43 @@ function AdminBetailMaker({ onExitAdmin }) {
     setCurrentStep((prev) => Math.max(0, prev - 1));
   };
 
+  const handleLoadMoreAdminBadges = () => {
+    loadAdminBadges({
+      reset: false,
+      search: badgeSearchInput,
+    });
+  };
+
+  useEffect(() => {
+    adminBadgeOffsetRef.current = adminBadgeOffset;
+  }, [adminBadgeOffset]);
+
+  useEffect(() => {
+    adminBadgeHasMoreRef.current = adminBadgeHasMore;
+  }, [adminBadgeHasMore]);
+
+  useEffect(() => {
+    if (currentStep !== 6) {
+      return undefined;
+    }
+    if (adminBadgeSearchDebounceRef.current) {
+      clearTimeout(adminBadgeSearchDebounceRef.current);
+    }
+    adminBadgeSearchDebounceRef.current = setTimeout(() => {
+      loadAdminBadges({
+        reset: true,
+        search: badgeSearchInput,
+      });
+    }, 260);
+
+    return () => {
+      if (adminBadgeSearchDebounceRef.current) {
+        clearTimeout(adminBadgeSearchDebounceRef.current);
+        adminBadgeSearchDebounceRef.current = null;
+      }
+    };
+  }, [badgeSearchInput, currentStep, loadAdminBadges]);
+
   useEffect(() => {
     if (currentStep !== 4) {
       clearAnimationTimers();
@@ -768,6 +940,17 @@ function AdminBetailMaker({ onExitAdmin }) {
       clearAnimationTimers();
     };
   }, [currentStep, matriculeMode]);
+
+  useEffect(() => {
+    return () => {
+      adminBadgeRequestRef.current += 1;
+      adminBadgeLoadingRef.current = false;
+      if (adminBadgeSearchDebounceRef.current) {
+        clearTimeout(adminBadgeSearchDebounceRef.current);
+        adminBadgeSearchDebounceRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     setAgeInputValue(String(age));
@@ -873,8 +1056,8 @@ function AdminBetailMaker({ onExitAdmin }) {
       }
     }
 
-    const createAdminBetail = (matriculeValue) =>
-      supabase.rpc('create_admin_betail_reborn', {
+    const createAdminBetail = (matriculeValue, includeRewardBadges = true) => {
+      const payload = {
         p_name: prenom.trim(),
         p_age: Number(age),
         p_avatar_url: avatarUrl,
@@ -884,16 +1067,40 @@ function AdminBetailMaker({ onExitAdmin }) {
         p_visible: betailVisible,
         p_invisible_reason: betailVisible ? null : invisibleReason,
         p_invisible_at: betailVisible ? null : invisibleAt,
-      });
+      };
+      if (includeRewardBadges) {
+        payload.p_reward_badge_ids = selectedBadges;
+      }
+      return supabase.rpc('create_admin_betail_reborn', payload);
+    };
 
-    let { data, error } = await createAdminBetail(finalMatricule);
+    let usedLegacySignature = false;
+    let { data, error } = await createAdminBetail(finalMatricule, true);
+    if (error) {
+      const rawMessage = String(error?.message || '').toLowerCase();
+      const rawDetails = String(error?.details || '').toLowerCase();
+      const isMissingFunctionOrSignature = error?.status === 404
+        || rawMessage.includes('create_admin_betail_reborn')
+        || rawMessage.includes('schema cache')
+        || rawDetails.includes('schema cache')
+        || String(error?.code || '').toUpperCase().startsWith('PGRST');
+
+      if (isMissingFunctionOrSignature) {
+        const legacyAttempt = await createAdminBetail(finalMatricule, false);
+        if (!legacyAttempt.error) {
+          data = legacyAttempt.data;
+          error = null;
+          usedLegacySignature = true;
+        }
+      }
+    }
 
     if (!error && data?.reason === 'DUPLICATE_MATRICULE' && matriculeMode === 'auto') {
       const regenerated = await generateUniqueMatricule();
       if (regenerated) {
         finalMatricule = regenerated;
         setMatricule(regenerated);
-        const retry = await createAdminBetail(regenerated);
+        const retry = await createAdminBetail(regenerated, !usedLegacySignature);
         data = retry.data;
         error = retry.error;
       }
@@ -901,8 +1108,8 @@ function AdminBetailMaker({ onExitAdmin }) {
 
     if (error) {
       const errorMessage = String(error?.message || '').toLowerCase();
-      if (error?.code === '42883' || errorMessage.includes('create_admin_betail_reborn')) {
-        setSaveError("La fonction SQL admin n'est pas encore deployee.");
+      if (error?.status === 404 || error?.code === '42883' || errorMessage.includes('create_admin_betail_reborn')) {
+        setSaveError("Fonction SQL admin absente. Execute supabase/create_admin_betail_reborn.sql puis recharge la page.");
       } else {
         setSaveError("Erreur lors de l'enregistrement admin.");
       }
@@ -922,6 +1129,10 @@ function AdminBetailMaker({ onExitAdmin }) {
         setSaveError('Le matricule admin doit contenir uniquement des chiffres et exactement 5 chiffres.');
       } else if (reason === 'DUPLICATE_MATRICULE') {
         setSaveError('Ce matricule existe deja.');
+      } else if (reason === 'INVALID_REWARD_BADGES') {
+        setSaveError('Un ou plusieurs badges selectionnes ne sont plus valides.');
+      } else if (reason === 'TOO_MANY_REWARD_BADGES') {
+        setSaveError('Maximum 3 badges cadeaux par betail.');
       } else {
         setSaveError("Erreur lors de l'enregistrement admin.");
       }
@@ -1445,38 +1656,76 @@ function AdminBetailMaker({ onExitAdmin }) {
       case 6:
         return (
           <div className="step-content fade-in">
-            <h2 className="step-title">Badges du bétail</h2>
-            <p className="quality-subtitle">UI uniquement pour le moment. Tu peux en sélectionner jusqu&apos;à 3 pour préparer le futur flow.</p>
+            <h2 className="step-title">Badges du b&eacute;tail</h2>
+            <p className="quality-subtitle">
+              S&eacute;lectionne jusqu&apos;&agrave; 3 badges cach&eacute;s. Ils seront attribu&eacute;s &agrave; l&apos;achat (sans d&eacute;compter le stock) et auto-&eacute;quip&eacute;s seulement si l&apos;utilisateur ne les poss&egrave;de pas d&eacute;j&agrave;.
+            </p>
             <div className="admin-badge-head">
               <span className="admin-badge-counter">{selectedBadges.length}/3</span>
-              <span className="admin-badge-note">Aperçu uniquement, non sauvegardé pour l&apos;instant.</span>
+              <span className="admin-badge-note">Chargement pagin&eacute;: {ADMIN_BADGES_PAGE_SIZE} badges par page.</span>
             </div>
-            <div className="admin-badge-grid" role="list" aria-label="Préselection de badges">
-              {ADMIN_BADGE_OPTIONS.map((badge) => {
+            <div className="admin-badge-tools">
+              <input
+                type="text"
+                className="step-input admin-badge-search"
+                placeholder="Rechercher un badge (nom ou fichier)"
+                value={badgeSearchInput}
+                onChange={(event) => setBadgeSearchInput(event.target.value)}
+              />
+              <button
+                type="button"
+                className="photo-action admin-badge-reload"
+                onClick={() => loadAdminBadges({ reset: true, search: badgeSearchInput })}
+                disabled={adminBadgeLoading}
+              >
+                {adminBadgeLoading ? 'Chargement...' : 'Rafraichir'}
+              </button>
+            </div>
+            {adminBadgeError ? (
+              <p className="quality-subtitle" role="alert">
+                {adminBadgeError}
+              </p>
+            ) : null}
+            {!adminBadgeLoading && !adminBadgeRows.length ? (
+              <p className="admin-badge-empty">Aucun badge actif trouve pour cette recherche.</p>
+            ) : null}
+            <div className="admin-badge-grid" role="list" aria-label="Selection de badges cadeaux">
+              {adminBadgeRows.map((badge) => {
                 const isSelected = selectedBadges.includes(badge.id);
                 const isDisabled = !isSelected && selectedBadges.length >= 3;
                 return (
                   <button
                     key={badge.id}
                     type="button"
-                    className={`admin-badge-card is-${badge.accent} ${isSelected ? 'is-selected' : ''}`}
+                    className={`admin-badge-card is-${badge.rarity} ${isSelected ? 'is-selected' : ''}`}
                     onClick={() => handleToggleBadge(badge.id)}
                     disabled={isDisabled}
                     role="listitem"
                   >
                     <span className="admin-badge-card__media" aria-hidden="true">
-                      <BadgeCheck size={22} />
+                      <img src={badge.imageUrl} alt={badge.name} loading="lazy" />
                     </span>
                     <span className="admin-badge-card__title">{badge.name}</span>
-                    <span className="admin-badge-card__rarity">{badge.rarity}</span>
+                    <span className="admin-badge-card__rarity">{badge.rarityLabel}</span>
+                    <span className="admin-badge-card__filename">{badge.filename}</span>
                   </button>
                 );
               })}
             </div>
+            {adminBadgeHasMore ? (
+              <button
+                type="button"
+                className="photo-action admin-badge-load-more"
+                onClick={handleLoadMoreAdminBadges}
+                disabled={adminBadgeLoading || adminBadgeLoadingMore}
+              >
+                {adminBadgeLoadingMore ? 'Chargement...' : 'Charger plus'}
+              </button>
+            ) : null}
             {selectedBadgeItems.length ? (
               <div className="admin-selected-badges">
                 {selectedBadgeItems.map((badge) => (
-                  <span key={badge.id} className={`admin-selected-badge is-${badge.accent}`}>
+                  <span key={badge.id} className={`admin-selected-badge is-${badge.rarity}`}>
                     {badge.name}
                   </span>
                 ))}
@@ -1488,7 +1737,6 @@ function AdminBetailMaker({ onExitAdmin }) {
             </button>
           </div>
         );
-
       case 7:
         return (
           <div className="step-content fade-in">
@@ -1621,11 +1869,11 @@ function AdminBetailMaker({ onExitAdmin }) {
             </div>
 
             <div className="admin-recap-badges">
-              <span className="admin-recap-badges__label">Badges présélectionnés :</span>
+              <span className="admin-recap-badges__label">Badges cadeaux cachés :</span>
               <div className="admin-selected-badges">
                 {selectedBadgeItems.length ? (
                   selectedBadgeItems.map((badge) => (
-                    <span key={badge.id} className={`admin-selected-badge is-${badge.accent}`}>
+                    <span key={badge.id} className={`admin-selected-badge is-${badge.rarity}`}>
                       {badge.name}
                     </span>
                   ))
@@ -1633,7 +1881,6 @@ function AdminBetailMaker({ onExitAdmin }) {
                   <span className="admin-selected-badge is-empty">Aucun badge sélectionné</span>
                 )}
               </div>
-              <p className="admin-badge-note">Cette section reste une prévisualisation UI pour l&apos;instant.</p>
             </div>
 
             {saveError ? (
@@ -1701,11 +1948,6 @@ function AdminBetailMaker({ onExitAdmin }) {
           ) : null}
           {renderStepContent()}
         </div>
-      </div>
-      <div className="decorative-circles">
-        <div className="circle circle-1"></div>
-        <div className="circle circle-2"></div>
-        <div className="circle circle-3"></div>
       </div>
     </div>
   );

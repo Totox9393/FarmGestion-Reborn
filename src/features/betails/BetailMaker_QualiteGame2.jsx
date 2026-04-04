@@ -1,5 +1,6 @@
 import { useState, useRef } from 'react';
 import './BetailMaker.css';
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 
 
 function BetailMaker_QualiteGame2({ disabled, onStart, onComplete }) {
@@ -31,9 +32,8 @@ function BetailMaker_QualiteGame2({ disabled, onStart, onComplete }) {
       const src = forcedResult === 'premium'
         ? require('../../assets/sounds/WAV_47_GUESS_BNK_SE_COMMON.wav')
         : require('../../assets/sounds/00111 - WAV_111_GUESS_BNK_SE_COMMON.wav');
-      const audio = new Audio(src);
-      audio.volume = 0.4;
-      audio.play();
+      const audio = createSafeAudio(src, { volume: 0.4 });
+      void playAudioSafely(audio);
       qualityAudioRef.current = audio;
     } catch {}
     onComplete(forcedResult);

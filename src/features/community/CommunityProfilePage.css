@@ -430,6 +430,30 @@
   gap: 10px;
 }
 
+.community-profile-badges__actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: center;
+}
+
+.community-profile-badges__toggle {
+  border-radius: 999px;
+  border: 1px solid rgba(99, 86, 213, 0.28);
+  background: rgba(255, 255, 255, 0.9);
+  color: #4b3daa;
+  padding: 8px 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.community-profile-badges__toggle:hover {
+  border-color: rgba(99, 86, 213, 0.44);
+  background: rgba(255, 255, 255, 1);
+}
+
 .community-profile-badge-card {
   border: none;
   background: transparent;

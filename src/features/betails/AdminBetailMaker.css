@@ -3,6 +3,8 @@
   min-height: calc(100vh - 72px);
   height: auto;
   overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable both-edges;
   align-items: flex-start;
   padding-top: 26px;
   padding-bottom: 40px;
@@ -385,6 +387,27 @@
   font-size: 0.92rem;
 }
 
+.admin-badge-tools {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.admin-badge-search {
+  flex: 1;
+}
+
+.admin-badge-reload,
+.admin-badge-load-more {
+  white-space: nowrap;
+}
+
+.admin-badge-empty {
+  margin: 0;
+  color: #7d6d75;
+}
+
 .admin-badge-grid {
   width: 100%;
   display: grid;
@@ -396,11 +419,11 @@
   padding: 16px 14px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: center;
   gap: 10px;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
 }
 
 .admin-badge-card.is-selected {
@@ -408,13 +431,25 @@
   box-shadow: 0 16px 28px rgba(201, 79, 135, 0.16);
 }
 
+.admin-badge-card:disabled {
+  cursor: not-allowed;
+  filter: grayscale(0.2) saturate(0.7);
+}
+
 .admin-badge-card__media {
-  width: 42px;
-  height: 42px;
+  width: 58px;
+  height: 58px;
   border-radius: 14px;
   display: grid;
   place-items: center;
   background: rgba(255, 255, 255, 0.84);
+  overflow: hidden;
+}
+
+.admin-badge-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .admin-badge-card__title {
@@ -427,12 +462,17 @@
   font-size: 0.9rem;
 }
 
-.admin-badge-card.is-gold { background: linear-gradient(135deg, #fff9e4, #ffe7b0); }
-.admin-badge-card.is-violet { background: linear-gradient(135deg, #f5efff, #e7d8ff); }
-.admin-badge-card.is-pink { background: linear-gradient(135deg, #fff0f6, #ffdbe9); }
-.admin-badge-card.is-blue { background: linear-gradient(135deg, #eef7ff, #d9ebff); }
-.admin-badge-card.is-orange { background: linear-gradient(135deg, #fff4eb, #ffe1ca); }
-.admin-badge-card.is-mint { background: linear-gradient(135deg, #eefcf7, #d5f6ea); }
+.admin-badge-card__filename {
+  color: #8d7787;
+  font-size: 0.78rem;
+  word-break: break-word;
+}
+
+.admin-badge-card.is-0_auto { background: linear-gradient(135deg, #f3fcf8, #def8ef); }
+.admin-badge-card.is-1_common { background: linear-gradient(135deg, #eef7ff, #d9ebff); }
+.admin-badge-card.is-2_rare { background: linear-gradient(135deg, #f5efff, #e7d8ff); }
+.admin-badge-card.is-3_epic { background: linear-gradient(135deg, #fff0f6, #ffdbe9); }
+.admin-badge-card.is-4_legendary { background: linear-gradient(135deg, #fff9e4, #ffe7b0); }
 
 .admin-selected-badges {
   width: 100%;
@@ -455,12 +495,11 @@
   color: #7d6d75;
 }
 
-.admin-selected-badge.is-gold { background: #fff2c5; }
-.admin-selected-badge.is-violet { background: #efe3ff; }
-.admin-selected-badge.is-pink { background: #ffdceb; }
-.admin-selected-badge.is-blue { background: #dcedff; }
-.admin-selected-badge.is-orange { background: #ffe2cc; }
-.admin-selected-badge.is-mint { background: #dcf7ee; }
+.admin-selected-badge.is-0_auto { background: #dcf7ee; }
+.admin-selected-badge.is-1_common { background: #dcedff; }
+.admin-selected-badge.is-2_rare { background: #efe3ff; }
+.admin-selected-badge.is-3_epic { background: #ffdceb; }
+.admin-selected-badge.is-4_legendary { background: #fff2c5; }
 
 .admin-recap-quality-toggle {
   border: none;
@@ -511,6 +550,16 @@
 
   .admin-manual-matricule {
     flex-direction: column;
+  }
+
+  .admin-badge-tools {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-badge-reload,
+  .admin-badge-load-more {
+    width: 100%;
   }
 
   .admin-manual-matricule .photo-action {

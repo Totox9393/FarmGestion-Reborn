@@ -2,6 +2,9 @@
 alter table public.betails
   add column if not exists purchased_at timestamptz null;
 
+alter table public.betails
+  add column if not exists admin_reward_badge_ids jsonb not null default '[]'::jsonb;
+
 create index if not exists betails_owner_purchased_at_idx
   on public.betails (owner_id, purchased_at);
 
@@ -20,6 +23,11 @@ declare
   v_betail_id uuid;
   v_owner_id uuid;
   v_farm_site text;
+  v_reward_badges jsonb := '[]'::jsonb;
+  v_reward_badge_text text;
+  v_reward_badge_id uuid;
+  v_inventory_insert_id uuid;
+  v_free_slot integer;
 begin
   if v_user_id is null then
     raise exception 'not_authenticated';
@@ -64,11 +72,70 @@ begin
     and b.owner_id is null
     and b.farm_id is null
     and b.author_id <> v_user_id
-  returning b.id, b.farm_id, b.owner_id, b.farm_site
-  into v_betail_id, v_farm_id, v_owner_id, v_farm_site;
+  returning b.id, b.farm_id, b.owner_id, b.farm_site, coalesce(b.admin_reward_badge_ids, '[]'::jsonb)
+  into v_betail_id, v_farm_id, v_owner_id, v_farm_site, v_reward_badges;
 
   if v_betail_id is null then
     raise exception 'already_sold_or_invalid';
+  end if;
+
+  if jsonb_typeof(v_reward_badges) = 'array' then
+    for v_reward_badge_text in
+      select jsonb_array_elements_text(v_reward_badges)
+    loop
+      begin
+        v_reward_badge_id := v_reward_badge_text::uuid;
+      exception
+        when invalid_text_representation then
+          continue;
+      end;
+
+      if exists (
+        select 1
+        from public.badges_inventory_reborn i
+        where i.user_id = v_user_id
+          and i.badge_id = v_reward_badge_id
+      ) then
+        continue;
+      end if;
+
+      if not exists (
+        select 1
+        from public.badges_catalog_reborn c
+        where c.id = v_reward_badge_id
+          and coalesce(c.is_active, true) = true
+      ) then
+        continue;
+      end if;
+
+      v_inventory_insert_id := null;
+      insert into public.badges_inventory_reborn (user_id, badge_id, purchase_price, purchased_at)
+      values (v_user_id, v_reward_badge_id, 0, now())
+      on conflict (user_id, badge_id) do nothing
+      returning id into v_inventory_insert_id;
+
+      if v_inventory_insert_id is null then
+        continue;
+      end if;
+
+      select slot
+      into v_free_slot
+      from generate_series(1, 3) as gs(slot)
+      where not exists (
+        select 1
+        from public.badges_equips_reborn e
+        where e.betail_id = v_betail_id
+          and e.slot = gs.slot
+      )
+      order by gs.slot
+      limit 1;
+
+      if v_free_slot is not null then
+        insert into public.badges_equips_reborn (user_id, badge_id, betail_id, slot, equipped_at)
+        values (v_user_id, v_reward_badge_id, v_betail_id, v_free_slot, now())
+        on conflict do nothing;
+      end if;
+    end loop;
   end if;
 
   betail_id := v_betail_id;

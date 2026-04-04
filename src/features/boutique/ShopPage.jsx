@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ArrowDownUp, Clock3, Coins, Crown, ShoppingBag } from 'lucide-react'
+import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../authentification/supabaseClient'
 import { useAuth } from '../authentification/AuthContext'
 import {
@@ -8,6 +9,8 @@ import {
   fetchBadgesCatalogReborn,
   fetchUserBadgesInventoryReborn,
 } from '../badges'
+import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio'
+import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 import './ShopPage.css'
 
 const RESOURCES_BUCKET_URL = import.meta.env.VITE_SUPABASE_URL
@@ -118,6 +121,8 @@ const getRotationStorageKey = (dayKey) => `farmgestion_badges_rotation_ids_${day
 
 function ShopPage() {
   const { user } = useAuth()
+  const queryClient = useQueryClient()
+  const badgePurchaseAudio = useMemo(() => createSafeAudio(purchaseSound), [])
 
   const [activeTab, setActiveTab] = useState('badges')
   const [sortOrder, setSortOrder] = useState('asc')
@@ -360,6 +365,9 @@ function ShopPage() {
       )
       setSqlFunctionMissing(false)
 
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user.id] })
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user.id] })
+
       if (Number.isFinite(moneyAfter)) {
         window.dispatchEvent(
           new CustomEvent('farmgestion-balance-updated', {
@@ -371,6 +379,7 @@ function ShopPage() {
         )
       }
 
+      void restartAudioSafely(badgePurchaseAudio)
       emitToast('success', `Badge ${badge.filename} acheté.`)
     } catch (error) {
       if (error?.code === '42883') {

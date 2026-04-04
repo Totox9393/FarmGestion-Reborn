@@ -445,34 +445,49 @@ function Settings_ReportsPanel({ isActive, canAccessAdministration, currentUserI
       }
 
       const nowIso = new Date().toISOString();
-      let betailPayload = null;
+      let removedBadges = 0;
 
       if (actionType === MODERATION_ACTIONS.REPLACE_PHOTO) {
         const standardAvatarUrl = await uploadModerationDefaultAvatar();
-        betailPayload = {
+        const betailPayload = {
           avatar_url: standardAvatarUrl,
         };
+
+        const { error: betailError } = await supabase
+          .from('betails')
+          .update(betailPayload)
+          .eq('id', betailId);
+
+        if (betailError) throw betailError;
       } else if (actionType === MODERATION_ACTIONS.REMOVE_COMMENT) {
-        betailPayload = {
+        const betailPayload = {
           comments: null,
         };
+
+        const { error: betailError } = await supabase
+          .from('betails')
+          .update(betailPayload)
+          .eq('id', betailId);
+
+        if (betailError) throw betailError;
       } else if (actionType === MODERATION_ACTIONS.HIDE_BETAIL) {
-        betailPayload = {
-          visible: false,
-          invisible_at: nowIso,
-          invisible_reason: `signalement_${reasonCode || 'moderation'}`,
-        };
+        const { data, error } = await supabase.rpc('admin_set_betail_visibility_reborn', {
+          p_betail_id: betailId,
+          p_visible: false,
+          p_invisible_reason: `signalement_${reasonCode || 'moderation'}`,
+        });
+
+        if (error) throw error;
+
+        const result = Array.isArray(data) ? data[0] : data;
+        if (!result?.success) {
+          const reason = String(result?.reason || 'UNKNOWN');
+          throw new Error(`admin_set_betail_visibility_reborn_failed:${reason}`);
+        }
+
+        removedBadges = Number(result?.removed_badges || 0);
       } else {
         throw new Error('Action de moderation inconnue.');
-      }
-
-      const { error: betailError } = await supabase
-        .from('betails')
-        .update(betailPayload)
-        .eq('id', betailId);
-
-      if (betailError) {
-        throw betailError;
       }
 
       const reportPayload = {
@@ -491,9 +506,9 @@ function Settings_ReportsPanel({ isActive, canAccessAdministration, currentUserI
         throw reportError;
       }
 
-      return { actionType };
+      return { actionType, removedBadges };
     },
-    onSuccess: ({ actionType }) => {
+    onSuccess: ({ actionType, removedBadges }) => {
       queryClient.invalidateQueries({ queryKey: ADMIN_REPORTS_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['betails'] });
 
@@ -501,16 +516,22 @@ function Settings_ReportsPanel({ isActive, canAccessAdministration, currentUserI
         ? 'Photo remplacee par la photo standard. Signalement marque comme traite.'
         : actionType === MODERATION_ACTIONS.REMOVE_COMMENT
           ? 'Commentaire supprime. Signalement marque comme traite.'
-          : 'Betail rendu invisible. Signalement marque comme traite.';
+          : removedBadges > 0
+            ? `Betail rendu invisible. ${removedBadges} badge(s) retire(s) de l'inventaire. Signalement marque comme traite.`
+            : 'Betail rendu invisible. Signalement marque comme traite.';
 
       setFeedback({ type: 'success', message: successMessage });
       setActionMenuReportId(null);
       setConfirmRejectId(null);
     },
     onError: (error) => {
+      const rawMessage = String(error?.message || '').toLowerCase();
+      const message = rawMessage.includes('admin_set_betail_visibility_reborn')
+        ? 'Fonction SQL admin_set_betail_visibility_reborn absente ou signature differente.'
+        : (error?.message || 'Impossible d\'executer cette action de moderation.');
       setFeedback({
         type: 'error',
-        message: error?.message || 'Impossible d\'executer cette action de moderation.',
+        message,
       });
     },
   });

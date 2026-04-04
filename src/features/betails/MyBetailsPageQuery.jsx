@@ -31,7 +31,9 @@ import {
 import premiumSuccessSound from '../../assets/sounds/GOCHISOU_7.WAV'
 import pinInSound from '../../assets/sounds/pinin_005.ogg'
 import pinOutSound from '../../assets/sounds/pinout_006.ogg'
+import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
 import MyBetailsShippingPanel from './MyBetailsShippingPanel'
+import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio'
 import './BetailsListPage.css'
 import './MyBetailsPage.css'
 
@@ -203,6 +205,7 @@ function MyBetailsPageQuery() {
   const shippingPanelTimeoutRef = useRef(null)
   const panelRef = useRef(null)
   const queryClient = useQueryClient()
+  const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), [])
 
   const { data: farmId } = useUserFarmId(user?.id)
   const { data: userRole = '' } = useUserRole(user?.id)
@@ -309,6 +312,9 @@ function MyBetailsPageQuery() {
           })),
         }
       })
+      if (liked) {
+        void restartAudioSafely(likeConfirmAudio)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['betails', 'liked', user?.id || 'anon'] })
@@ -321,10 +327,25 @@ function MyBetailsPageQuery() {
       betailId: selectedBetail?.id,
       slot,
     }),
-    onSuccess: () => {
+    onSuccess: async (_result, variables) => {
+      const badgeId = variables?.badgeId
+      if (badgeId) {
+        queryClient.setQueryData(['badges', 'equips', user?.id || 'anon'], (current) => {
+          const currentItems = Array.isArray(current) ? current : []
+          if (currentItems.some((badge) => badge?.id === badgeId)) return currentItems
+          return [...currentItems, { id: badgeId }]
+        })
+      }
+
       queryClient.invalidateQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'] })
       queryClient.invalidateQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'] })
+      queryClient.invalidateQueries({ queryKey: ['badges', 'inventory', user?.id || 'anon'] })
       queryClient.invalidateQueries({ queryKey: ['farm', 'equips'] })
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'], exact: true }),
+        queryClient.refetchQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'], exact: true }),
+      ])
     },
   })
 
@@ -333,10 +354,24 @@ function MyBetailsPageQuery() {
       badgeId,
       betailId: selectedBetail?.id,
     }),
-    onSuccess: () => {
+    onSuccess: async (_result, variables) => {
+      const badgeId = variables?.badgeId
+      if (badgeId) {
+        queryClient.setQueryData(['badges', 'equips', user?.id || 'anon'], (current) => {
+          const currentItems = Array.isArray(current) ? current : []
+          return currentItems.filter((badge) => badge?.id !== badgeId)
+        })
+      }
+
       queryClient.invalidateQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'] })
       queryClient.invalidateQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'] })
+      queryClient.invalidateQueries({ queryKey: ['badges', 'inventory', user?.id || 'anon'] })
       queryClient.invalidateQueries({ queryKey: ['farm', 'equips'] })
+
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['badges', 'equips', user?.id || 'anon'], exact: true }),
+        queryClient.refetchQueries({ queryKey: ['badges', 'equips', 'betail', selectedBetail?.id || 'none'], exact: true }),
+      ])
     },
   })
 
@@ -474,6 +509,23 @@ function MyBetailsPageQuery() {
     return [...(selectedBetailEquips || [])]
       .sort((a, b) => (a.slot || 99) - (b.slot || 99))
   }, [selectedBetailEquips])
+  const userInventoryPurchasePriceByBadgeId = useMemo(() => {
+    const map = new Map()
+    for (const badge of userInventoryBadges || []) {
+      if (!badge?.id) continue
+      const purchasePrice = Number(badge?.purchasePrice)
+      map.set(badge.id, Number.isFinite(purchasePrice) ? Math.max(0, purchasePrice) : 0)
+    }
+    return map
+  }, [userInventoryBadges])
+  const selectedEquippedBadgePurchaseBonus = useMemo(() => {
+    const totalPaid = selectedEquippedBadges.reduce((sum, badge) => {
+      const paidPrice = Number(userInventoryPurchasePriceByBadgeId.get(badge?.id))
+      if (!Number.isFinite(paidPrice) || paidPrice <= 0) return sum
+      return sum + paidPrice
+    }, 0)
+    return Math.floor(totalPaid * 0.75)
+  }, [selectedEquippedBadges, userInventoryPurchasePriceByBadgeId])
   const selectedBadgesBySlot = useMemo(() => {
     const map = new Map()
     selectedEquippedBadges.forEach((badge) => {
@@ -529,9 +581,8 @@ function MyBetailsPageQuery() {
 
   const playPremiumSuccessSound = useCallback(() => {
     try {
-      const audio = new Audio(premiumSuccessSound)
-      audio.volume = 0.85
-      void audio.play().catch(() => {})
+      const audio = createSafeAudio(premiumSuccessSound, { volume: 0.85 })
+      void playAudioSafely(audio)
     } catch {
       // silence volontaire si autoplay bloqué
     }
@@ -540,9 +591,8 @@ function MyBetailsPageQuery() {
   const playPinSound = useCallback((isPinning) => {
     try {
       const soundFile = isPinning ? pinInSound : pinOutSound
-      const audio = new Audio(soundFile)
-      audio.volume = 0.7
-      void audio.play().catch(() => {})
+      const audio = createSafeAudio(soundFile, { volume: 0.7 })
+      void playAudioSafely(audio)
     } catch {
       // silence volontaire si autoplay bloqué
     }
@@ -630,6 +680,7 @@ function MyBetailsPageQuery() {
       age: Number.isFinite(Number(selectedBetail.age)) ? Number(selectedBetail.age) : null,
       createdAt: selectedCreatedAt || null,
       badgeCount: selectedEquippedBadges.length,
+      badgePurchaseBonus: selectedEquippedBadgePurchaseBonus,
       shippingEstimatedGain: Number.isFinite(Number(selectedBetail.shipping_estimated_gain))
         ? Number(selectedBetail.shipping_estimated_gain)
         : null,

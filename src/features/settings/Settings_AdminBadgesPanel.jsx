@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCcw } from 'lucide-react';
+import { RefreshCcw, X } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl, normalizeBadgeCatalogRow, sortBadgesByRarityThenName } from '../badges';
 
@@ -160,18 +160,6 @@ const buildCreateRpcVariants = ({ filename, name, rarity, price, stockTotal }) =
   ];
 };
 
-const buildIncreaseStockRpcVariants = ({ badgeId, increaseBy }) => {
-  const safeIncreaseBy = Math.max(1, toSafeInt(increaseBy, 1));
-  return [
-    { p_badge_id: badgeId, p_increase_by: safeIncreaseBy },
-    { p_badge_id: badgeId, p_delta: safeIncreaseBy },
-    { p_badge_id: badgeId, p_amount: safeIncreaseBy },
-    { badge_id: badgeId, increase_by: safeIncreaseBy },
-    { badge_id: badgeId, delta: safeIncreaseBy },
-    { badge_id: badgeId, amount: safeIncreaseBy },
-  ];
-};
-
 const buildDeleteBadgeRpcVariants = ({ badgeId }) => {
   return [
     { p_badge_id: badgeId },
@@ -239,6 +227,21 @@ const fetchAdminBadgeCatalog = async () => {
   );
 };
 
+const fetchRealSoldCountsByBadge = async () => {
+  const { data, error } = await supabase
+    .from('badges_inventory_reborn')
+    .select('badge_id');
+
+  if (error) throw error;
+
+  return (data || []).reduce((acc, row) => {
+    const badgeId = String(row?.badge_id || '').trim();
+    if (!badgeId) return acc;
+    acc[badgeId] = (acc[badgeId] || 0) + 1;
+    return acc;
+  }, {});
+};
+
 const createBadgeCatalogDirectly = async ({ filename, name, rarity, price, stockTotal }) => {
   const payload = {
     filename,
@@ -253,6 +256,63 @@ const createBadgeCatalogDirectly = async ({ filename, name, rarity, price, stock
   const { error } = await supabase.from('badges_catalog_reborn').insert(payload);
   if (error) throw error;
   return payload;
+};
+
+const increaseBadgeStockDirectly = async ({ badgeId, increaseBy }) => {
+  const safeIncreaseBy = Math.max(1, toSafeInt(increaseBy, 1));
+
+  const { data: row, error: readError } = await supabase
+    .from('badges_catalog_reborn')
+    .select('id,stock_total,sold_count')
+    .eq('id', badgeId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (!row?.id) throw new Error('Badge introuvable.');
+
+  const currentStockTotal = toSafeInt(row.stock_total, 0);
+  const soldCount = toSafeInt(row.sold_count, 0);
+  const nextStockTotal = Math.max(soldCount, currentStockTotal + safeIncreaseBy);
+
+  const { error: updateError } = await supabase
+    .from('badges_catalog_reborn')
+    .update({ stock_total: nextStockTotal })
+    .eq('id', badgeId);
+
+  if (updateError) throw updateError;
+  return { success: true, stock_total: nextStockTotal };
+};
+
+const addBadgeAvailabilityDirectly = async ({ badgeId, addBy }) => {
+  const safeAddBy = Math.max(1, toSafeInt(addBy, 1));
+
+  const { data: row, error: readError } = await supabase
+    .from('badges_catalog_reborn')
+    .select('id,stock_total,sold_count')
+    .eq('id', badgeId)
+    .maybeSingle();
+
+  if (readError) throw readError;
+  if (!row?.id) throw new Error('Badge introuvable.');
+
+  const stockTotal = toSafeInt(row.stock_total, 0);
+  const soldCount = toSafeInt(row.sold_count, 0);
+  const stockLeft = Math.max(0, stockTotal - soldCount);
+
+  if (stockLeft >= stockTotal || soldCount <= 0) {
+    throw new Error('Stock deja plein: impossible d ajouter un badge disponible.');
+  }
+
+  const effectiveAddBy = Math.min(safeAddBy, soldCount);
+  const nextSoldCount = Math.max(0, soldCount - effectiveAddBy);
+
+  const { error: updateError } = await supabase
+    .from('badges_catalog_reborn')
+    .update({ sold_count: nextSoldCount })
+    .eq('id', badgeId);
+
+  if (updateError) throw updateError;
+  return { success: true, added: effectiveAddBy };
 };
 
 const listFolderPage = async (storage, folder, options = {}) => {
@@ -380,6 +440,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
   const [isPriceManual, setIsPriceManual] = useState(false);
   const [isRarityManual, setIsRarityManual] = useState(false);
   const [stockIncreaseById, setStockIncreaseById] = useState({});
+  const [confirmDeleteBadgeId, setConfirmDeleteBadgeId] = useState('');
 
   useEffect(() => {
     if (!isActive) return;
@@ -403,6 +464,16 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
   const badgesQuery = useQuery({
     queryKey: ADMIN_BADGES_QUERY_KEY,
     queryFn: fetchAdminBadgeCatalog,
+    enabled: Boolean(isActive && isAdmin),
+    staleTime: 15_000,
+    gcTime: 300_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
+  const soldCountsQuery = useQuery({
+    queryKey: ['settings', 'admin', 'badges', 'sold-counts-reborn'],
+    queryFn: fetchRealSoldCountsByBadge,
     enabled: Boolean(isActive && isAdmin),
     staleTime: 15_000,
     gcTime: 300_000,
@@ -532,27 +603,49 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     },
   });
 
+  const addBadgeMutation = useMutation({
+    mutationFn: async ({ badgeId, amount }) => {
+      const safeAmount = Math.max(1, toSafeInt(amount, 1));
+      const result = await addBadgeAvailabilityDirectly({ badgeId, addBy: safeAmount });
+      ensureRpcSuccess(result, 'Ajout badge disponible impossible.');
+      return { badgeId, amount: toSafeInt(result?.added, safeAmount) };
+    },
+    onSuccess: ({ badgeId, amount }) => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
+      setFeedback({ type: 'success', message: `Badge disponible ajoute +${amount}.` });
+      emitToast('success', `Badge disponible ajoute +${amount}.`);
+      setStockIncreaseById((current) => ({ ...current, [badgeId]: '1' }));
+    },
+    onError: (error) => {
+      const message = String(error?.message || 'Ajout badge disponible impossible.');
+      if (error?.code === '42501' || message.includes('403')) {
+        setFeedback({ type: 'error', message: 'Permission refusée pour ajouter un badge disponible (RLS).' });
+        emitToast('error', 'Permission refusée pour ajouter un badge disponible.');
+        return;
+      }
+      setFeedback({ type: 'error', message });
+      emitToast('error', message);
+    },
+  });
+
   const increaseStockMutation = useMutation({
     mutationFn: async ({ badgeId, amount }) => {
       const safeAmount = Math.max(1, toSafeInt(amount, 1));
-      const result = await tryRpcVariants(
-        'admin_increase_badge_stock_reborn',
-        buildIncreaseStockRpcVariants({ badgeId, increaseBy: safeAmount }),
-      );
+      const result = await increaseBadgeStockDirectly({ badgeId, increaseBy: safeAmount });
       ensureRpcSuccess(result, 'Augmentation de stock impossible.');
       return { badgeId, amount: safeAmount };
     },
     onSuccess: ({ badgeId, amount }) => {
       queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
-      setFeedback({ type: 'success', message: `Stock augmenté de +${amount}.` });
-      emitToast('success', `Stock badge augmenté de +${amount}.`);
+      setFeedback({ type: 'success', message: `Capacite stock augmentee de +${amount}.` });
+      emitToast('success', `Capacite stock augmentee de +${amount}.`);
       setStockIncreaseById((current) => ({ ...current, [badgeId]: '1' }));
     },
     onError: (error) => {
       const message = String(error?.message || 'Augmentation de stock impossible.');
-      if (isRpcSignatureError(error) || message.toLowerCase().includes('admin_increase_badge_stock_reborn')) {
-        setFeedback({ type: 'error', message: 'Fonction SQL admin_increase_badge_stock_reborn absente ou signature différente.' });
-        emitToast('error', 'Fonction SQL admin_increase_badge_stock_reborn absente ou signature différente.');
+      if (error?.code === '42501' || message.includes('403')) {
+        setFeedback({ type: 'error', message: 'Permission refusée pour augmenter le stock (RLS). Vérifie les policies admin update sur badges_catalog_reborn.' });
+        emitToast('error', 'Permission refusée pour augmenter le stock.');
         return;
       }
       setFeedback({ type: 'error', message });
@@ -580,8 +673,10 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
       return { badgeFilename, storageErrorMessage };
     },
     onSuccess: ({ badgeFilename, storageErrorMessage }) => {
+      setConfirmDeleteBadgeId('');
       queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['settings', 'badges'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'admin', 'badges', 'sold-counts-reborn'] });
 
       if (storageErrorMessage) {
         setFeedback({ type: 'error', message: storageErrorMessage });
@@ -604,7 +699,11 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     },
   });
 
-  const isMutating = createBadgeMutation.isPending || increaseStockMutation.isPending || deleteBadgeMutation.isPending;
+  const isMutating =
+    createBadgeMutation.isPending ||
+    addBadgeMutation.isPending ||
+    increaseStockMutation.isPending ||
+    deleteBadgeMutation.isPending;
 
   const previewUrl = useMemo(() => {
     if (sourceMode === 'upload') {
@@ -652,6 +751,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
 
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
+    queryClient.invalidateQueries({ queryKey: ['settings', 'admin', 'badges', 'sold-counts-reborn'] });
   };
 
   const handleUploadSelection = (event) => {
@@ -685,12 +785,16 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     increaseStockMutation.mutate({ badgeId: badge.id, amount });
   };
 
+  const handleAddBadge = (badge, canAddBadge) => {
+    if (!canAddBadge) {
+      return;
+    }
+    const rawAmount = stockIncreaseById[badge.id];
+    const amount = Math.max(1, toSafeInt(rawAmount, 1));
+    addBadgeMutation.mutate({ badgeId: badge.id, amount });
+  };
+
   const handleDeleteBadge = (badge) => {
-    const label = badge?.filename || badge?.name || 'ce badge';
-    const confirmed = window.confirm(
-      `Supprimer ${label} ? Cette action retire aussi ce badge des inventaires/équipements et du bucket.`,
-    );
-    if (!confirmed) return;
     deleteBadgeMutation.mutate({
       badgeId: badge.id,
       rarity: badge.rarity,
@@ -866,8 +970,8 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
         </div>
       </div>
 
-      <div className="settings-admin-shipping-topbar">
-        <label className="settings-admin-shipping-search-wrap" htmlFor="settings-admin-badges-search">
+      <div className="settings-admin-toolbar settings-admin-toolbar--badges">
+        <label className="settings-admin-search-wrap" htmlFor="settings-admin-badges-search">
           <input
             id="settings-admin-badges-search"
             type="search"
@@ -901,8 +1005,22 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
       <div className="settings-admin-badges-list">
         {(filteredBadges || []).map((badge) => {
           const stockInput = stockIncreaseById[badge.id] ?? '1';
+          const canAddBadge = badge.stockLeft < badge.stockTotal;
+          const realSoldCount = Number(soldCountsQuery.data?.[badge.id] ?? badge.soldCount ?? 0);
+          const isDeleteConfirmOpen = confirmDeleteBadgeId === badge.id;
           return (
             <article key={badge.id} className={`settings-admin-badge-row is-${badge.rarity}`}>
+              <button
+                type="button"
+                className={`settings-admin-badge-delete-icon-btn ${isDeleteConfirmOpen ? 'is-active' : ''}`}
+                onClick={() => setConfirmDeleteBadgeId((current) => (current === badge.id ? '' : badge.id))}
+                disabled={isMutating}
+                aria-label={`Supprimer ${badge.name}`}
+                title="Supprimer"
+              >
+                <X size={14} strokeWidth={2.6} aria-hidden="true" />
+              </button>
+
               <div className="settings-admin-badge-row-main">
                 {badge.imageUrl ? (
                   <img
@@ -924,45 +1042,77 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
                     {badge.rarityLabel} | Prix: {Number(badge.price || 0).toLocaleString('fr-FR')} 💸
                   </p>
                   <p className="settings-item-subtitle">
-                    Stock: {badge.stockLeft}/{badge.stockTotal} (vendus: {badge.soldCount}) {badge.isActive ? '' : '| Inactif'}
+                    Stock: {badge.stockLeft}/{badge.stockTotal} (vendus: {realSoldCount}) {badge.isActive ? '' : '| Inactif'}
                   </p>
                 </div>
               </div>
 
               <div className="settings-admin-badge-actions">
-                <div className="settings-admin-badge-stock-edit">
-                  <input
-                    type="number"
-                    className="settings-admin-badge-input"
-                    min={1}
-                    step={1}
-                    value={stockInput}
-                    onChange={(event) =>
-                      setStockIncreaseById((current) => ({
-                        ...current,
-                        [badge.id]: event.target.value,
-                      }))
-                    }
-                    disabled={isMutating}
-                  />
-                  <button
-                    type="button"
-                    className="settings-action settings-action--tiny"
-                    onClick={() => handleIncreaseStock(badge)}
-                    disabled={isMutating}
-                  >
-                    + Stock
-                  </button>
-                </div>
-
-                <button
-                  type="button"
-                  className="settings-action settings-action--tiny settings-action--danger"
-                  onClick={() => handleDeleteBadge(badge)}
-                  disabled={isMutating}
-                >
-                  Supprimer
-                </button>
+                {isDeleteConfirmOpen ? (
+                  <div className="settings-admin-badge-delete-confirm" role="alert">
+                    <p className="settings-admin-badge-delete-confirm-text">
+                      Confirmer la suppression de ce badge ?
+                    </p>
+                    <div className="settings-admin-badge-delete-confirm-actions">
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny settings-action--danger"
+                        onClick={() => handleDeleteBadge(badge)}
+                        disabled={isMutating}
+                      >
+                        Confirmer
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny"
+                        onClick={() => setConfirmDeleteBadgeId('')}
+                        disabled={isMutating}
+                      >
+                        Annuler
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="settings-admin-badge-stock-panel">
+                    <p className="settings-admin-badge-stock-help">
+                      Quantite a appliquer
+                    </p>
+                    <div className="settings-admin-badge-stock-edit">
+                      <input
+                        type="number"
+                        className="settings-admin-badge-input"
+                        min={1}
+                        step={1}
+                        value={stockInput}
+                        onChange={(event) =>
+                          setStockIncreaseById((current) => ({
+                            ...current,
+                            [badge.id]: event.target.value,
+                          }))
+                        }
+                        disabled={isMutating}
+                      />
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny"
+                        onClick={() => handleAddBadge(badge, canAddBadge)}
+                        disabled={isMutating || !canAddBadge}
+                        title={canAddBadge ? 'Ajoute des badges disponibles sans changer la capacite' : 'Stock deja plein'}
+                      >
+                        Ajouter badge
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny"
+                        onClick={() => handleIncreaseStock(badge)}
+                        disabled={isMutating}
+                        title="Augmente la capacite maximale du stock"
+                      >
+                        Augmenter capacite
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </article>
           );

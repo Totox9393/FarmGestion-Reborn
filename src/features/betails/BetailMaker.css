@@ -243,6 +243,8 @@
   background: linear-gradient(135deg, #ff6b6b 0%, #ff8e8e 50%, #ffffff 100%);
   position: relative;
   overflow: hidden;
+  overflow-x: clip;
+  scrollbar-gutter: stable both-edges;
   padding: 20px;
 }
 
@@ -250,7 +252,8 @@
   .betail-maker {
     min-height: auto;
     height: auto;
-    overflow: auto;
+    overflow-y: auto;
+    overflow-x: hidden;
     padding-top: 60px;
     padding-bottom: 60px;
   }

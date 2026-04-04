@@ -63,7 +63,7 @@ function PasswordModal({ isOpen, onClose, onOpenLogin }) {
       return;
     }
 
-    setSuccess('Si cette adresse existe, un email de réinitialisation vient d\'être envoyé.');
+    setSuccess('Si l\'adresse existe, un email de réinitialisation vient d\'être envoyé. Vérifie bien tes spams !');
   };
 
   return (

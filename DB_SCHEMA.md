@@ -61,9 +61,11 @@ create table public.betails (
   visible boolean null default true,
   invisible_at timestamp with time zone null,
   invisible_reason text null,
+  admin_reward_badge_ids jsonb not null default '[]'::jsonb,
   constraint betails_pkey primary key (id),
   constraint betails_matricule_key unique (matricule),
   constraint betails_matricule_unique unique (matricule),
+  constraint betails_admin_reward_badge_ids_is_array check (jsonb_typeof(admin_reward_badge_ids) = 'array'),
   constraint betails_author_id_fkey foreign KEY (author_id) references auth.users (id) on delete CASCADE,
   constraint betails_farm_id_fkey foreign KEY (farm_id) references farms_list (id) on delete set null,
   constraint betails_owner_id_fkey foreign KEY (owner_id) references auth.users (id) on delete set null
@@ -295,8 +297,49 @@ unequip_farm_badge_reborn(p_badge_id uuid) returns jsonb
 admin_create_badge_reborn(...) returns jsonb
 admin_increase_badge_stock_reborn(...) returns jsonb
 admin_delete_badge_reborn(...) returns jsonb
+admin_set_betail_visibility_reborn(p_betail_id uuid, p_visible boolean, p_invisible_reason text default null) returns jsonb
+admin_delete_betail_reborn(p_betail_id uuid) returns jsonb
+create_admin_betail_reborn(..., p_reward_badge_ids jsonb default '[]'::jsonb) returns json
+purchase_betail_reborn(p_betail_id uuid) returns table(betail_id uuid, farm_id bigint, owner_id uuid, farm_site text)
 cleanup_delivered_badges_reborn() returns jsonb
 process_shipping_with_badge_cleanup_reborn(...) returns jsonb
+```
+
+## Moderation admin (visibilite / suppression)
+
+```text
+- `admin_set_betail_visibility_reborn`:
+  - quand `p_visible = false`, retire les badges equipes sur le betail,
+  - puis retire ces memes badges de l'inventaire du proprietaire.
+- `admin_delete_betail_reborn`:
+  - retire d'abord badges_equips + inventaire associe,
+  - puis supprime le betail.
+- Objectif: eviter les suppressions bloquees et garder un etat badges coherent.
+```
+
+## Badges cachés admin (achat bétail)
+
+```text
+- `betails.admin_reward_badge_ids` stocke jusqu'à 3 badge_id offerts par l'admin (badges cachés).
+- À l'achat (`purchase_betail_reborn`):
+  - si l'utilisateur possède déjà un badge caché, on ne le redonne pas (et pas d'auto-équipement).
+  - sinon, insertion dans `badges_inventory_reborn` avec `purchase_price = 0`.
+  - puis tentative d'auto-équipement sur le bétail acheté (premier slot libre 1..3).
+- Le stock de `badges_catalog_reborn` n'est pas décrémenté pour ces badges cadeaux admin.
+```
+
+## Règle gain expédition (shipping)
+
+```text
+La fonction `schedule_shipping_reborn` calcule `estimated_gain` côté SQL (source de vérité).
+`p_estimated_gain` est conservé pour compatibilité mais ignoré.
+
+Formule reborn actuelle:
+- Base: 250
+- Statut premium: +390 (sinon +45)
+- Ancienneté: +6 par mois depuis création du bétail
+- Bonus badges: +75% de la somme des `purchase_price` des badges équipés sur ce bétail
+- Impact âge: +28 par an au-dessus de 8 ans, ou -22 par an sous 8 ans
 ```
 
 ## Storage badges (upload admin)

@@ -19,6 +19,7 @@ import { useUserRole } from './hooks';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { qualityStandardSound, qualityPremiumSound } from './qualitySounds';
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 
 const MONEY_FORMATTER = new Intl.NumberFormat('fr-FR');
 
@@ -70,9 +71,8 @@ function BetailMaker() {
 
   const playAgeTick = () => {
     try {
-      const audio = new Audio(ageTickSound);
-      audio.volume = 0.6;
-      audio.play();
+      const audio = createSafeAudio(ageTickSound, { volume: 0.6 });
+      void playAudioSafely(audio);
     } catch {
       // ignore audio play errors
     }
@@ -139,9 +139,8 @@ function BetailMaker() {
     setQualityRevealEffect(result === 'premium' ? 'reveal-premium' : 'reveal-standard');
     // Son
     try {
-      const audio = new Audio(result === 'premium' ? qualityPremiumSound : qualityStandardSound);
-      audio.volume = 0.4;
-      audio.play();
+      const audio = createSafeAudio(result === 'premium' ? qualityPremiumSound : qualityStandardSound, { volume: 0.4 });
+      void playAudioSafely(audio);
     } catch {}
     // Masquer l'étiquette après 1,5s, puis déflouter et reset après 1,6s
     setTimeout(() => {
@@ -279,9 +278,8 @@ function BetailMaker() {
       return;
     }
     try {
-      const audio = new Audio(src);
-      audio.volume = 0.8;
-      audio.play();
+      const audio = createSafeAudio(src, { volume: 0.8 });
+      void playAudioSafely(audio);
       digitAudiosRef.current.push(audio);
     } catch {
       // ignore audio play errors
@@ -1272,11 +1270,6 @@ function BetailMaker() {
           )}
           {renderStepContent()}
         </div>
-      </div>
-      <div className="decorative-circles">
-        <div className="circle circle-1"></div>
-        <div className="circle circle-2"></div>
-        <div className="circle circle-3"></div>
       </div>
       {/* Overlay effet visuel qualité */}
       {qualityRevealEffect && qualityResult && (

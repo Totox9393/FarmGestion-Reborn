@@ -13,8 +13,10 @@ import {
 import { useAuth } from '../authentification/AuthContext'
 import { supabase } from '../authentification/supabaseClient'
 import ReportBetailModal from '../signalement/ReportBetailModal'
+import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio'
 import './BetailsListPage.css'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
+import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -140,7 +142,8 @@ function BetailsListPageQuery() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [reportBetailVisible, setReportBetailVisible] = useState(true)
   const queryClient = useQueryClient()
-  const purchaseAudio = useMemo(() => new Audio(purchaseSound), [])
+  const purchaseAudio = useMemo(() => createSafeAudio(purchaseSound), [])
+  const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), [])
 
   const { data: farmId } = useUserFarmId(user?.id)
   const { data: userRole = '' } = useUserRole(user?.id)
@@ -153,47 +156,56 @@ function BetailsListPageQuery() {
 
   const visibilityToggleMutation = useMutation({
     mutationFn: async ({ betailId, nextVisible }) => {
-      const payload = nextVisible
-        ? {
-            visible: true,
-            invisible_at: null,
-            invisible_reason: null,
-          }
-        : {
-            visible: false,
-            invisible_at: new Date().toISOString(),
-            invisible_reason: 'Rendu invisible manuellement par un modérateur',
-          }
+      const invisibleReason = nextVisible
+        ? null
+        : 'Rendu invisible manuellement par un moderateur'
 
-      const { error } = await supabase
-        .from('betails')
-        .update(payload)
-        .eq('id', betailId)
+      const { data, error } = await supabase.rpc('admin_set_betail_visibility_reborn', {
+        p_betail_id: betailId,
+        p_visible: nextVisible,
+        p_invisible_reason: invisibleReason,
+      })
 
-      if (error) {
-        throw error
+      if (error) throw error
+
+      const result = Array.isArray(data) ? data[0] : data
+      if (!result?.success) {
+        const reason = String(result?.reason || 'UNKNOWN')
+        throw new Error(`admin_set_betail_visibility_reborn_failed:${reason}`)
       }
 
-      return { nextVisible }
+      return {
+        nextVisible,
+        removedBadges: Number(result?.removed_badges || 0),
+      }
     },
-    onSuccess: ({ nextVisible }) => {
+    onSuccess: ({ nextVisible, removedBadges }) => {
       setReportBetailVisible(nextVisible)
       queryClient.invalidateQueries({ queryKey: ['betails'] })
       window.dispatchEvent(
         new CustomEvent('farmgestion-toast', {
           detail: {
             type: 'success',
-            message: nextVisible ? 'Bétail rendu visible.' : 'Bétail rendu invisible.',
+            message: nextVisible
+              ? 'Betail rendu visible.'
+              : removedBadges > 0
+                ? `Betail rendu invisible. ${removedBadges} badge(s) retire(s) de l\'inventaire du proprietaire.`
+                : 'Betail rendu invisible.',
           },
         }),
       )
     },
-    onError: () => {
+    onError: (error) => {
+      const rawMessage = String(error?.message || '').toLowerCase()
+      let message = 'Impossible de changer la visibilite du betail.'
+      if (rawMessage.includes('admin_set_betail_visibility_reborn')) {
+        message = 'La fonction SQL admin_set_betail_visibility_reborn est absente ou signature differente.'
+      }
       window.dispatchEvent(
         new CustomEvent('farmgestion-toast', {
           detail: {
             type: 'error',
-            message: 'Impossible de changer la visibilité du bétail.',
+            message,
           },
         }),
       )
@@ -279,6 +291,9 @@ function BetailsListPageQuery() {
           })),
         }
       })
+      if (liked) {
+        void restartAudioSafely(likeConfirmAudio)
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['betails', 'liked', user?.id || 'anon'] })
@@ -455,8 +470,7 @@ function BetailsListPageQuery() {
       { betailId },
       {
         onSuccess: () => {
-          purchaseAudio.currentTime = 0
-          purchaseAudio.play().catch(() => {})
+          void restartAudioSafely(purchaseAudio)
           window.dispatchEvent(
             new CustomEvent('farmgestion-toast', {
               detail: { type: 'success', message: 'Bétail acheté avec succès.' },
@@ -756,3 +770,4 @@ function BetailsListPageQuery() {
 }
 
 export default BetailsListPageQuery
+

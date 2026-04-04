@@ -900,6 +900,13 @@
   gap: 12px;
 }
 
+.settings-badge-section-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .settings-badge-slot-grid,
 .settings-badge-free-grid,
 .settings-badge-owned-grid {
@@ -907,6 +914,94 @@
   grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
   gap: 10px;
   width: 100%;
+}
+
+.settings-badge-slot-grid--centered {
+  grid-template-columns: repeat(3, minmax(132px, 164px));
+  justify-content: center;
+}
+
+.settings-badge-owned-carousel {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr) 42px;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.settings-badge-owned-viewport {
+  grid-column: 2;
+  overflow-x: hidden;
+  overflow-y: visible;
+  width: 100%;
+  padding: 2px 0 10px;
+}
+
+.settings-badge-owned-track {
+  display: flex;
+  width: 100%;
+  transition: transform 0.34s ease;
+  will-change: transform;
+}
+
+.settings-badge-owned-page {
+  flex: 0 0 100%;
+}
+
+.settings-badge-owned-page .settings-badge-owned-grid {
+  grid-template-columns: repeat(3, minmax(132px, 164px));
+  justify-content: center;
+}
+
+.settings-badge-carousel-nav {
+  grid-row: 1;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-accent);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color 0.16s ease, transform 0.16s ease, background 0.16s ease;
+  align-self: center;
+}
+
+.settings-badge-carousel-nav--prev {
+  grid-column: 1;
+}
+
+.settings-badge-carousel-nav--next {
+  grid-column: 3;
+}
+
+.settings-badge-carousel-nav svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+  stroke: currentColor;
+  color: currentColor;
+  flex-shrink: 0;
+}
+
+.settings-badge-carousel-nav.is-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.settings-badge-carousel-nav:hover {
+  border-color: var(--settings-accent);
+  background: var(--settings-accent-soft);
+  transform: translateY(-1px);
+}
+
+.settings-badge-carousel-nav:focus,
+.settings-badge-carousel-nav:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
 }
 
 .settings-badge-slot-card,
@@ -995,6 +1090,37 @@
   color: var(--settings-accent);
 }
 
+.settings-badge-owned-status-wrap {
+  min-height: 17px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+}
+
+.settings-badge-owned-status-hover {
+  margin: 0;
+  display: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--settings-text);
+  text-align: center;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-badge-owned-card.is-equipped:hover .settings-badge-owned-status,
+.settings-badge-owned-card.is-equipped:focus-within .settings-badge-owned-status {
+  display: none;
+}
+
+.settings-badge-owned-card.is-equipped:hover .settings-badge-owned-status-hover,
+.settings-badge-owned-card.is-equipped:focus-within .settings-badge-owned-status-hover {
+  display: block;
+}
+
 .settings-badge-picker-backdrop {
   position: absolute;
   inset: 0;
@@ -1042,6 +1168,25 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(108px, 1fr));
   gap: 10px;
+}
+
+.settings-badge-picker-grid.is-scrollable {
+  max-height: 238px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.settings-badge-picker-grid.is-scrollable::-webkit-scrollbar {
+  width: 8px;
+}
+
+.settings-badge-picker-grid.is-scrollable::-webkit-scrollbar-thumb {
+  background: rgba(125, 108, 233, 0.38);
+  border-radius: 999px;
+}
+
+.settings-badge-picker-grid.is-scrollable::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .settings-badge-picker-card {
@@ -1364,6 +1509,16 @@
   gap: 8px;
 }
 
+.settings-admin-toolbar--badges {
+  justify-content: space-between;
+  flex-wrap: nowrap;
+}
+
+.settings-admin-search-wrap {
+  flex: 1;
+  min-width: 0;
+}
+
 .settings-admin-search {
   width: 100%;
   flex: 1;
@@ -1508,20 +1663,55 @@
 }
 
 .settings-admin-badges-list {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
 }
 
 .settings-admin-badge-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   gap: 12px;
   border: 1px solid var(--settings-border);
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.03);
   padding: 12px;
+  padding-right: 44px;
+  min-height: 162px;
+}
+
+.settings-admin-badge-delete-icon-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 85, 85, 0.65);
+  background: rgba(255, 85, 85, 0.1);
+  color: #ff8f8f;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+.settings-admin-badge-delete-icon-btn:hover {
+  background: rgba(255, 85, 85, 0.16);
+  border-color: rgba(255, 85, 85, 0.85);
+}
+
+.settings-admin-badge-delete-icon-btn.is-active {
+  background: rgba(255, 85, 85, 0.22);
+}
+
+.settings-admin-badge-delete-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .settings-admin-badge-row-main {
@@ -1538,9 +1728,51 @@
 
 .settings-admin-badge-actions {
   display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-admin-badge-delete-confirm {
+  width: 100%;
+  border: 1px dashed rgba(255, 85, 85, 0.45);
+  border-radius: 10px;
+  background: rgba(255, 85, 85, 0.08);
+  padding: 9px;
+  display: flex;
   flex-direction: column;
   gap: 8px;
-  align-items: flex-end;
+}
+
+.settings-admin-badge-delete-confirm-text {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #ff9b9b;
+}
+
+.settings-admin-badge-delete-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.settings-admin-badge-stock-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.settings-admin-badge-stock-help {
+  margin: 0;
+  font-size: 12px;
+  color: var(--settings-muted);
+  font-weight: 600;
 }
 
 .settings-action--danger {
@@ -1550,12 +1782,14 @@
 
 .settings-admin-badge-stock-edit {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 .settings-admin-badge-stock-edit .settings-admin-badge-input {
-  width: 92px;
+  width: 86px;
+  flex: 0 0 auto;
 }
 
 .settings-admin-badge-row.is-1_common {
@@ -1991,7 +2225,7 @@
   }
 
   .settings-admin-badge-row {
-    grid-template-columns: 1fr;
+    min-height: 0;
   }
 
   .settings-admin-badge-row-main {
@@ -2001,15 +2235,29 @@
   .settings-admin-badge-actions {
     width: 100%;
     align-items: stretch;
+    justify-content: stretch;
   }
 
+  .settings-admin-badge-stock-panel,
   .settings-admin-badge-stock-edit {
     width: 100%;
   }
 
   .settings-admin-badge-stock-edit .settings-admin-badge-input {
-    flex: 1;
-    min-width: 0;
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .settings-admin-badges-list {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-admin-toolbar--badges {
+    flex-wrap: nowrap;
+  }
+
+  .settings-admin-refresh-icon-btn {
+    flex-shrink: 0;
   }
 
   .settings-admin-shipping-actions {
@@ -2018,5 +2266,27 @@
 
   .settings-admin-shipping-meta {
     white-space: normal;
+  }
+
+  .settings-badge-section-header {
+    align-items: center;
+  }
+
+  .settings-badge-slot-grid--centered {
+    grid-template-columns: repeat(3, minmax(104px, 1fr));
+  }
+
+  .settings-badge-owned-carousel {
+    grid-template-columns: 36px minmax(0, 1fr) 36px;
+    gap: 8px;
+  }
+
+  .settings-badge-owned-page .settings-badge-owned-grid {
+    grid-template-columns: repeat(2, minmax(112px, 164px));
+    justify-content: center;
+  }
+
+  .settings-badge-owned-status-hover {
+    max-width: 128px;
   }
 }

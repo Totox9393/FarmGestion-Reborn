@@ -45,8 +45,15 @@ declare
   v_day_count_after integer := 0;
   v_reassigned boolean := false;
   v_effective_notes text := null;
-  v_has_estimated_gain_input boolean := p_estimated_gain is not null;
-  v_estimated_gain integer := greatest(0, coalesce(p_estimated_gain, 0));
+  v_estimated_gain integer := 0;
+  v_base_gain integer := 250;
+  v_status_impact integer := 45;
+  v_months_since_creation integer := 0;
+  v_seniority_bonus integer := 0;
+  v_badge_bonus integer := 0;
+  v_normalized_age integer := 9;
+  v_age_delta integer := 0;
+  v_age_impact integer := 0;
   v_candidate_dates date[] := array[]::date[];
   v_candidate_count integer := 0;
   v_random_index integer := 0;
@@ -107,6 +114,55 @@ begin
   if coalesce(p_manual_choice, false) and not v_has_manual_privilege then
     return json_build_object('success', false, 'reason', 'VIP_MANUAL_ONLY');
   end if;
+
+  -- NOTE: p_estimated_gain is intentionally ignored.
+  -- Shipping gain is always computed server-side from the betail + equipped badges.
+  v_status_impact := case
+    when coalesce(v_betail.premium, false) then 390
+    else 45
+  end;
+
+  v_months_since_creation := greatest(
+    0,
+    (
+      extract(year from age(
+        (now() at time zone 'UTC')::date,
+        coalesce(v_betail.created_at, now())::date
+      ))::integer * 12
+    )
+    + extract(
+      month from age(
+        (now() at time zone 'UTC')::date,
+        coalesce(v_betail.created_at, now())::date
+      )
+    )::integer
+  );
+  v_seniority_bonus := v_months_since_creation * 6;
+
+  select floor(coalesce(sum(greatest(0, i.purchase_price)), 0) * 0.75)::integer
+  into v_badge_bonus
+  from public.badges_equips_reborn e
+  join public.badges_inventory_reborn i
+    on i.user_id = e.user_id
+   and i.badge_id = e.badge_id
+  where e.betail_id = p_betail_id
+    and e.user_id = v_user_id;
+
+  v_normalized_age := coalesce(v_betail.age, 9);
+  v_age_delta := v_normalized_age - 8;
+  v_age_impact := case
+    when v_age_delta >= 0 then round(v_age_delta * 28.0)::integer
+    else -round(abs(v_age_delta) * 22.0)::integer
+  end;
+
+  v_estimated_gain := greatest(
+    0,
+    v_base_gain
+    + v_status_impact
+    + v_seniority_bonus
+    + coalesce(v_badge_bonus, 0)
+    + v_age_impact
+  );
 
   if p_requested_date is not null and btrim(p_requested_date) <> '' then
     begin
@@ -189,10 +245,7 @@ begin
     update public.shipping
     set status = 'scheduled',
         notes = coalesce(v_effective_notes, notes),
-        estimated_gain = case
-          when v_has_estimated_gain_input then v_estimated_gain
-          else coalesce(estimated_gain, 0)
-        end,
+        estimated_gain = v_estimated_gain,
         scheduled_by_uuid = coalesce(scheduled_by_uuid, v_user_id),
         updated_at = now()
     where id = v_existing_shipping.id;
@@ -213,10 +266,7 @@ begin
       'already_scheduled', true,
       'locked_date', true,
       'manual_choice', v_manual_effective,
-      'estimated_gain', case
-        when v_has_estimated_gain_input then v_estimated_gain
-        else coalesce(v_existing_shipping.estimated_gain, 0)
-      end,
+      'estimated_gain', v_estimated_gain,
       'scheduled_for', v_selected_ts,
       'notes', coalesce(v_effective_notes, v_existing_shipping.notes, ''),
       'message', 'Date conservée: ce bétail garde son créneau déjà validé.'
@@ -345,10 +395,7 @@ begin
   set scheduled_for = excluded.scheduled_for,
       status = 'scheduled',
       notes = coalesce(excluded.notes, public.shipping.notes),
-      estimated_gain = case
-        when v_has_estimated_gain_input then excluded.estimated_gain
-        else coalesce(public.shipping.estimated_gain, excluded.estimated_gain)
-      end,
+      estimated_gain = excluded.estimated_gain,
       scheduled_by_uuid = excluded.scheduled_by_uuid,
       updated_at = now();
 

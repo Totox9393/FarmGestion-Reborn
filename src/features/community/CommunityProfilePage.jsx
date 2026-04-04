@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams } from 'react-router-dom';
-import { UserRound, Lock, Home, UserPlus, UserMinus, ShieldBan, Check, X, Users, Pin, Heart, MessageSquare, ListChecks } from 'lucide-react';
+import { UserRound, Lock, Home, UserPlus, UserMinus, ShieldBan, Check, X, Users, Pin, Heart, MessageSquare, ListChecks, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
 import { fetchUserProfileBadgesReborn } from '../badges';
@@ -20,9 +20,14 @@ import {
 } from './friendsApi';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import blockedProfileFailSound from '../../assets/sounds/JIN_EVENT_FAIL.WAV';
+import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
+import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio';
 import './CommunityProfilePage.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const MOBILE_BADGES_BREAKPOINT = 820;
+const COLLAPSED_BADGES_COUNT_DESKTOP = 7;
+const COLLAPSED_BADGES_COUNT_MOBILE = 6;
 
 const isMissingRpcError = (error) => {
   const code = String(error?.code || '');
@@ -178,10 +183,16 @@ function CommunityProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), []);
   const blockedSoundPlayedRef = useRef(false);
   const confirmResetTimerRef = useRef(null);
   const [flippedBetailIds, setFlippedBetailIds] = useState(() => new Set());
   const [confirmAction, setConfirmAction] = useState('');
+  const [showAllBadges, setShowAllBadges] = useState(false);
+  const [isMobileBadgesLayout, setIsMobileBadgesLayout] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia(`(max-width: ${MOBILE_BADGES_BREAKPOINT}px)`).matches;
+  });
 
   const profileQuery = useQuery({
     queryKey: ['community', 'profile', handle],
@@ -262,9 +273,8 @@ function CommunityProfilePage() {
     blockedSoundPlayedRef.current = true;
 
     try {
-      const audio = new Audio(blockedProfileFailSound);
-      audio.volume = 0.72;
-      void audio.play().catch(() => {});
+      const audio = createSafeAudio(blockedProfileFailSound, { volume: 0.72 });
+      void playAudioSafely(audio);
     } catch {
       // Ignore playback errors (autoplay permissions, etc.)
     }
@@ -379,6 +389,25 @@ function CommunityProfilePage() {
     }
   }, [isFriendActionBusy]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return undefined;
+    const mediaQuery = window.matchMedia(`(max-width: ${MOBILE_BADGES_BREAKPOINT}px)`);
+
+    const onChange = (event) => {
+      setIsMobileBadgesLayout(event.matches);
+    };
+
+    setIsMobileBadgesLayout(mediaQuery.matches);
+
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', onChange);
+      return () => mediaQuery.removeEventListener('change', onChange);
+    }
+
+    mediaQuery.addListener(onChange);
+    return () => mediaQuery.removeListener(onChange);
+  }, []);
+
   const handleRemoveFriend = () => {
     if (!relation?.id) return;
     if (!window.confirm('Supprimer cet ami ?')) return;
@@ -411,6 +440,19 @@ function CommunityProfilePage() {
 
   const friendsList = friendsListQuery.data || [];
   const profileBadges = profileBadgesQuery.data || [];
+  const collapsedBadgesCount = isMobileBadgesLayout ? COLLAPSED_BADGES_COUNT_MOBILE : COLLAPSED_BADGES_COUNT_DESKTOP;
+  const canToggleBadges = profileBadges.length > collapsedBadgesCount;
+  const displayedBadges = showAllBadges || !canToggleBadges ? profileBadges : profileBadges.slice(0, collapsedBadgesCount);
+
+  useEffect(() => {
+    if (!canToggleBadges && showAllBadges) {
+      setShowAllBadges(false);
+    }
+  }, [canToggleBadges, showAllBadges]);
+
+  useEffect(() => {
+    setShowAllBadges(false);
+  }, [profile?.id]);
 
   const togglePinnedCard = (betailId) => {
     setFlippedBetailIds((current) => {
@@ -569,6 +611,9 @@ function CommunityProfilePage() {
           };
         }),
       );
+      if (result.liked) {
+        void restartAudioSafely(likeConfirmAudio);
+      }
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: pinnedBetailsQueryKey });
@@ -849,19 +894,33 @@ function CommunityProfilePage() {
               ) : !profileBadges.length ? (
                 <p className="community-profile-badges__state">Aucun badge possede pour le moment.</p>
               ) : (
-                <div className="community-profile-badges__grid">
-                  {profileBadges.map((badge) => (
-                    <article key={badge.id} className={`community-profile-badge-card is-${badge.rarity || '0_auto'}`}>
-                      {badge.imageUrl ? (
-                        <img src={badge.imageUrl} alt={badge.filename || badge.name} loading="lazy" decoding="async" />
-                      ) : (
-                        <span className="community-profile-badge-card__fallback" aria-hidden="true">?</span>
-                      )}
-                      <p className="community-profile-badge-card__name">{badge.name}</p>
-                      <p className="community-profile-badge-card__meta">{badge.rarityLabel}</p>
-                    </article>
-                  ))}
-                </div>
+                <>
+                  <div className="community-profile-badges__grid">
+                    {displayedBadges.map((badge) => (
+                      <article key={badge.id} className={`community-profile-badge-card is-${badge.rarity || '0_auto'}`}>
+                        {badge.imageUrl ? (
+                          <img src={badge.imageUrl} alt={badge.filename || badge.name} loading="lazy" decoding="async" />
+                        ) : (
+                          <span className="community-profile-badge-card__fallback" aria-hidden="true">?</span>
+                        )}
+                        <p className="community-profile-badge-card__name">{badge.name}</p>
+                        <p className="community-profile-badge-card__meta">{badge.rarityLabel}</p>
+                      </article>
+                    ))}
+                  </div>
+                  {canToggleBadges ? (
+                    <div className="community-profile-badges__actions">
+                      <button
+                        type="button"
+                        className="community-profile-badges__toggle"
+                        onClick={() => setShowAllBadges((current) => !current)}
+                      >
+                        {showAllBadges ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                        {showAllBadges ? 'Replier les badges' : 'Voir tous les badges'}
+                      </button>
+                    </div>
+                  ) : null}
+                </>
               )}
             </section>
 

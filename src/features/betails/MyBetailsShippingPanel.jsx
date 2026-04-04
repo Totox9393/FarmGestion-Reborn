@@ -3,6 +3,7 @@ import cautionSound from '../../assets/sounds/caution.mp3'
 import costRevealSound from '../../assets/sounds/SeResourceStd2nd_00000799.wav'
 import finalHoverSound from '../../assets/sounds/SE_CTR_HOME_POPUP_POWER.wav'
 import finalClickSound from '../../assets/sounds/CMN_MINIGAME_BNK_SE_0000000A.wav'
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio'
 
 const COST_FORMATTER = new Intl.NumberFormat('fr-FR')
 const MIN_SHIPPING_AGE = 7
@@ -68,7 +69,8 @@ const buildShippingStudy = (target) => {
   const seniorityBonus = monthsSinceCreation * 6
 
   const badgeCount = Math.max(0, Math.min(Number(target?.badgeCount) || 0, 12))
-  const badgeBonus = badgeCount * 72
+  const rawBadgeBonus = Number(target?.badgePurchaseBonus)
+  const badgeBonus = Number.isFinite(rawBadgeBonus) ? Math.max(0, Math.floor(rawBadgeBonus)) : 0
 
   const ageValue = Number(target?.age)
   const normalizedAge = Number.isFinite(ageValue) ? ageValue : 9
@@ -83,7 +85,7 @@ const buildShippingStudy = (target) => {
       { label: 'Base', value: baseCost },
       { label: `Statut premium (${isPremium ? 'oui' : 'non'})`, value: statusImpact },
       { label: `Ancienneté (${monthsSinceCreation} mois)`, value: seniorityBonus },
-      { label: `Badges équipés (${badgeCount})`, value: badgeBonus },
+      { label: `Badges équipés (${badgeCount}, récup. 75%)`, value: badgeBonus },
       { label: `Âge du bétail (${normalizedAge} an${normalizedAge > 1 ? 's' : ''})`, value: ageImpact },
     ],
   }
@@ -480,11 +482,9 @@ function MyBetailsShippingPanel({
     if (!isOpen) return
     clearCautionAudio()
     try {
-      const audio = new Audio(cautionSound)
-      audio.volume = 0.82
-      audio.preload = 'auto'
+      const audio = createSafeAudio(cautionSound, { volume: 0.82, preload: 'auto' })
       cautionAudioRef.current = audio
-      void audio.play().catch(() => {})
+      void playAudioSafely(audio)
     } catch {
       // noop
     }
@@ -577,12 +577,10 @@ function MyBetailsShippingPanel({
     clearCostRevealAudio()
 
     try {
-      const audio = new Audio(costRevealSound)
-      audio.preload = 'auto'
-      audio.volume = 0.72
+      const audio = createSafeAudio(costRevealSound, { preload: 'auto', volume: 0.72 })
       costRevealAudioRef.current = audio
-      await audio.play()
-      return
+      const played = await playAudioSafely(audio)
+      if (played) return
     } catch {
       // fallback below
     }
@@ -593,9 +591,7 @@ function MyBetailsShippingPanel({
       const blob = await response.blob()
       const blobUrl = URL.createObjectURL(blob)
       costRevealBlobUrlRef.current = blobUrl
-      const audio = new Audio(blobUrl)
-      audio.preload = 'auto'
-      audio.volume = 0.72
+      const audio = createSafeAudio(blobUrl, { preload: 'auto', volume: 0.72 })
       costRevealAudioRef.current = audio
       audio.addEventListener(
         'ended',
@@ -607,12 +603,11 @@ function MyBetailsShippingPanel({
         },
         { once: true },
       )
-      void audio.play().catch(() => {
-        if (costRevealBlobUrlRef.current) {
-          URL.revokeObjectURL(costRevealBlobUrlRef.current)
-          costRevealBlobUrlRef.current = ''
-        }
-      })
+      const playedFromBlob = await playAudioSafely(audio)
+      if (!playedFromBlob && costRevealBlobUrlRef.current) {
+        URL.revokeObjectURL(costRevealBlobUrlRef.current)
+        costRevealBlobUrlRef.current = ''
+      }
     } catch {
       // noop
     }
@@ -621,11 +616,9 @@ function MyBetailsShippingPanel({
   const playFinalHover = useCallback(() => {
     clearFinalHoverAudio()
     try {
-      const audio = new Audio(finalHoverSound)
-      audio.preload = 'auto'
-      audio.volume = 0.7
+      const audio = createSafeAudio(finalHoverSound, { preload: 'auto', volume: 0.7 })
       finalHoverAudioRef.current = audio
-      void audio.play().catch(() => {})
+      void playAudioSafely(audio)
     } catch {
       // noop
     }
@@ -634,11 +627,9 @@ function MyBetailsShippingPanel({
   const playFinalClick = useCallback(() => {
     clearFinalClickAudio()
     try {
-      const audio = new Audio(finalClickSound)
-      audio.preload = 'auto'
-      audio.volume = 0.76
+      const audio = createSafeAudio(finalClickSound, { preload: 'auto', volume: 0.76 })
       finalClickAudioRef.current = audio
-      void audio.play().catch(() => {})
+      void playAudioSafely(audio)
     } catch {
       // noop
     }

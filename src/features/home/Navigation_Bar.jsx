@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react';
+﻿import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, HelpCircle, UserPlus, Settings, UserCheck, UserX, Send } from 'lucide-react';
+import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, HelpCircle, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
@@ -17,6 +17,7 @@ import {
 import './Navigation_Bar.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const NAV_MENU_HINT_STORAGE_KEY = 'farmgestion_nav_menu_hint_seen_v1';
 
 const buildAvatarCandidates = (value) => {
   const raw = String(value || '').trim();
@@ -102,6 +103,17 @@ function Navigation_Bar() {
   const [sentRequests, setSentRequests] = useState([]);
   const [isRequestsLoading, setIsRequestsLoading] = useState(false);
   const [activeRequestId, setActiveRequestId] = useState(null);
+  const [showMenuHint, setShowMenuHint] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (!window.localStorage.getItem(NAV_MENU_HINT_STORAGE_KEY)) {
+        setShowMenuHint(true);
+      }
+    } catch {
+      setShowMenuHint(true);
+    }
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
@@ -326,6 +338,15 @@ function Navigation_Bar() {
     setOpenMenu(null);
   };
 
+  const dismissMenuHint = () => {
+    setShowMenuHint(false);
+    try {
+      window.localStorage.setItem(NAV_MENU_HINT_STORAGE_KEY, '1');
+    } catch {
+      // Ignore storage errors and keep graceful behavior.
+    }
+  };
+
   return (
     <>
       <header className="nav-shell">
@@ -347,9 +368,25 @@ function Navigation_Bar() {
           <Popover className="nav-item nav-dropdown-trigger">
             {({ open }) => (
               <>
-                <Popover.Button className={`nav-link ${location.pathname === '/betail-maker' ? 'active' : ''}`}>
-                  Bétails
+                <Popover.Button
+                  className={`nav-link nav-link--dropdown ${location.pathname === '/betail-maker' ? 'active' : ''}`}
+                  onClick={dismissMenuHint}
+                >
+                  <span>Bétails</span>
+                  <span className="nav-link-dropdown-hint" aria-hidden="true">
+                    <ChevronDown size={14} />
+                  </span>
                 </Popover.Button>
+                {showMenuHint ? (
+                  <button
+                    type="button"
+                    className="nav-menu-first-tip"
+                    onClick={dismissMenuHint}
+                    aria-label="Fermer l'aide des menus"
+                  >
+                    Clique ici pour voir plus d'actions.
+                  </button>
+                ) : null}
                 <Transition
                   as={Fragment}
                   enter="nav-enter"
@@ -360,8 +397,8 @@ function Navigation_Bar() {
                   leaveTo="nav-leave-to"
                 >
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
-                    <button className="nav-dropdown-item" onClick={() => go('/betail-maker')}><PlusCircle size={16} /> Créer un bétail</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/betail-register')}><ClipboardList size={16} /> Registre du bétail</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/betail-maker')}><BabyIcon size={16} /> Créer un bétail</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/betail-register')}><ShoppingCart size={16} /> Registre du bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/mes-betails')}><ListChecks size={16} /> Mes bétails</button>
                   </Popover.Panel>
                 </Transition>
@@ -372,8 +409,11 @@ function Navigation_Bar() {
           <Popover className="nav-item nav-dropdown-trigger">
             {({ open }) => (
               <>
-                <Popover.Button className="nav-link">
-                  Fermes
+                <Popover.Button className="nav-link nav-link--dropdown" onClick={dismissMenuHint}>
+                  <span>Fermes</span>
+                  <span className="nav-link-dropdown-hint" aria-hidden="true">
+                    <ChevronDown size={14} />
+                  </span>
                 </Popover.Button>
                 <Transition
                   as={Fragment}
@@ -385,11 +425,11 @@ function Navigation_Bar() {
                   leaveTo="nav-leave-to"
                 >
                   <Popover.Panel className={`nav-dropdown ${open ? 'is-open' : ''}`} static>
-                    <button className="nav-dropdown-item" onClick={() => go('/community')}><Factory size={16} /> Communauté</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/gce')}><CalendarDays size={16} /> GCE</button>
                     <button className="nav-dropdown-item" onClick={goMyFarm}>
-                      <HomeIcon size={16} /> Ma ferme {farm?.name ? `- ${farm.name}` : '- Non renseignée'}
+                      <Hexagon size={16} /> Ma ferme {farm?.name ? `- ${farm.name}` : '- Non renseignée'}
                     </button>
+                    <button className="nav-dropdown-item" onClick={() => go('/community')}><UserRoundSearchIcon size={16} /> Communauté</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/gce')}><CalendarDays size={16} /> GCE</button>
                   </Popover.Panel>
                 </Transition>
               </>
@@ -611,4 +651,7 @@ function Navigation_Bar() {
 }
 
 export default Navigation_Bar;
+
+
+
 

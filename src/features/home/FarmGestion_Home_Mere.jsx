@@ -3,9 +3,11 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { Heart, Crown, CalendarDays } from 'lucide-react';
+import { Heart, Crown, CalendarDays, PlusCircle, ShoppingCart, Tractor, ListChecks, ArrowRight, ShoppingBag } from 'lucide-react';
+import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
+import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
 
 // Import images des bétails
 import betail1 from '../../assets/img/betails/bétails1.jpeg';
@@ -124,6 +126,7 @@ const mockBetails = [
 function FarmGestion_Home_Mere() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), []);
   const [profile, setProfile] = useState(null);
   const [farm, setFarm] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -406,15 +409,15 @@ function FarmGestion_Home_Mere() {
       try {
         if (!user?.id || !profile?.farm_id) return { farmId: null, farmState: null, betailCount: 0, farmName: null, farmVisible: null, badgeCount: 0 }
 
-        const [farmRes, countRes, badgesRes] = await Promise.all([
+        const [farmRes, countRes, badgesInventoryRes] = await Promise.all([
           supabase.from('farms_list').select('id,name,state,visible').eq('id', profile.farm_id).maybeSingle(),
           supabase.from('betails').select('id', { count: 'exact' }).eq('owner_id', user.id).eq('farm_id', profile.farm_id).eq('visible', true),
-          supabase.from('badges_equips_reborn').select('id', { count: 'exact', head: true }).eq('farm_id', profile.farm_id),
+          supabase.from('badges_inventory_reborn').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         ])
 
         const farmObj = farmRes?.data ?? null
         const count = typeof countRes?.count === 'number' ? countRes.count : 0
-        const badgeCount = typeof badgesRes?.count === 'number' ? badgesRes.count : 0
+        const badgeCount = typeof badgesInventoryRes?.count === 'number' ? badgesInventoryRes.count : 0
         const stateVisibility = parseVisibilityFromState(farmObj?.state)
         const resolvedVisibility = stateVisibility ?? (typeof farmObj?.visible === 'boolean' ? farmObj.visible : null)
 
@@ -514,6 +517,15 @@ function FarmGestion_Home_Mere() {
   const openBetailRegister = useCallback(() => {
     navigate('/betail-register');
   }, [navigate]);
+  const openBetailMaker = useCallback(() => {
+    navigate('/betail-maker');
+  }, [navigate]);
+  const openMyBetailsPage = useCallback(() => {
+    navigate('/mes-betails');
+  }, [navigate]);
+  const openShopPage = useCallback(() => {
+    navigate('/boutique');
+  }, [navigate]);
   const farmName = farmStats.farmName ?? farm?.name ?? '—';
   const farmState = farmStats.farmState ?? farm?.state ?? 'Inconnu';
   const hasBetailCount = typeof farmStats.betailCount === 'number';
@@ -524,6 +536,73 @@ function FarmGestion_Home_Mere() {
   const farmBadgeCount = typeof farmStats.badgeCount === 'number' ? farmStats.badgeCount : 0;
   const canOpenFarm = Boolean(profile?.farm_id);
   const hasLastPurchasedBetail = Boolean(lastPurchasedBetail?.id);
+  const hasOwnedBetails = hasBetailCount ? farmStats.betailCount > 0 : false;
+  const shouldCreateFirstBetail = !isLoadingFarmStats && !hasOwnedBetails;
+  const shouldBuyFirstBetail = !isLoadingLastPurchased && !hasLastPurchasedBetail;
+  const heroQuickActions = useMemo(() => {
+    const actions = [];
+
+    if (shouldCreateFirstBetail) {
+      actions.push({
+        key: 'create-first-betail',
+        title: 'Créer mon premier bétail',
+        subtitle: 'Lance ton élevage en quelques secondes.',
+        onClick: openBetailMaker,
+        variant: 'priority',
+        icon: PlusCircle,
+      });
+    }
+
+    if (shouldBuyFirstBetail) {
+      actions.push({
+        key: 'buy-first-betail',
+        title: 'Acheter mon premier bétail',
+        subtitle: 'Va dans le registre pour choisir ton premier compagnon.',
+        onClick: openBetailRegister,
+        variant: shouldCreateFirstBetail ? 'secondary' : 'priority',
+        icon: ShoppingCart,
+      });
+    }
+
+    if (actions.length === 0) {
+      actions.push(
+        {
+          key: 'my-betails',
+          title: 'Voir mes bétails',
+          subtitle: 'Retrouve tous tes bétails en un clic.',
+          onClick: openMyBetailsPage,
+          variant: 'secondary',
+          icon: ListChecks,
+        },
+        {
+          key: 'register',
+          title: 'Ouvrir le registre',
+          subtitle: 'Importe ou achète de nouveaux bétails.',
+          onClick: openBetailRegister,
+          variant: 'secondary',
+          icon: ShoppingCart,
+        },
+      );
+    }
+
+    actions.push({
+      key: 'shop',
+      title: 'Accéder à la boutique',
+      subtitle: 'Découvre les badges et packs disponibles.',
+      onClick: openShopPage,
+      variant: 'secondary',
+      icon: ShoppingBag,
+    });
+
+    return actions;
+  }, [
+    openBetailMaker,
+    openBetailRegister,
+    openMyBetailsPage,
+    openShopPage,
+    shouldBuyFirstBetail,
+    shouldCreateFirstBetail,
+  ]);
   const lastPurchasedAvatar = hasLastPurchasedBetail ? normalizeAvatar(lastPurchasedBetail?.avatar_url) : '';
   const lastPurchasedName = hasLastPurchasedBetail ? lastPurchasedBetail?.name || 'Sans nom' : 'Aucun bétail acheté';
   const lastPurchasedMatricule = hasLastPurchasedBetail
@@ -614,6 +693,9 @@ function FarmGestion_Home_Mere() {
       {
         onSuccess: ({ liked, likeCount }) => {
           applyLikeToCollections(betailId, liked, likeCount);
+          if (liked) {
+            void restartAudioSafely(likeConfirmAudio);
+          }
         },
         onError: () => {
           applyLikeToCollections(betailId, currentlyLiked, Number(betail.likes || 0));
@@ -623,7 +705,7 @@ function FarmGestion_Home_Mere() {
         },
       },
     );
-  }, [applyLikeToCollections, pendingLikeIds, toggleLikeMutation, user?.id]);
+  }, [applyLikeToCollections, likeConfirmAudio, pendingLikeIds, toggleLikeMutation, user?.id]);
 
   const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.betail-like'));
 
@@ -741,6 +823,29 @@ function FarmGestion_Home_Mere() {
           <p className="home-hero__subtitle">Prêt à gérer ta ferme et tes bétails en quelques clics.</p>
           <div className="home-hero__layout">
             <div className="home-hero__content">
+              <div className="home-hero__quick-access" role="group" aria-label="Actions rapides">
+                {heroQuickActions.map((action) => {
+                  const ActionIcon = action.icon;
+                  return (
+                    <button
+                      key={action.key}
+                      type="button"
+                      className={`home-hero__quick-btn home-hero__quick-btn--${action.variant}`}
+                      onClick={action.onClick}
+                      disabled={Boolean(action.disabled)}
+                    >
+                      <span className="home-hero__quick-btn-icon" aria-hidden="true">
+                        <ActionIcon size={17} strokeWidth={2.1} />
+                      </span>
+                      <span className="home-hero__quick-btn-text">
+                        <span className="home-hero__quick-btn-title">{action.title}</span>
+                        <span className="home-hero__quick-btn-subtitle">{action.subtitle}</span>
+                      </span>
+                      <ArrowRight size={16} className="home-hero__quick-btn-arrow" aria-hidden="true" />
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <div className="home-hero__widgets">
               <div
@@ -755,6 +860,10 @@ function FarmGestion_Home_Mere() {
                 <p className="home-hero__widget-title">Communauté</p>
                 <p className="home-hero__widget-value">Visites les fermes et les profils des autres</p>
                 <p className="home-hero__widget-meta">Découvre les membres actifs.</p>
+                <p className="home-hero__widget-cta" aria-hidden="true">
+                  <span>Explorer la communauté</span>
+                  <span>→</span>
+                </p>
               </div>
               <div
                 className="home-hero__widget home-hero__widget--farm home-hero__widget--interactive"
@@ -764,6 +873,7 @@ function FarmGestion_Home_Mere() {
                 onClick={openFarmPage}
                 onKeyDown={(event) => handleWidgetKeyDown(event, openFarmPage)}
                 aria-label="Ouvrir la ferme liée"
+                aria-disabled={!canOpenFarm}
               >
                 <p className="home-hero__widget-title">Ferme liée</p>
                 <p className="home-hero__widget-value">
@@ -771,7 +881,11 @@ function FarmGestion_Home_Mere() {
                     <span className="home-hero__scroll">{farm?.name || 'À créer'}</span>
                   </span>
                 </p>
-                <p className="home-hero__widget-meta">Statut : {farm?.state || '—'}</p>
+                <p className="home-hero__widget-meta">Bétails dans la ferme : {hasBetailCount ? farmStats.betailCount : 0}</p>
+                <p className="home-hero__widget-cta" aria-hidden="true">
+                  <span>{canOpenFarm ? 'Aller à ma ferme' : 'Aucune ferme disponible'}</span>
+                  <span aria-hidden>{canOpenFarm ? '→' : ''}</span>
+                </p>
               </div>
             </div>
           </div>
@@ -1039,7 +1153,7 @@ function FarmGestion_Home_Mere() {
             <p className="home-last-betail__matricule">{lastPurchasedMatricule}</p>
 
             <div className="home-last-betail__actions">
-              <button type="button" className="home-last-betail__cta" onClick={() => navigate('/mes-betails')}>
+              <button type="button" className="home-last-betail__cta" onClick={openMyBetailsPage}>
                 Accéder à mes bétails
                 <span aria-hidden>→</span>
               </button>
