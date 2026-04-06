@@ -34,6 +34,28 @@ body {
   width: 100%;
 }
 
+img:not([draggable="true"]):not([data-allow-drag="true"]) {
+  -webkit-user-drag: none;
+  user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+img.media-fade-image {
+  opacity: 0;
+  transition: opacity 0.35s ease;
+}
+
+img.media-fade-image.is-loaded {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img.media-fade-image {
+    transition: none;
+  }
+}
+
 h1 {
   font-size: 3.2em;
   line-height: 1.1;
@@ -53,9 +75,13 @@ button {
 button:hover {
   border-color: #646cff;
 }
-button:focus,
+button:focus {
+  outline: none;
+}
+
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid rgba(99, 86, 213, 0.45);
+  outline-offset: 2px;
 }
 
 @media (prefers-color-scheme: light) {

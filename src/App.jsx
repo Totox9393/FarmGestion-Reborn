@@ -74,6 +74,117 @@ function AppRoutes() {
   }, []);
 
   useEffect(() => {
+    const handleImageDragStart = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+      if (target.draggable || target.dataset.allowDrag === 'true') return;
+      event.preventDefault();
+    };
+
+    document.addEventListener('dragstart', handleImageDragStart, true);
+    return () => {
+      document.removeEventListener('dragstart', handleImageDragStart, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    const storageMarkers = [
+      '/storage/v1/object/public/betails/',
+      '/storage/v1/object/public/avatars/',
+      '/storage/v1/object/public/badges/',
+    ];
+
+    const hasKeyword = (value, keywords) => {
+      const normalized = String(value || '').toLowerCase();
+      return keywords.some((keyword) => normalized.includes(keyword));
+    };
+
+    const shouldFadeImage = (img) => {
+      if (!(img instanceof HTMLImageElement)) return false;
+      if (img.dataset.imageFade === 'off') return false;
+      if (img.dataset.imageFade === 'on') return true;
+
+      const src = String(img.currentSrc || img.src || '').toLowerCase();
+      if (storageMarkers.some((marker) => src.includes(marker))) return true;
+
+      if (hasKeyword(img.alt, ['betail', 'badge', 'avatar', 'profil', 'profile'])) return true;
+
+      const ownClass = String(img.className || '').toLowerCase();
+      const parentClass = String(img.parentElement?.className || '').toLowerCase();
+      const grandParentClass = String(img.parentElement?.parentElement?.className || '').toLowerCase();
+      return hasKeyword(`${ownClass} ${parentClass} ${grandParentClass}`, ['avatar', 'badge', 'betail']);
+    };
+
+    const prepareImage = (img) => {
+      if (!shouldFadeImage(img)) return;
+      img.classList.add('media-fade-image');
+      if (img.complete) {
+        img.classList.add('is-loaded');
+      } else {
+        img.classList.remove('is-loaded');
+      }
+    };
+
+    const markImageAsLoaded = (img) => {
+      if (!shouldFadeImage(img)) return;
+      img.classList.add('media-fade-image');
+      img.classList.add('is-loaded');
+    };
+
+    const scanImages = (root) => {
+      if (!root) return;
+      if (root instanceof HTMLImageElement) {
+        prepareImage(root);
+        return;
+      }
+      if (!(root instanceof Element || root instanceof Document)) return;
+      root.querySelectorAll('img').forEach((img) => prepareImage(img));
+    };
+
+    const handleImageLoad = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+      markImageAsLoaded(target);
+    };
+
+    const handleImageError = (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+      markImageAsLoaded(target);
+    };
+
+    scanImages(document);
+    document.addEventListener('load', handleImageLoad, true);
+    document.addEventListener('error', handleImageError, true);
+
+    const observer = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.type === 'attributes' && mutation.target instanceof HTMLImageElement) {
+          prepareImage(mutation.target);
+          return;
+        }
+
+        if (mutation.type === 'childList') {
+          mutation.addedNodes.forEach((node) => scanImages(node));
+        }
+      });
+    });
+
+    observer.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['src'],
+    });
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('load', handleImageLoad, true);
+      document.removeEventListener('error', handleImageError, true);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!toast) return undefined;
 
     if (!toast.visible) {
@@ -120,6 +231,16 @@ function AppRoutes() {
         />
         <Route
           path="/betail-register"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <BetailsListPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/betail-register/:id"
           element={
             <PrivateRoute>
               <AuthenticatedLayout>

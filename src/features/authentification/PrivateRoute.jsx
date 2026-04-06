@@ -5,6 +5,7 @@ import { supabase } from './supabaseClient';
 
 function PrivateRoute({ children, requireFarm = false, requireAvatar = false, requireOnboarding = true }) {
   const { user, loading } = useAuth();
+  const userId = user?.id ?? null;
   const requiresProfileCheck = requireOnboarding || requireFarm || requireAvatar;
   const [checkingAccess, setCheckingAccess] = useState(requiresProfileCheck);
   const [hasFarm, setHasFarm] = useState(null);
@@ -13,7 +14,7 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
   useEffect(() => {
     let ignore = false;
 
-    if (!requiresProfileCheck || !user) {
+    if (!requiresProfileCheck || !userId) {
       setCheckingAccess(false);
       setHasFarm(null);
       setHasAvatar(null);
@@ -24,7 +25,7 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
     supabase
       .from('users_profiles')
       .select('farm_id, avatar_url')
-      .eq('id', user.id)
+      .eq('id', userId)
       .maybeSingle()
       .then(({ data }) => {
         if (ignore) return;
@@ -40,7 +41,7 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
         }
       });
     return () => { ignore = true; };
-  }, [requiresProfileCheck, user]);
+  }, [requiresProfileCheck, userId]);
 
   if (loading || checkingAccess) return null;
   if (!user) return <Navigate to="/" replace />;

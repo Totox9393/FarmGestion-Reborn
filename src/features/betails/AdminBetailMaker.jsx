@@ -26,6 +26,7 @@ import templateBetail3 from '../../assets/template_betail3.png';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges';
+import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 
 const ADMIN_BADGES_PAGE_SIZE = 18;
@@ -342,6 +343,10 @@ function AdminBetailMaker({ onExitAdmin }) {
     }
   };
 
+  const handleCommentChange = (value) => {
+    setCommentaire(sanitizeBetailComment(value));
+  };
+
   const getBaseScale = () => {
     if (!imageNaturalSize.width || !imageNaturalSize.height) {
       return 1;
@@ -624,11 +629,13 @@ function AdminBetailMaker({ onExitAdmin }) {
     setIsPremium(template.isPremium);
     setSelectedBadges([]);
     setCommentaire(
-      buildTemplateComment({
-        commentPrefix: template.commentPrefix,
-        author,
-        visible: template.visible,
-      }),
+      sanitizeBetailComment(
+        buildTemplateComment({
+          commentPrefix: template.commentPrefix,
+          author,
+          visible: template.visible,
+        }),
+      ),
     );
     setBetailVisible(template.visible);
     setInvisibleReason(template.invisibleReason);
@@ -989,6 +996,7 @@ function AdminBetailMaker({ onExitAdmin }) {
   }, [user]);
 
   const handleSaveBetail = async () => {
+    const normalizedComment = sanitizeBetailComment(commentaire).trim();
     if (!user?.id) {
       setSaveError('Utilisateur non connecte.');
       return;
@@ -1063,7 +1071,7 @@ function AdminBetailMaker({ onExitAdmin }) {
         p_avatar_url: avatarUrl,
         p_matricule: matriculeValue,
         p_premium: isPremium,
-        p_comments: commentaire?.trim() || null,
+        p_comments: normalizedComment || null,
         p_visible: betailVisible,
         p_invisible_reason: betailVisible ? null : invisibleReason,
         p_invisible_at: betailVisible ? null : invisibleAt,
@@ -1741,13 +1749,14 @@ function AdminBetailMaker({ onExitAdmin }) {
         return (
           <div className="step-content fade-in">
             <h2 className="step-title">Ajouter un commentaire</h2>
-            <p className="quality-subtitle">Aucune limite spécifique côté UI pour la version admin.</p>
+            <p className="quality-subtitle">Optionnel - max {MAX_BETAIL_COMMENT_LENGTH} caracteres.</p>
             <textarea
               className="comment-input"
               rows={5}
               placeholder="Écris un commentaire libre pour ce bétail..."
               value={commentaire}
-              onChange={(event) => setCommentaire(event.target.value)}
+              onChange={(event) => handleCommentChange(event.target.value)}
+              maxLength={MAX_BETAIL_COMMENT_LENGTH}
             />
             <button className="next-button" type="button" onClick={() => setCurrentStep(8)}>
               Voir le récap
@@ -1860,7 +1869,8 @@ function AdminBetailMaker({ onExitAdmin }) {
                 <textarea
                   className="recap-input"
                   value={commentaire}
-                  onChange={(event) => setCommentaire(event.target.value)}
+                  onChange={(event) => handleCommentChange(event.target.value)}
+                  maxLength={MAX_BETAIL_COMMENT_LENGTH}
                   rows={3}
                   style={{ minWidth: 180, maxWidth: 320, resize: 'vertical' }}
                   placeholder="Aucun commentaire"

@@ -135,6 +135,8 @@
   box-shadow: 0 16px 32px rgba(35, 26, 70, 0.18);
   display: flex;
   flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .betail-details-header {
@@ -334,12 +336,20 @@
 
 .betail-info--panel {
   text-align: center;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .betail-info--panel .betail-back-title {
   font-size: 2rem;
   line-height: 1.05;
   margin: -10px 0 2px;
+  width: min(100%, 340px);
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .betail-panel-meta {
@@ -539,6 +549,53 @@
   font-weight: 800;
   color: #22163f;
   margin: 0 0 4px;
+  line-height: 1.25;
+  overflow: hidden;
+}
+
+.betail-name-marquee {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.betail-name-marquee__track {
+  display: inline-block;
+  white-space: nowrap;
+  transform: translateX(0);
+}
+
+.betail-name-marquee.is-overflowing {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+}
+
+.betail-name-marquee.is-overflowing .betail-name-marquee__track {
+  animation: betail-name-scroll var(--scroll-duration, 8s) ease-in-out infinite;
+}
+
+@keyframes betail-name-scroll {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  50%,
+  66% {
+    transform: translateX(calc(-1 * var(--scroll-distance, 0px)));
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .betail-name-marquee.is-overflowing .betail-name-marquee__track {
+    animation: none;
+    transform: translateX(0);
+  }
 }
 
 .betail-matricule {

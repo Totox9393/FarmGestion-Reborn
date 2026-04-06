@@ -709,22 +709,34 @@ function FarmGestion_Home_Mere() {
 
   const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.betail-like'));
 
-  const handleImportCardClick = (event) => {
+  const handleImportCardClick = (event, betail) => {
     if (isLikeButtonTarget(event.target)) {
+      return;
+    }
+    if (isLikeableId(betail?.id)) {
+      navigate(`/betail-register/${betail.id}`);
       return;
     }
     openBetailRegister();
   };
 
-  const handleImportCardKeyDown = (event) => {
+  const handleImportCardKeyDown = (event, betail) => {
     if (isLikeButtonTarget(event.target)) {
       return;
     }
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
+      if (isLikeableId(betail?.id)) {
+        navigate(`/betail-register/${betail.id}`);
+        return;
+      }
       openBetailRegister();
     }
   };
+
+  const preventImageDrag = useCallback((event) => {
+    event.preventDefault();
+  }, []);
 
   const topBetails = useMemo(
     () => topBetailsData.map((betail) => ({
@@ -932,8 +944,8 @@ function FarmGestion_Home_Mere() {
                 className="betail-card"
                 role="button"
                 tabIndex={0}
-                onClick={handleImportCardClick}
-                onKeyDown={handleImportCardKeyDown}
+                onClick={(event) => handleImportCardClick(event, betail)}
+                onKeyDown={(event) => handleImportCardKeyDown(event, betail)}
                 aria-label={`Voir ${betail.name} dans le registre`}
               >
                 <button
@@ -947,8 +959,12 @@ function FarmGestion_Home_Mere() {
                   <Heart size={16} fill={betail.likedByMe ? 'currentColor' : 'none'} />
                   <span>{betail.likes ?? 0}</span>
                 </button>
-                <div className="betail-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                  <img src={betail.img} alt={betail.name} onError={handleImgError} />
+                <div
+                  className="betail-avatar"
+                  style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
+                  onDragStart={preventImageDrag}
+                >
+                  <img src={betail.img} alt={betail.name} onError={handleImgError} draggable={false} onDragStart={preventImageDrag} />
                 </div>
                 <div className="betail-info">
                   <h3 className="betail-name">{betail.name}</h3>

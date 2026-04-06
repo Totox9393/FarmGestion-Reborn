@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, Heart } from 'lucide-react'
 import {
@@ -20,6 +20,7 @@ import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const formatFrenchDate = (value) => {
   if (!value) return 'Date inconnue'
@@ -52,6 +53,77 @@ const dispatchToast = (type, message) => {
     new CustomEvent('farmgestion-toast', {
       detail: { type, message },
     }),
+  )
+}
+
+function OverflowAutoScrollText({ text }) {
+  const viewportRef = useRef(null)
+  const trackRef = useRef(null)
+  const safeText = String(text || 'Sans nom')
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const track = trackRef.current
+    if (!viewport || !track) return undefined
+
+    let frameId = 0
+    let delayedFrameId = 0
+    let delayedTimerId = 0
+    let resizeObserver = null
+
+    const updateOverflow = () => {
+      const viewportWidth = Math.ceil(viewport.clientWidth)
+      const trackWidth = Math.ceil(track.scrollWidth)
+      const overflowDistance = Math.max(0, trackWidth - viewportWidth)
+      const isOverflowing = overflowDistance > 4
+
+      viewport.classList.toggle('is-overflowing', isOverflowing)
+      if (!isOverflowing) {
+        viewport.style.removeProperty('--scroll-distance')
+        viewport.style.removeProperty('--scroll-duration')
+        return
+      }
+
+      const duration = Math.max(6.5, Math.min(16, overflowDistance / 15))
+      viewport.style.setProperty('--scroll-distance', `${overflowDistance}px`)
+      viewport.style.setProperty('--scroll-duration', `${duration.toFixed(2)}s`)
+    }
+
+    const scheduleOverflowCheck = () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(updateOverflow)
+    }
+
+    scheduleOverflowCheck()
+    delayedTimerId = window.setTimeout(() => {
+      delayedFrameId = window.requestAnimationFrame(updateOverflow)
+    }, 260)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleOverflowCheck()
+      })
+      resizeObserver.observe(viewport)
+      resizeObserver.observe(track)
+    }
+
+    window.addEventListener('resize', scheduleOverflowCheck)
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      if (delayedFrameId) window.cancelAnimationFrame(delayedFrameId)
+      if (delayedTimerId) window.clearTimeout(delayedTimerId)
+      window.removeEventListener('resize', scheduleOverflowCheck)
+      resizeObserver?.disconnect()
+    }
+  }, [safeText])
+
+  return (
+    <span className="betail-name-marquee" ref={viewportRef} title={safeText}>
+      <span className="betail-name-marquee__track" ref={trackRef}>
+        {safeText}
+      </span>
+    </span>
   )
 }
 
@@ -121,7 +193,9 @@ function BetailCard({
           )}
         </div>
         <div className="betail-info">
-          <h3 className="betail-name">{betail.name}</h3>
+          <h3 className="betail-name">
+            <OverflowAutoScrollText text={betail.name} />
+          </h3>
           <p className="betail-matricule">{betail.matricule}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
@@ -133,11 +207,11 @@ function BetailCard({
 
 function BetailsListPageQuery() {
   const navigate = useNavigate()
+  const { id: routeBetailIdParam } = useParams()
   const { user } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [sortMode, setSortMode] = useState('recent')
-  const [selectedBetailId, setSelectedBetailId] = useState(null)
   const [purchasingId, setPurchasingId] = useState(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [reportBetailVisible, setReportBetailVisible] = useState(true)
@@ -307,6 +381,14 @@ function BetailsListPageQuery() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
+  const hasRouteBetailIdParam = typeof routeBetailIdParam === 'string' && routeBetailIdParam.trim().length > 0
+  const selectedBetailId = useMemo(() => {
+    if (!hasRouteBetailIdParam) return null
+    const normalized = String(routeBetailIdParam).trim()
+    return UUID_REGEX.test(normalized) ? normalized : null
+  }, [hasRouteBetailIdParam, routeBetailIdParam])
+  const hasInvalidRouteBetailId = hasRouteBetailIdParam && !selectedBetailId
+
   const {
     data,
     status,
@@ -353,10 +435,32 @@ function BetailsListPageQuery() {
   )
 
   const { data: authors = [] } = useAuthorsMap(authorIds)
-  const selectedBetail = useMemo(
+  const selectedBetailFromList = useMemo(
     () => betails.find((item) => item.id === selectedBetailId) ?? null,
     [betails, selectedBetailId],
   )
+  const {
+    data: selectedBetailFromRoute = null,
+    status: selectedRouteBetailStatus,
+    isFetching: isFetchingSelectedRouteBetail,
+  } = useQuery({
+    queryKey: ['betails', 'selected-route', selectedBetailId],
+    enabled: Boolean(selectedBetailId) && !selectedBetailFromList,
+    retry: false,
+    staleTime: 60_000,
+    queryFn: async () => {
+      const { data: row, error: rowError } = await supabase
+        .from('betails')
+        .select('id, name, matricule, avatar_url, age, author_id, created_at, like_count, visible')
+        .eq('id', selectedBetailId)
+        .eq('visible', true)
+        .maybeSingle()
+
+      if (rowError) throw rowError
+      return row ?? null
+    },
+  })
+  const selectedBetail = selectedBetailFromList ?? selectedBetailFromRoute
   const { data: selectedDetails, isFetching: isFetchingSelectedDetails } = useBetailDetails(
     selectedBetailId,
     Boolean(selectedBetailId),
@@ -381,6 +485,18 @@ function BetailsListPageQuery() {
   const isInitialLoading = isLoading
   const hasError = status === 'error'
   const errorMessage = hasError ? error?.message || 'Erreur de chargement. Réessaie plus tard.' : ''
+  const hasSelectedRouteLookupError =
+    selectedRouteBetailStatus === 'error' && Boolean(selectedBetailId) && !selectedBetailFromList
+  const selectedRouteLookupErrorMessage = hasSelectedRouteLookupError
+    ? 'Impossible de charger le bétail demandé pour le moment.'
+    : ''
+  const hasMissingSelectedRouteBetail =
+    Boolean(selectedBetailId) &&
+    !selectedBetail &&
+    !isInitialLoading &&
+    !isFetchingSelectedRouteBetail &&
+    !hasSelectedRouteLookupError
+  const shouldShowRouteBetailNotFound = hasInvalidRouteBetailId || hasMissingSelectedRouteBetail
   const selectedCreatedAt = selectedDetails?.created_at || selectedBetail?.created_at
   const selectedComment = selectedDetails?.comments || 'Aucun commentaire pour ce bétail.'
   const selectedAuthorName = selectedBetail ? getAuthorName(selectedBetail) : 'Auteur inconnu'
@@ -411,12 +527,18 @@ function BetailsListPageQuery() {
   }
 
   const handleSelectBetail = (betailId) => {
-    setSelectedBetailId((prev) => (prev === betailId ? null : betailId))
+    if (!betailId) return
+    setIsReportModalOpen(false)
+    if (selectedBetailId === betailId) {
+      navigate('/betail-register')
+      return
+    }
+    navigate(`/betail-register/${betailId}`)
   }
 
   const handleClosePanel = () => {
     setIsReportModalOpen(false)
-    setSelectedBetailId(null)
+    navigate('/betail-register')
   }
 
   const handleOpenReportModal = () => {
@@ -495,21 +617,12 @@ function BetailsListPageQuery() {
     if (!selectedBetailId) return
     const handleEscape = (event) => {
       if (event.key === 'Escape') {
-        setSelectedBetailId(null)
+        navigate('/betail-register')
       }
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [selectedBetailId])
-
-  useEffect(() => {
-    if (!selectedBetailId || isInitialLoading) return
-    const stillVisible = betails.some((item) => item.id === selectedBetailId)
-    if (!stillVisible) {
-      setIsReportModalOpen(false)
-      setSelectedBetailId(null)
-    }
-  }, [betails, isInitialLoading, selectedBetailId])
+  }, [navigate, selectedBetailId])
 
   useEffect(() => {
     if (!selectedBetail) {
@@ -571,6 +684,10 @@ function BetailsListPageQuery() {
           </section>
 
           {hasError && <p className="betails-error">{errorMessage}</p>}
+          {hasSelectedRouteLookupError && <p className="betails-error">{selectedRouteLookupErrorMessage}</p>}
+          {shouldShowRouteBetailNotFound && (
+            <p className="betails-error">404 - Le bétail demandé est introuvable ou n&apos;est plus disponible.</p>
+          )}
 
           {isInitialLoading ? (
             <div className="betails-loading">
@@ -682,7 +799,9 @@ function BetailsListPageQuery() {
                   </div>
 
                   <div className="betail-info betail-info--panel">
-                    <h3 className="betail-back-title">{selectedBetail.name}</h3>
+                    <h3 className="betail-back-title">
+                      <OverflowAutoScrollText text={selectedBetail.name} />
+                    </h3>
                     <div className="betail-matricule-frame-wrap">
                       {matriculeFrameUrl && (
                         <img

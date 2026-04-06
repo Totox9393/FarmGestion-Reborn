@@ -533,6 +533,79 @@ const fetchShippingCalendarRows = async () => {
   return normalizedRows
 }
 
+function OverflowAutoScrollText({ text, className = '', title }) {
+  const viewportRef = useRef(null)
+  const trackRef = useRef(null)
+  const safeText = String(text || '')
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const track = trackRef.current
+    if (!viewport || !track) return undefined
+
+    let frameId = 0
+    let delayedFrameId = 0
+    let delayedTimerId = 0
+    let resizeObserver = null
+
+    const updateOverflow = () => {
+      const viewportWidth = Math.ceil(viewport.clientWidth)
+      const trackWidth = Math.ceil(track.scrollWidth)
+      const overflowDistance = Math.max(0, trackWidth - viewportWidth)
+      const isOverflowing = overflowDistance > 4
+
+      viewport.classList.toggle('is-overflowing', isOverflowing)
+      if (!isOverflowing) {
+        viewport.style.removeProperty('--scroll-distance')
+        viewport.style.removeProperty('--scroll-duration')
+        return
+      }
+
+      const duration = Math.max(6, Math.min(15, overflowDistance / 14))
+      viewport.style.setProperty('--scroll-distance', `${overflowDistance}px`)
+      viewport.style.setProperty('--scroll-duration', `${duration.toFixed(2)}s`)
+    }
+
+    const scheduleOverflowCheck = () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(updateOverflow)
+    }
+
+    scheduleOverflowCheck()
+    delayedTimerId = window.setTimeout(() => {
+      delayedFrameId = window.requestAnimationFrame(updateOverflow)
+    }, 220)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleOverflowCheck()
+      })
+      resizeObserver.observe(viewport)
+      resizeObserver.observe(track)
+    }
+
+    window.addEventListener('resize', scheduleOverflowCheck)
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      if (delayedFrameId) window.cancelAnimationFrame(delayedFrameId)
+      if (delayedTimerId) window.clearTimeout(delayedTimerId)
+      window.removeEventListener('resize', scheduleOverflowCheck)
+      resizeObserver?.disconnect()
+    }
+  }, [safeText])
+
+  const viewportClassName = ['gce-overflow-marquee', className].filter(Boolean).join(' ')
+
+  return (
+    <span className={viewportClassName} ref={viewportRef} title={title || safeText}>
+      <span className="gce-overflow-marquee__track" ref={trackRef}>
+        {safeText}
+      </span>
+    </span>
+  )
+}
+
 function GCEPage() {
   const navigate = useNavigate()
   const [nowDate, setNowDate] = useState(() => new Date())
@@ -1357,9 +1430,17 @@ function GCEPage() {
                                     </div>
 
                                     <div className="gce-track-content">
-                                      <h4 className="gce-track-card-title">Suivi de votre expédition</h4>
+                                      <h4 className="gce-track-card-title">
+                                        <OverflowAutoScrollText
+                                          className="gce-overflow-marquee--title"
+                                          text="Suivi de votre expédition"
+                                        />
+                                      </h4>
                                       <p className="gce-track-card-description">
-                                        {row.betailName} ({row.matricule}) • {row.farmName}
+                                        <OverflowAutoScrollText
+                                          className="gce-overflow-marquee--meta"
+                                          text={`${row.betailName} (${row.matricule}) • ${row.farmName}`}
+                                        />
                                       </p>
                                       <p className="gce-track-card-description">
                                         {getTrackingScheduleLine({ scheduledFor: row?.scheduledFor, delivered: false })}

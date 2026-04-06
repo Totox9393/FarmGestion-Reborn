@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FarmGestion - FR</title>
+    <meta
+      name="description"
+      content="Page d'attente Farmgestion."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Outfit:wght@400;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="icon" type="image/png" href="./logo_ico.png" />
+    <link rel="stylesheet" href="./styles.css?v=20260406d1" />
+  </head>
+  <body>
+    <div id="fg-waiting-root">
+      <audio
+        id="bgAudio"
+        src="./attentefg.wav"
+        preload="auto"
+        autoplay
+        loop
+        playsinline
+      ></audio>
+      <button id="soundToggle" class="sound-toggle" type="button">
+        Activer le son
+      </button>
+
+      <div class="mist mist-a" aria-hidden="true"></div>
+      <div class="mist mist-b" aria-hidden="true"></div>
+      <div class="mist mist-c" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
+
+      <main class="launch-scene" role="main">
+        <img
+          class="brand-logo"
+          src="./logo_ico.png"
+          alt="FarmGestion"
+          width="78"
+          height="78"
+          style="width:78px;height:78px;max-width:78px;max-height:78px"
+          onerror="this.style.display='none'"
+        />
+        <p class="eyebrow">FarmGestion Reborn</p>
+        <h1>Ouverture prochainement</h1>
+        <p class="subtitle">Recherche du signal de la ferme...</p>
+
+        <div class="signal-loader" aria-hidden="true">
+          <span class="ring ring-a"></span>
+          <span class="ring ring-b"></span>
+          <span class="ring ring-c"></span>
+          <span class="signal-core"></span>
+        </div>
+
+        <div class="progress-line" aria-hidden="true">
+          <span></span>
+        </div>
+
+        <p class="launch-date" id="launchDateLabel"></p>
+        <p id="statusMessage" class="status-message" aria-live="polite"></p>
+
+        <div class="countdown-hidden" aria-hidden="true">
+          <span id="days">00</span>
+          <span id="hours">00</span>
+          <span id="minutes">00</span>
+          <span id="seconds">00</span>
+        </div>
+      </main>
+    </div>
+
+    <script src="./script.js?v=20260406d1"></script>
+  </body>
+</html>

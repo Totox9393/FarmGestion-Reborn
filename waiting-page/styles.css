@@ -1,0 +1,380 @@
+#fg-waiting-root {
+  --bg-1: #040508;
+  --bg-2: #0a0f18;
+  --bg-3: #121a28;
+  --text: #eef2fb;
+  --muted: #a8b3cb;
+  --glow: rgba(186, 212, 255, 0.45);
+
+  position: fixed;
+  inset: 0;
+  isolation: isolate;
+  overflow: hidden;
+  font-family: "Outfit", "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 14%, rgba(59, 84, 145, 0.34), transparent 35%),
+    radial-gradient(circle at 83% 9%, rgba(39, 71, 128, 0.3), transparent 32%),
+    linear-gradient(140deg, var(--bg-1), var(--bg-2) 46%, var(--bg-3));
+}
+
+#fg-waiting-root *,
+#fg-waiting-root *::before,
+#fg-waiting-root *::after {
+  box-sizing: border-box;
+}
+
+#fg-waiting-root .launch-scene {
+  position: relative;
+  z-index: 4;
+  min-height: 100%;
+  width: min(92vw, 900px);
+  margin: 0 auto;
+  padding: clamp(32px, 8vh, 90px) 16px;
+  text-align: center;
+  display: grid;
+  place-content: center;
+  gap: 10px;
+}
+
+#fg-waiting-root .brand-logo {
+  display: block;
+  width: 78px !important;
+  min-width: 78px !important;
+  max-width: 78px !important;
+  height: 78px !important;
+  min-height: 78px !important;
+  max-height: 78px !important;
+  margin: 0 auto 6px;
+  object-fit: contain;
+  object-position: center;
+  filter: drop-shadow(0 0 12px var(--glow));
+  animation: fgFloat 5.8s ease-in-out infinite;
+}
+
+#fg-waiting-root .eyebrow {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.26em;
+  font-size: 0.76rem;
+  color: #9ca9c7;
+}
+
+#fg-waiting-root h1 {
+  margin: 4px 0 2px;
+  font-family: "Cinzel", serif;
+  font-size: clamp(1.8rem, 4.3vw, 3.3rem);
+  letter-spacing: 0.04em;
+  text-shadow: 0 0 24px rgba(201, 222, 255, 0.26);
+}
+
+#fg-waiting-root .subtitle {
+  margin: 0 auto 8px;
+  color: var(--muted);
+  font-size: clamp(0.95rem, 2vw, 1.08rem);
+}
+
+#fg-waiting-root .signal-loader {
+  position: relative;
+  width: clamp(124px, 23vw, 184px);
+  aspect-ratio: 1 / 1;
+  margin: 6px auto 4px;
+}
+
+#fg-waiting-root .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(205, 220, 255, 0.27);
+}
+
+#fg-waiting-root .ring-a {
+  animation: fgSpin 8s linear infinite;
+  border-style: dashed;
+}
+
+#fg-waiting-root .ring-b {
+  inset: 10%;
+  opacity: 0.75;
+  animation: fgSpinReverse 5.8s linear infinite;
+}
+
+#fg-waiting-root .ring-c {
+  inset: 22%;
+  opacity: 0.58;
+  border-color: rgba(170, 202, 255, 0.4);
+  animation: fgPulse 2.4s ease-in-out infinite;
+}
+
+#fg-waiting-root .signal-core {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle, #f1f7ff 0%, #d6e8ff 48%, rgba(214, 232, 255, 0.1) 100%);
+  box-shadow:
+    0 0 14px rgba(224, 238, 255, 0.8),
+    0 0 34px rgba(180, 205, 255, 0.5);
+  animation: fgCorePulse 2.1s ease-in-out infinite;
+}
+
+#fg-waiting-root .signal-core::before,
+#fg-waiting-root .signal-core::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  border-radius: 999px;
+  pointer-events: none;
+}
+
+#fg-waiting-root .signal-core::before {
+  width: 38px;
+  height: 38px;
+  transform: translate(-50%, -50%) scale(0.7);
+  border: 1px solid rgba(220, 234, 255, 0.45);
+  opacity: 0;
+  animation: fgCoreRipple 2.4s ease-out infinite;
+}
+
+#fg-waiting-root .signal-core::after {
+  width: 4px;
+  height: 4px;
+  transform: translate(-50%, -50%);
+  background: #ffffff;
+  box-shadow:
+    -8px -7px 0 rgba(240, 247, 255, 0.85),
+    10px -5px 0 rgba(230, 241, 255, 0.7),
+    -6px 9px 0 rgba(225, 238, 255, 0.75),
+    7px 8px 0 rgba(220, 234, 255, 0.7);
+  opacity: 0.9;
+  animation: fgCoreTwinkle 1.8s steps(2, end) infinite;
+}
+
+#fg-waiting-root .progress-line {
+  width: min(74vw, 460px);
+  height: 2px;
+  margin: 2px auto 0;
+  background: rgba(168, 189, 230, 0.22);
+  overflow: hidden;
+}
+
+#fg-waiting-root .progress-line > span {
+  display: block;
+  width: 35%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    rgba(212, 226, 255, 0.04),
+    rgba(226, 236, 255, 0.92),
+    rgba(212, 226, 255, 0.04)
+  );
+  animation: fgLine 2.1s ease-in-out infinite;
+}
+
+#fg-waiting-root .launch-date {
+  margin: 8px 0 0;
+  color: #b9c4de;
+  font-size: 0.9rem;
+  letter-spacing: 0.03em;
+}
+
+#fg-waiting-root .status-message {
+  margin: 2px 0 0;
+  min-height: 1.2em;
+  color: #d9e6ff;
+  font-weight: 600;
+}
+
+#fg-waiting-root .countdown-hidden {
+  display: none;
+}
+
+#fg-waiting-root .sound-toggle {
+  position: absolute;
+  z-index: 6;
+  right: 16px;
+  bottom: 16px;
+  appearance: none;
+  border: 1px solid rgba(201, 217, 248, 0.36);
+  background: rgba(11, 14, 22, 0.54);
+  color: #e8efff;
+  border-radius: 999px;
+  padding: 9px 13px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+#fg-waiting-root .sound-toggle:hover {
+  background: rgba(18, 23, 36, 0.7);
+}
+
+#fg-waiting-root .mist {
+  position: absolute;
+  z-index: 1;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0.33;
+  filter: blur(34px);
+  animation: fgDrift 17s ease-in-out infinite;
+}
+
+#fg-waiting-root .mist-a {
+  width: min(54vw, 620px);
+  aspect-ratio: 1 / 1;
+  left: -16vw;
+  top: -23vh;
+  background: radial-gradient(circle at 30% 30%, rgba(108, 145, 255, 0.78), transparent 66%);
+}
+
+#fg-waiting-root .mist-b {
+  width: min(40vw, 500px);
+  aspect-ratio: 1 / 1;
+  right: -9vw;
+  bottom: -20vh;
+  background: radial-gradient(circle at 62% 35%, rgba(106, 160, 255, 0.72), transparent 66%);
+  animation-delay: -6s;
+}
+
+#fg-waiting-root .mist-c {
+  width: min(34vw, 410px);
+  aspect-ratio: 1 / 1;
+  left: 45vw;
+  top: 58vh;
+  background: radial-gradient(circle at 52% 45%, rgba(136, 160, 255, 0.52), transparent 66%);
+  animation-delay: -10s;
+}
+
+#fg-waiting-root .grain {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  background-image:
+    radial-gradient(circle at 20% 20%, #fff 1px, transparent 0),
+    radial-gradient(circle at 80% 42%, #fff 1px, transparent 0),
+    radial-gradient(circle at 55% 78%, #fff 1px, transparent 0);
+  background-size: 220px 220px, 250px 250px, 190px 190px;
+}
+
+@keyframes fgSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fgSpinReverse {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
+@keyframes fgPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+@keyframes fgCorePulse {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.14);
+  }
+}
+
+@keyframes fgCoreRipple {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.55);
+  }
+  35% {
+    opacity: 0.72;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.25);
+  }
+}
+
+@keyframes fgCoreTwinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes fgLine {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@keyframes fgDrift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -18px, 0) scale(1.04);
+  }
+}
+
+@keyframes fgFloat {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
+  }
+}
+
+@media (max-width: 720px) {
+  #fg-waiting-root {
+    overflow-y: auto;
+  }
+
+  #fg-waiting-root .launch-scene {
+    padding-top: 36px;
+    padding-bottom: 42px;
+  }
+
+  #fg-waiting-root .sound-toggle {
+    right: 12px;
+    bottom: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #fg-waiting-root .mist,
+  #fg-waiting-root .brand-logo,
+  #fg-waiting-root .ring-a,
+  #fg-waiting-root .ring-b,
+  #fg-waiting-root .ring-c,
+  #fg-waiting-root .signal-core,
+  #fg-waiting-root .signal-core::before,
+  #fg-waiting-root .signal-core::after,
+  #fg-waiting-root .progress-line > span {
+    animation: none;
+  }
+}

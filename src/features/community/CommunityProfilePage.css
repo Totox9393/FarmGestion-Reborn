@@ -760,6 +760,8 @@
   font-weight: 800;
   color: #22163f;
   margin: 0 0 4px;
+  line-height: 1.25;
+  overflow: hidden;
 }
 
 .community-pinned-matricule {
@@ -768,6 +770,51 @@
   color: #7a5bff;
   font-weight: 700;
   margin: 0;
+}
+
+.community-overflow-marquee {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.community-overflow-marquee__track {
+  display: inline-block;
+  white-space: nowrap;
+  transform: translateX(0);
+}
+
+.community-overflow-marquee.is-overflowing {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0, #000 10px, #000 calc(100% - 10px), transparent 100%);
+}
+
+.community-overflow-marquee.is-overflowing .community-overflow-marquee__track {
+  animation: community-overflow-scroll var(--scroll-duration, 8s) ease-in-out infinite;
+}
+
+@keyframes community-overflow-scroll {
+  0%,
+  16% {
+    transform: translateX(0);
+  }
+
+  50%,
+  66% {
+    transform: translateX(calc(-1 * var(--scroll-distance, 0px)));
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .community-overflow-marquee.is-overflowing .community-overflow-marquee__track {
+    animation: none;
+    transform: translateX(0);
+  }
 }
 
 .community-pinned-comment-title {

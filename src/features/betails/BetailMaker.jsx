@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck } from 'lucide-react';
+import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck, Upload } from 'lucide-react';
 import './BetailMaker.css';
 import './AdminBetailMaker.css';
 import miloImage from '../../assets/milo_CLASSIQUE.png';
@@ -16,14 +16,64 @@ import BetailMaker_QualiteGame1 from './BetailMaker_QualiteGame1';
 import BetailMaker_QualiteGame2 from './BetailMaker_QualiteGame2';
 import BetailMaker_QualiteGame3 from './BetailMaker_QualiteGame3';
 import { useUserRole } from './hooks';
+import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { qualityStandardSound, qualityPremiumSound } from './qualitySounds';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
 
 const MONEY_FORMATTER = new Intl.NumberFormat('fr-FR');
+const MAX_BETAIL_NAME_LENGTH = 15;
+const BETAIL_AGE_MIN = 1;
+const BETAIL_AGE_MAX = 12;
+const BETAIL_NAME_PLACEHOLDER_ROTATION_MS = 1300;
+const BETAIL_NAME_PLACEHOLDER_OPTIONS = [
+  'Luna',
+  'Nino',
+  'Yeuse',
+  'Emma',
+  'Celestin',
+  'Gulsum',
+  'Mathilda',
+  'Baptiste',
+  'Noemie',
+  'Titouan',
+  'Isabella',
+  'Roxane',
+  'Anatole',
+  'Peter',
+  'Bastien',
+  'Lucien',
+  'Melynda',
+  'Sylvette',
+  'Germain',
+  'Fleur',
+  'Sophie',
+  'Julian',
+  'Pablo',
+];
 
 const formatMoney = (value) => MONEY_FORMATTER.format(Math.max(0, Math.round(Number(value) || 0)));
+const sanitizeBetailName = (value) => String(value || '').slice(0, MAX_BETAIL_NAME_LENGTH);
+const normalizeBetailAge = (value, fallback = BETAIL_AGE_MIN) => {
+  const parsedValue = Number(value);
+  if (!Number.isFinite(parsedValue)) return fallback;
+  const roundedValue = Math.round(parsedValue);
+  return Math.max(BETAIL_AGE_MIN, Math.min(BETAIL_AGE_MAX, roundedValue));
+};
+const getRandomBetailNamePlaceholder = (exclude = '') => {
+  const options = BETAIL_NAME_PLACEHOLDER_OPTIONS;
+  if (!options.length) return '';
+  if (options.length === 1) return options[0];
+  const excludedValue = String(exclude || '');
+  let candidate = options[Math.floor(Math.random() * options.length)];
+  let guard = 0;
+  while (candidate === excludedValue && guard < 8) {
+    candidate = options[Math.floor(Math.random() * options.length)];
+    guard += 1;
+  }
+  return candidate;
+};
 
 function BetailMaker() {
   const { user } = useAuth();
@@ -34,7 +84,7 @@ function BetailMaker() {
   const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(0);
   const [prenom, setPrenom] = useState('');
-  const [age, setAge] = useState(1);
+  const [age, setAge] = useState(BETAIL_AGE_MIN);
   const [photoUrl, setPhotoUrl] = useState('');
   const [photoFilePreview, setPhotoFilePreview] = useState('');
   const [photoSource, setPhotoSource] = useState('file');
@@ -58,6 +108,7 @@ function BetailMaker() {
   const [qualityInProgress, setQualityInProgress] = useState(false);
   const [commentaire, setCommentaire] = useState('');
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [prenomPlaceholder, setPrenomPlaceholder] = useState(() => getRandomBetailNamePlaceholder());
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [creationReward, setCreationReward] = useState(null);
@@ -111,6 +162,18 @@ function BetailMaker() {
 
   const handleCreateBetail = () => {
     setCurrentStep(1);
+  };
+
+  const handlePrenomChange = (value) => {
+    setPrenom(sanitizeBetailName(value));
+  };
+
+  const handleCommentChange = (value) => {
+    setCommentaire(sanitizeBetailComment(value));
+  };
+
+  const handleAgeChange = (value) => {
+    setAge(normalizeBetailAge(value, age));
   };
 
   const handleNextPrenom = () => {
@@ -400,6 +463,16 @@ function BetailMaker() {
   };
 
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setPrenomPlaceholder((current) => getRandomBetailNamePlaceholder(current));
+    }, BETAIL_NAME_PLACEHOLDER_ROTATION_MS);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, []);
+
+  useEffect(() => {
     if (currentStep !== 4) {
       clearAnimationTimers();
       setIsMatriculeAnimating(false);
@@ -421,7 +494,7 @@ function BetailMaker() {
     clearAnimationTimers();
     setCurrentStep(0);
     setPrenom('');
-    setAge(1);
+    setAge(BETAIL_AGE_MIN);
     setPhotoUrl('');
     setPhotoFilePreview('');
     setPhotoSource('file');
@@ -552,11 +625,14 @@ function BetailMaker() {
   };
 
   const handleSaveBetail = async () => {
+    const normalizedPrenom = sanitizeBetailName(prenom).trim();
+    const normalizedAge = normalizeBetailAge(age);
+    const normalizedComment = sanitizeBetailComment(commentaire).trim();
     if (!user) {
       setSaveError("Utilisateur non connecté.");
       return;
     }
-    if (!prenom.trim() || !matricule || !qualityResult) {
+    if (!normalizedPrenom || !matricule || !qualityResult) {
       setSaveError("Informations incomplètes.");
       return;
     }
@@ -598,12 +674,12 @@ function BetailMaker() {
 
     const createViaRpc = (matriculeValue) =>
       supabase.rpc('create_betail_reborn', {
-        p_name: prenom.trim(),
-        p_age: age,
+        p_name: normalizedPrenom,
+        p_age: normalizedAge,
         p_avatar_url: avatarUrl,
         p_matricule: matriculeValue,
         p_premium: qualityResult === 'premium',
-        p_comments: commentaire?.trim() || null,
+        p_comments: normalizedComment || null,
         p_has_custom_photo: hasCustomPhoto,
       });
 
@@ -701,9 +777,10 @@ function BetailMaker() {
             <input
               type="text"
               className="step-input"
-              placeholder="Entrez le prénom..."
+              placeholder={prenomPlaceholder}
               value={prenom}
-              onChange={(e) => setPrenom(e.target.value)}
+              onChange={(e) => handlePrenomChange(e.target.value)}
+              maxLength={MAX_BETAIL_NAME_LENGTH}
               autoFocus
               onKeyPress={(e) => e.key === 'Enter' && handleNextPrenom()}
             />
@@ -730,11 +807,11 @@ function BetailMaker() {
               <div className="age-slider-container">
                 <input
                   type="range"
-                  min="1"
-                  max="12"
+                  min={BETAIL_AGE_MIN}
+                  max={BETAIL_AGE_MAX}
                   value={age}
                   onChange={(e) => {
-                    const nextAge = Number(e.target.value);
+                    const nextAge = normalizeBetailAge(e.target.value, age);
                     setAge(nextAge);
                     if (nextAge !== lastAgeRef.current) {
                       playAgeTick();
@@ -830,7 +907,11 @@ function BetailMaker() {
                     className="file-input"
                     onChange={handlePhotoFileChange}
                   />
-                  <span>Cliquer ou glisser une photo ici</span>
+                  <span className="photo-preview-placeholder__icon" aria-hidden="true">
+                    <Upload size={30} />
+                  </span>
+                  <span className="photo-preview-placeholder__text">Cliquer ou glisser une photo ici</span>
+                  
                 </label>
               )}
             </div>
@@ -1060,13 +1141,14 @@ function BetailMaker() {
         return (
           <div className="step-content fade-in">
             <h2 className="step-title">Ajouter un commentaire</h2>
-            <p className="quality-subtitle">Optionnel</p>
+            <p className="quality-subtitle">Optionnel - max {MAX_BETAIL_COMMENT_LENGTH} caractères</p>
             <textarea
               className="comment-input"
               rows={4}
               placeholder="Écris un commentaire libre pour ce bétail..."
               value={commentaire}
-              onChange={(e) => setCommentaire(e.target.value)}
+              onChange={(e) => handleCommentChange(e.target.value)}
+              maxLength={MAX_BETAIL_COMMENT_LENGTH}
               style={{ resize: 'vertical', minHeight: 80, maxHeight: 200, overflow: 'auto' }}
             />
             <button className="next-button" onClick={() => setCurrentStep(7)}>
@@ -1141,7 +1223,8 @@ function BetailMaker() {
                 <input
                   className="recap-input"
                   value={prenom}
-                  onChange={e => setPrenom(e.target.value)}
+                  onChange={e => handlePrenomChange(e.target.value)}
+                  maxLength={MAX_BETAIL_NAME_LENGTH}
                   style={{ minWidth: 80 }}
                 />
               </div>
@@ -1150,10 +1233,10 @@ function BetailMaker() {
                 <input
                   className="recap-input"
                   type="number"
-                  min={1}
-                  max={12}
+                  min={BETAIL_AGE_MIN}
+                  max={BETAIL_AGE_MAX}
                   value={age}
-                  onChange={e => setAge(Number(e.target.value))}
+                  onChange={e => handleAgeChange(e.target.value)}
                   style={{ width: 50 }}
                 />
                 <span className="recap-unit">an{age > 1 ? 's' : ''}</span>
@@ -1171,7 +1254,8 @@ function BetailMaker() {
                 <textarea
                   className="recap-input"
                   value={commentaire}
-                  onChange={e => setCommentaire(e.target.value)}
+                  onChange={e => handleCommentChange(e.target.value)}
+                  maxLength={MAX_BETAIL_COMMENT_LENGTH}
                   rows={3}
                   style={{ minWidth: 180, maxWidth: 320, resize: 'vertical' }}
                   placeholder="Aucun commentaire"

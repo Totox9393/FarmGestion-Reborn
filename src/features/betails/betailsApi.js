@@ -1,4 +1,5 @@
 import { supabase } from '../authentification/supabaseClient'
+import { sanitizeBetailComment } from './betailCommentLimits'
 
 export const BETAILS_PAGE_SIZE = 24
 export const MY_BETAILS_PAGE_SIZE = 24
@@ -476,10 +477,11 @@ export const updateBetailComment = async ({ betailId, comment, userId }) => {
   if (!betailId || !userId) {
     throw new Error('Informations manquantes')
   }
+  const normalizedComment = sanitizeBetailComment(comment ?? '')
 
   const { data, error } = await supabase
     .from('betails')
-    .update({ comments: comment ?? '' })
+    .update({ comments: normalizedComment })
     .eq('id', betailId)
     .eq('visible', true)
     .eq('owner_id', userId)

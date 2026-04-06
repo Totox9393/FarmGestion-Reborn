@@ -2,6 +2,17 @@ import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { supabase } from './supabaseClient';
 
 const AuthContext = createContext();
+const areUsersEquivalent = (a, b) => {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.email === b.email &&
+    a.phone === b.phone &&
+    a.updated_at === b.updated_at &&
+    a.last_sign_in_at === b.last_sign_in_at
+  );
+};
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -13,6 +24,10 @@ export function AuthProvider({ children }) {
   }, [user]);
 
   useEffect(() => {
+    const setUserFromSession = (sessionUser) => {
+      setUser((currentUser) => (areUsersEquivalent(currentUser, sessionUser) ? currentUser : sessionUser));
+    };
+
     const syncProfileEmail = async (sessionUser) => {
       if (!sessionUser?.id || !sessionUser?.email) return;
       const currentEmail = userRef.current?.email;
@@ -32,7 +47,7 @@ export function AuthProvider({ children }) {
       if (error) {
         console.error('Erreur lors de la récupération de la session:', error);
       }
-      setUser(session?.user ?? null);
+      setUserFromSession(session?.user ?? null);
       setLoading(false);
       if (session?.user) {
         syncProfileEmail(session.user);
@@ -44,7 +59,7 @@ export function AuthProvider({ children }) {
 
     // Écouter les changements d'authentification
     const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
+      setUserFromSession(session?.user ?? null);
       if (session?.user) {
         syncProfileEmail(session.user);
       }

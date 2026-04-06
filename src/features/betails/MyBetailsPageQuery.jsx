@@ -33,6 +33,7 @@ import pinInSound from '../../assets/sounds/pinin_005.ogg'
 import pinOutSound from '../../assets/sounds/pinout_006.ogg'
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
 import MyBetailsShippingPanel from './MyBetailsShippingPanel'
+import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits'
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio'
 import './BetailsListPage.css'
 import './MyBetailsPage.css'
@@ -92,6 +93,77 @@ const isNotAuthenticatedError = (error) => {
   return message.includes('not authenticated')
 }
 
+function OverflowAutoScrollText({ text }) {
+  const viewportRef = useRef(null)
+  const trackRef = useRef(null)
+  const safeText = String(text || 'Sans nom')
+
+  useEffect(() => {
+    const viewport = viewportRef.current
+    const track = trackRef.current
+    if (!viewport || !track) return undefined
+
+    let frameId = 0
+    let delayedFrameId = 0
+    let delayedTimerId = 0
+    let resizeObserver = null
+
+    const updateOverflow = () => {
+      const viewportWidth = Math.ceil(viewport.clientWidth)
+      const trackWidth = Math.ceil(track.scrollWidth)
+      const overflowDistance = Math.max(0, trackWidth - viewportWidth)
+      const isOverflowing = overflowDistance > 4
+
+      viewport.classList.toggle('is-overflowing', isOverflowing)
+      if (!isOverflowing) {
+        viewport.style.removeProperty('--scroll-distance')
+        viewport.style.removeProperty('--scroll-duration')
+        return
+      }
+
+      const duration = Math.max(6.5, Math.min(16, overflowDistance / 15))
+      viewport.style.setProperty('--scroll-distance', `${overflowDistance}px`)
+      viewport.style.setProperty('--scroll-duration', `${duration.toFixed(2)}s`)
+    }
+
+    const scheduleOverflowCheck = () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      frameId = window.requestAnimationFrame(updateOverflow)
+    }
+
+    scheduleOverflowCheck()
+    delayedTimerId = window.setTimeout(() => {
+      delayedFrameId = window.requestAnimationFrame(updateOverflow)
+    }, 260)
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        scheduleOverflowCheck()
+      })
+      resizeObserver.observe(viewport)
+      resizeObserver.observe(track)
+    }
+
+    window.addEventListener('resize', scheduleOverflowCheck)
+
+    return () => {
+      if (frameId) window.cancelAnimationFrame(frameId)
+      if (delayedFrameId) window.cancelAnimationFrame(delayedFrameId)
+      if (delayedTimerId) window.clearTimeout(delayedTimerId)
+      window.removeEventListener('resize', scheduleOverflowCheck)
+      resizeObserver?.disconnect()
+    }
+  }, [safeText])
+
+  return (
+    <span className="betail-name-marquee" ref={viewportRef} title={safeText}>
+      <span className="betail-name-marquee__track" ref={trackRef}>
+        {safeText}
+      </span>
+    </span>
+  )
+}
+
 function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLike, isSelected, onSelect }) {
   const isShippingScheduled = isBetailShippingScheduled(betail)
   const shippingDateLabel = betail?.shipping_scheduled_for
@@ -147,7 +219,9 @@ function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLi
           )}
         </div>
         <div className="betail-info">
-          <h3 className="betail-name">{betail.name}</h3>
+          <h3 className="betail-name">
+            <OverflowAutoScrollText text={betail.name} />
+          </h3>
           <p className="betail-matricule">{betail.matricule}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
@@ -637,7 +711,7 @@ function MyBetailsPageQuery() {
       setBadgeModalSlot(null)
       return
     }
-    setCommentDraft(selectedComment || '')
+    setCommentDraft(sanitizeBetailComment(selectedComment || ''))
   }, [selectedBetail, selectedComment])
 
   useEffect(() => {
@@ -954,10 +1028,11 @@ function MyBetailsPageQuery() {
       toast('error', selectedShippingLockReason)
       return
     }
+    const normalizedCommentDraft = sanitizeBetailComment(commentDraft)
     commentMutation.mutate(
       {
         betailId: selectedBetail.id,
-        comment: commentDraft,
+        comment: normalizedCommentDraft,
         userId: user.id,
       },
       {
@@ -1349,7 +1424,9 @@ function MyBetailsPageQuery() {
                     </div>
 
                     <div className="betail-info betail-info--panel">
-                      <h3 className="betail-back-title">{selectedBetail.name}</h3>
+                      <h3 className="betail-back-title">
+                        <OverflowAutoScrollText text={selectedBetail.name} />
+                      </h3>
                       <div className="betail-matricule-frame-wrap">
                         {matriculeFrameUrl && (
                           <img
@@ -1429,7 +1506,7 @@ function MyBetailsPageQuery() {
                             type="button"
                             className="my-betail-btn ghost"
                             onClick={() => {
-                              setCommentDraft(selectedComment || '')
+                              setCommentDraft(sanitizeBetailComment(selectedComment || ''))
                               setEditingComment(true)
                             }}
                             disabled={isSaving || selectedIsShippingScheduled}
@@ -1457,8 +1534,8 @@ function MyBetailsPageQuery() {
                           <textarea
                             className="my-betail-textarea"
                             value={commentDraft}
-                            onChange={(event) => setCommentDraft(event.target.value)}
-                            maxLength={1200}
+                            onChange={(event) => setCommentDraft(sanitizeBetailComment(event.target.value))}
+                            maxLength={MAX_BETAIL_COMMENT_LENGTH}
                             disabled={selectedIsShippingScheduled}
                           />
                           <div className="my-betail-inline-actions">
@@ -1475,7 +1552,7 @@ function MyBetailsPageQuery() {
                               className="my-betail-btn ghost"
                               onClick={() => {
                                 setEditingComment(false)
-                                setCommentDraft(selectedComment || '')
+                                setCommentDraft(sanitizeBetailComment(selectedComment || ''))
                               }}
                               disabled={isSaving}
                             >

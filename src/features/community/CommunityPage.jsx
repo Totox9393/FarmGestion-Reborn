@@ -11,6 +11,16 @@ import { fetchAcceptedFriendIdsForUser } from './friendsApi';
 import './CommunityPage.css';
 
 const SEARCH_DEBOUNCE_MS = 320;
+const COMMUNITY_DID_YOU_KNOW = [
+  'Vous pouvez changer le thème d\'affichage de FarmGestion depuis les paramètres de votre compte.',
+  'Le filtre Actifs met en avant les joueurs vus ce mois-ci.',
+  'Chaque ferme publique est visible et accessible à tous.',
+  'Vous pouvez passer de Tous les profils à Amis uniquement en un clic.',
+  'Le registre vous permet de retrouver rapidement un bétail par matricule.',
+  'Pour passer votre ferme publique en privée, allez dans les paramètres de votre compte.',
+  'Lorsque vous créez un bétail, plus il y a de détails, plus il vous rapportera de 💸',
+  'Un utilisateur que vous avez bloqué ne pourra plus voir votre profil ni interagir avec vous sur FarmGestion.',
+];
 
 const isRetriableError = (error) => {
   const status = Number(error?.status || 0);
@@ -105,6 +115,45 @@ const buildCommunityProfilePath = (username, userId) => {
   return '';
 };
 
+function CommunityLoadingSkeleton({ didYouKnow }) {
+  return (
+    <section className="community-loading" aria-live="polite" aria-busy="true">
+      <article className="community-loading__tip">
+        <p className="community-loading__tip-kicker">Le saviez-vous ?</p>
+        <p className="community-loading__tip-text">{didYouKnow}</p>
+      </article>
+
+      <section className="community-loading__profiles" aria-hidden="true">
+        <div className="community-loading__line community-skeleton community-loading__line--title" />
+        <div className="community-loading__profiles-row">
+          {Array.from({ length: 5 }).map((_, index) => (
+            <div key={`community-loading-profile-${index}`} className="community-loading__profile-chip">
+              <span className="community-loading__avatar community-skeleton" />
+              <span className="community-loading__line community-skeleton community-loading__line--chip" />
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="community-loading__grid" aria-hidden="true">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <article key={`community-loading-card-${index}`} className="community-loading__card">
+            <div className="community-loading__card-head">
+              <span className="community-loading__avatar community-skeleton" />
+              <div className="community-loading__card-copy">
+                <div className="community-loading__line community-skeleton community-loading__line--name" />
+                <div className="community-loading__line community-skeleton community-loading__line--meta" />
+              </div>
+            </div>
+            <div className="community-loading__line community-skeleton community-loading__line--farm" />
+            <div className="community-loading__farm-preview community-skeleton" />
+          </article>
+        ))}
+      </section>
+    </section>
+  );
+}
+
 const MiniFarmPreview = ({ siteColors, centerStyle, label }) => {
   const colors = Array.isArray(siteColors) && siteColors.length === 6
     ? siteColors
@@ -142,6 +191,10 @@ function CommunityPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [page, setPage] = useState(0);
   const [profileFilterMode, setProfileFilterMode] = useState('all');
+  const didYouKnowFact = useMemo(
+    () => COMMUNITY_DID_YOU_KNOW[Math.floor(Math.random() * COMMUNITY_DID_YOU_KNOW.length)] || COMMUNITY_DID_YOU_KNOW[0],
+    [],
+  );
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -225,6 +278,15 @@ function CommunityPage() {
   );
 
   const isFriendsFilterLoading = profileFilterMode === 'friends' && Boolean(user?.id) && friendsFilterQuery.isLoading;
+  const showLoadingSkeleton = (
+    (!communityQuery.data && (
+      activeUsersQuery.isLoading
+      || statsQuery.isLoading
+      || communityQuery.isLoading
+      || communityQuery.isFetching
+    ))
+    || isFriendsFilterLoading
+  );
 
   const cycleProfileFilterMode = () => {
     setProfileFilterMode((current) => {
@@ -293,8 +355,8 @@ function CommunityPage() {
           </div>
         </header>
 
-        {communityQuery.isLoading || isFriendsFilterLoading ? (
-          <p className="community-state">Chargement de la communauté...</p>
+        {showLoadingSkeleton ? (
+          <CommunityLoadingSkeleton didYouKnow={didYouKnowFact} />
         ) : communityQuery.isError ? (
           <p className="community-state is-error">Impossible de charger la communauté pour le moment.</p>
         ) : !visibleItems.length ? (

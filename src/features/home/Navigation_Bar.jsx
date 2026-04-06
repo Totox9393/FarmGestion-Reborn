@@ -89,6 +89,12 @@ const formatRequestDate = (iso) => {
   }).format(value);
 };
 
+const formatPendingBadgeValue = (count) => {
+  const safeCount = Number.isFinite(Number(count)) ? Math.max(0, Math.floor(Number(count))) : 0;
+  if (safeCount > 99) return '99+';
+  return String(safeCount);
+};
+
 function Navigation_Bar() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -278,6 +284,7 @@ function Navigation_Bar() {
   }, [profile?.money]);
 
   const pendingCount = receivedRequests.length;
+  const pendingBadgeValue = formatPendingBadgeValue(pendingCount);
 
   const openRequestProfile = (username) => {
     const safe = String(username || '').trim();
@@ -488,7 +495,15 @@ function Navigation_Bar() {
                   title="Demandes d'amis"
                 >
                   <UserPlus size={17} strokeWidth={2.1} />
-                  {pendingCount > 0 ? <span className="nav-friends-badge">{pendingCount}</span> : null}
+                  {pendingCount > 0 ? (
+                    <span
+                      className="nav-friends-badge"
+                      role="status"
+                      aria-label={`${pendingCount} demande${pendingCount > 1 ? 's' : ''} d'ami en attente`}
+                    >
+                      {pendingBadgeValue}
+                    </span>
+                  ) : null}
                 </Popover.Button>
 
                 <Transition
