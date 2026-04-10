@@ -23,6 +23,7 @@ import {
   normalizeThemeValue,
   saveUserThemePreference,
 } from './themePreferences';
+import { getFullVersionLabel } from '../utils/appVersion';
 import './SettingsModal.css';
 
 const SECTIONS = {
@@ -66,9 +67,7 @@ const resolveFriendRequestsEnabled = (row) => {
 };
 
 function SettingsModal({ isOpen, onClose, user, profile }) {
-  const marketingVersion = import.meta.env.VITE_APP_MARKETING_VERSION || '0.0.0';
-  const commitHash = import.meta.env.VITE_APP_COMMIT_HASH || 'dev';
-  const versionLabel = `v${marketingVersion} • ${commitHash}`;
+  const versionLabel = getFullVersionLabel();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [activeSection, setActiveSection] = useState('account');

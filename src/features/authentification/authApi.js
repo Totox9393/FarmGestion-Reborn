@@ -15,8 +15,8 @@ export async function signOut() {
   return { error };
 }
 
-export async function signInWithProvider(provider) {
+export async function signInWithProvider(provider, options = {}) {
   // provider: 'google', 'apple', 'discord', etc.
-  const { data, error } = await supabase.auth.signInWithOAuth({ provider });
+  const { data, error } = await supabase.auth.signInWithOAuth({ provider, options });
   return { data, error };
 }

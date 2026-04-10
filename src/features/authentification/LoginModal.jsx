@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { signInWithEmail } from './authApi';
+import { signInWithEmail, signInWithProvider } from './authApi';
 import { Icon } from '@iconify/react';
 import './LoginModal.css';
 import miloHello from '../../assets/img/milo_hello2.png';
@@ -60,6 +60,28 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
     }
   };
 
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    setError('');
+    const redirectTo = `${window.location.origin}/home`;
+    const { error: oauthError } = await signInWithProvider('google', { redirectTo });
+    if (oauthError) {
+      setError(oauthError.message || 'Erreur de connexion Google.');
+      setLoading(false);
+    }
+  };
+
+  const handleDiscordLogin = async () => {
+    setLoading(true);
+    setError('');
+    const redirectTo = `${window.location.origin}/home`;
+    const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
+    if (oauthError) {
+      setError(oauthError.message || 'Erreur de connexion Discord.');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="login-modal-overlay is-open" role="presentation">
       <div
@@ -90,13 +112,22 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
 
         <div className="login-modal-body">
           <div className="login-modal-social">
-            <button type="button" className="login-modal-social-button" aria-label="Connexion Google">
+            <button
+              type="button"
+              className="login-modal-social-button"
+              aria-label="Connexion Google"
+              onClick={handleGoogleLogin}
+              disabled={loading}
+            >
               <Icon icon="logos:google-icon" width={20} height={20} />
             </button>
-            <button type="button" className="login-modal-social-button" aria-label="Connexion Apple">
-              <Icon icon="logos:apple" width={20} height={20} />
-            </button>
-            <button type="button" className="login-modal-social-button" aria-label="Connexion Discord">
+            <button
+              type="button"
+              className="login-modal-social-button"
+              aria-label="Connexion Discord"
+              onClick={handleDiscordLogin}
+              disabled={loading}
+            >
               <Icon icon="logos:discord-icon" width={20} height={20} />
             </button>
           </div>

@@ -1,12 +1,20 @@
-﻿import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Building2, RefreshCcw, ShoppingCart, Truck, Users } from 'lucide-react';
 import { useRef } from 'react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
 import { FarmDesignPreview } from '../utils/FarmDesign';
 import { normalizeCenterStyle, normalizeSiteColors } from '../utils/FarmDesign/farmDesignUtils';
-import { fetchFarmBadgesEquipsReborn } from '../badges';
+import {
+  MAX_BADGE_SLOTS,
+  equipFarmBadgeReborn,
+  fetchFarmBadgesEquipsReborn,
+  fetchUserBadgesEquipsReborn,
+  fetchUserBadgesInventoryReborn,
+  unequipFarmBadgeReborn,
+} from '../badges';
 import './FarmPage.css';
 
 const ROTATION_STORAGE_KEY = 'farmgestion_farm_hex_rotate';
@@ -34,6 +42,24 @@ const DEFAULT_CENTER_IMAGE_POSITION = { x: 0, y: 0 };
 const CENTER_MODE_UPLOAD = 'upload';
 const CENTER_MODE_URL = 'url';
 const CENTER_MODE_CUSTOMIZE = 'customize';
+const CUSTOMIZATION_VIEW_SITES = 'sites';
+const CUSTOMIZATION_VIEW_CENTER = 'center';
+const PANEL_TAB_OVERVIEW = 'overview';
+const PANEL_TAB_CUSTOMIZATION = 'customization';
+const FARM_SITE_VALUES = ['1', '2', '3', '4', '5', '6'];
+const SITE_MANAGED_SITE_CAPACITY = 30;
+const SITE_MANAGED_BAR_COLORS = ['#e7b347', '#dc9157', '#8baa58', '#67a98c', '#7084b8', '#ba7b96'];
+const DEFAULT_OWNER_DASHBOARD_STATS = {
+  population: 0,
+  inhabitedSites: 0,
+  purchasesToday: 0,
+  shippedToday: 0,
+  withShippingInProgress: 0,
+  withoutShippingInProgress: 0,
+  premiumCount: 0,
+  standardCount: 0,
+  siteCountsBySite: FARM_SITE_VALUES.map((site) => ({ site, count: 0 })),
+};
 const colorEquals = (left, right) => String(left || '').trim().toLowerCase() === String(right || '').trim().toLowerCase();
 
 const parseFiniteNumber = (value, fallback = 0) => {
@@ -269,27 +295,125 @@ const fetchUsername = async (userId) => {
   return data?.username ?? '';
 };
 
-const fetchFarmBetailStats = async (farmId) => {
-  const [totalResponse, premiumResponse] = await Promise.all([
+const getTodayRangeIso = () => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString(),
+  };
+};
+
+const countRowsSafely = async (requestPromise) => {
+  try {
+    const { count, error } = await requestPromise;
+    if (error) {
+      return 0;
+    }
+    return Number(count || 0);
+  } catch {
+    return 0;
+  }
+};
+
+const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
+  if (!farmId || !ownerId) {
+    return { ...DEFAULT_OWNER_DASHBOARD_STATS };
+  }
+
+  const { startIso, endIso } = getTodayRangeIso();
+
+  const populationPromise = countRowsSafely(
     supabase
       .from('betails')
       .select('id', { count: 'exact', head: true })
       .eq('farm_id', farmId),
+  );
+
+  const inhabitedSitePromises = FARM_SITE_VALUES.map((siteValue) =>
+    countRowsSafely(
+      supabase
+        .from('betails')
+        .select('id', { count: 'exact', head: true })
+        .eq('farm_id', farmId)
+        .eq('farm_site', siteValue),
+    ),
+  );
+
+  const purchasesTodayPromise = countRowsSafely(
+    supabase
+      .from('betails')
+      .select('id', { count: 'exact', head: true })
+      .eq('owner_id', ownerId)
+      .gte('purchased_at', startIso)
+      .lt('purchased_at', endIso),
+  );
+
+  const shippedTodayPromise = countRowsSafely(
+    supabase
+      .from('shipping')
+      .select('id, betails!inner(owner_id)', { count: 'exact', head: true })
+      .eq('betails.owner_id', ownerId)
+      .eq('status', 'scheduled')
+      .gte('scheduled_for', startIso)
+      .lt('scheduled_for', endIso),
+  );
+
+  const withShippingInProgressPromise = countRowsSafely(
+    supabase
+      .from('shipping')
+      .select('id, betails!inner(owner_id, farm_id)', { count: 'exact', head: true })
+      .eq('betails.owner_id', ownerId)
+      .eq('betails.farm_id', farmId)
+      .eq('status', 'scheduled'),
+  );
+
+  const premiumCountPromise = countRowsSafely(
     supabase
       .from('betails')
       .select('id', { count: 'exact', head: true })
       .eq('farm_id', farmId)
       .eq('premium', true),
+  );
+
+  const standardCountPromise = countRowsSafely(
+    supabase
+      .from('betails')
+      .select('id', { count: 'exact', head: true })
+      .eq('farm_id', farmId)
+      .eq('premium', false),
+  );
+
+  const [population, siteCounts, purchasesToday, shippedToday, withShippingInProgressRaw, premiumCount, standardCount] = await Promise.all([
+    populationPromise,
+    Promise.all(inhabitedSitePromises),
+    purchasesTodayPromise,
+    shippedTodayPromise,
+    withShippingInProgressPromise,
+    premiumCountPromise,
+    standardCountPromise,
   ]);
 
-  if (totalResponse.error) throw totalResponse.error;
-  if (premiumResponse.error) throw premiumResponse.error;
+  const inhabitedSites = siteCounts.reduce((count, sitePopulation) => (sitePopulation > 0 ? count + 1 : count), 0);
+  const withShippingInProgress = clampNumber(withShippingInProgressRaw, 0, population);
+  const withoutShippingInProgress = Math.max(0, population - withShippingInProgress);
 
-  const total = Number(totalResponse.count || 0);
-  const premium = Number(premiumResponse.count || 0);
-  const standard = Math.max(0, total - premium);
-
-  return { total, premium, standard };
+  return {
+    population,
+    inhabitedSites,
+    purchasesToday,
+    shippedToday,
+    withShippingInProgress,
+    withoutShippingInProgress,
+    premiumCount,
+    standardCount,
+    siteCountsBySite: FARM_SITE_VALUES.map((site, index) => ({
+      site,
+      count: siteCounts[index] || 0,
+    })),
+  };
 };
 
 function FarmPage() {
@@ -304,12 +428,16 @@ function FarmPage() {
     if (typeof window === 'undefined') return true;
     return window.localStorage.getItem(ROTATION_STORAGE_KEY) !== 'off';
   });
+  const [panelTab, setPanelTab] = useState(PANEL_TAB_OVERVIEW);
+  const [customizationView, setCustomizationView] = useState(CUSTOMIZATION_VIEW_CENTER);
   const [selectedSiteState, setSelectedSiteState] = useState({ farmId: null, siteIndex: null });
   const [hoveredSiteState, setHoveredSiteState] = useState({ farmId: null, siteIndex: null });
-  const [centerWidgetState, setCenterWidgetState] = useState({ farmId: null, isOpen: false });
-  const [centerInfoTab, setCenterInfoTab] = useState('stats');
   const [customColorDraft, setCustomColorDraft] = useState(DEFAULT_CUSTOM_COLOR);
   const [isCustomColorPickerOpen, setIsCustomColorPickerOpen] = useState(false);
+  const [farmVisibleDraft, setFarmVisibleDraft] = useState(true);
+  const [badgePickerSlot, setBadgePickerSlot] = useState(null);
+  const [isBadgePickerOpen, setIsBadgePickerOpen] = useState(false);
+  const [refreshSpinTick, setRefreshSpinTick] = useState(0);
   const [centerEditorMode, setCenterEditorMode] = useState(CENTER_MODE_UPLOAD);
   const [centerImageInputUrl, setCenterImageInputUrl] = useState('');
   const [centerImagePreviewUrl, setCenterImagePreviewUrl] = useState('');
@@ -367,6 +495,9 @@ function FarmPage() {
   });
 
   const farm = farmQuery.data ?? null;
+  const isOwner = Boolean(user?.id) && Boolean(farm?.proprietaire) && farm.proprietaire === user.id;
+  const accessDenied = Boolean(farm) && !isOwner && farm.visible === false;
+
   const farmBadgesQuery = useQuery({
     queryKey: ['farm', 'equips', farm?.id || null],
     queryFn: () => fetchFarmBadgesEquipsReborn(farm.id),
@@ -376,27 +507,80 @@ function FarmPage() {
     refetchOnWindowFocus: false,
     retry: 1,
   });
-  const isOwner = Boolean(user?.id) && Boolean(farm?.proprietaire) && farm.proprietaire === user.id;
-  const accessDenied = Boolean(farm) && !isOwner && farm.visible === false;
+
+  const userBadgesInventoryQuery = useQuery({
+    queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'],
+    queryFn: () => fetchUserBadgesInventoryReborn(user.id),
+    enabled: Boolean(isOwner && user?.id),
+    staleTime: 30_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const userBadgesEquipsQuery = useQuery({
+    queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'],
+    queryFn: () => fetchUserBadgesEquipsReborn(user.id),
+    enabled: Boolean(isOwner && user?.id),
+    staleTime: 20_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
 
   const farmLabel = farm?.name || (farm?.id ? `Ferme #${farm.id}` : 'Ferme');
   const ownerName = ownerNameQuery.data || '';
   const myFarmId = myFarmIdQuery.data ?? null;
+  const isCustomizationPanelActive = panelTab === PANEL_TAB_CUSTOMIZATION;
   const equippedBadges = useMemo(() => {
     return [...(farmBadgesQuery.data || [])]
       .sort((a, b) => (a.slot || 99) - (b.slot || 99));
   }, [farmBadgesQuery.data]);
+  const inventoryBadges = useMemo(() => userBadgesInventoryQuery.data || [], [userBadgesInventoryQuery.data]);
+  const userEquippedBadges = useMemo(() => userBadgesEquipsQuery.data || [], [userBadgesEquipsQuery.data]);
+  const equippedBadgeIdSet = useMemo(
+    () => new Set(userEquippedBadges.map((badge) => badge.id)),
+    [userEquippedBadges],
+  );
+  const farmEquippedBySlot = useMemo(() => {
+    const map = new Map();
+    equippedBadges.forEach((badge) => {
+      if (Number.isFinite(Number(badge.slot))) {
+        map.set(Number(badge.slot), badge);
+      }
+    });
+    return map;
+  }, [equippedBadges]);
+  const freeInventoryBadges = useMemo(
+    () => inventoryBadges.filter((badge) => !equippedBadgeIdSet.has(badge.id)),
+    [inventoryBadges, equippedBadgeIdSet],
+  );
+  const selectedSlotBadge = useMemo(() => {
+    if (!Number.isFinite(Number(badgePickerSlot))) return null;
+    return farmEquippedBySlot.get(Number(badgePickerSlot)) || null;
+  }, [badgePickerSlot, farmEquippedBySlot]);
   const siteColors = useMemo(() => normalizeSiteColors(farm?.site_colors), [farm?.site_colors]);
   const normalizedCenterStyle = useMemo(() => normalizeCenterStyle(farm?.center_style), [farm?.center_style]);
   const storedCenterImageDraft = useMemo(() => readStoredCenterImageDraft(farm?.center_style), [farm?.center_style]);
   const selectedSiteIndex = selectedSiteState.farmId === farm?.id ? selectedSiteState.siteIndex : null;
   const hoveredSiteIndex = hoveredSiteState.farmId === farm?.id ? hoveredSiteState.siteIndex : null;
-  const isCenterWidgetOpen = centerWidgetState.farmId === farm?.id && centerWidgetState.isOpen;
   const visibleBadges = equippedBadges.slice(0, 3);
   const hiddenBadgesCount = Math.max(0, equippedBadges.length - visibleBadges.length);
   const selectedSiteNumber = selectedSiteIndex == null ? null : selectedSiteIndex + 1;
   const selectedSiteColor = selectedSiteIndex == null ? '' : siteColors[selectedSiteIndex] || '';
-  const selectedColorIsPreset = SITE_COLOR_PRESETS.some((color) => colorEquals(color, selectedSiteColor));
+  const activeSiteColor = selectedSiteColor || siteColors[0] || '';
+  const selectedColorIsPreset = SITE_COLOR_PRESETS.some((color) => colorEquals(color, activeSiteColor));
+  const visibilityLabel = farmVisibleDraft ? 'Publique' : 'Privée';
+  const visibilityToggleHint = farmVisibleDraft
+    ? 'Cliquer pour rendre la ferme privée'
+    : 'Cliquer pour rendre la ferme publique';
+  const equippedSlotsCount = equippedBadges.reduce(
+    (count, badge) => (Number.isFinite(Number(badge.slot)) ? count + 1 : count),
+    0,
+  );
+  const isBadgesLoading = farmBadgesQuery.isLoading || userBadgesInventoryQuery.isLoading || userBadgesEquipsQuery.isLoading;
+  const isBadgesFetching = farmBadgesQuery.isFetching || userBadgesInventoryQuery.isFetching || userBadgesEquipsQuery.isFetching;
+  const badgesLoadError = userBadgesInventoryQuery.error || userBadgesEquipsQuery.error;
   const effectiveCenterPreviewSize = Math.max(centerPreviewSize || 0, 112);
   const centerSymbol = normalizeSingleCharacter(centerCustomSymbol, DEFAULT_CENTER_SYMBOL);
   const centerBackgroundColor = centerCustomBackground || DEFAULT_CENTER_BACKGROUND_COLOR;
@@ -444,20 +628,40 @@ function FarmPage() {
   };
   const hasCenterPendingChange = Boolean(centerDraftStyle) && !stylesEqual(currentComparableCenterStyle, centerDraftStyle);
 
-  const betailStatsQuery = useQuery({
-    queryKey: ['farm', 'betail-stats', farm?.id],
-    queryFn: () => fetchFarmBetailStats(farm.id),
-    enabled: Boolean(farm?.id && isCenterWidgetOpen),
-    staleTime: 120000,
-    gcTime: 900000,
+  const ownerDashboardQuery = useQuery({
+    queryKey: ['farm', 'owner-dashboard-stats', farm?.id || null, user?.id || null],
+    queryFn: () => fetchOwnerDashboardStats({ farmId: farm.id, ownerId: user.id }),
+    enabled: Boolean(isOwner && farm?.id && user?.id && panelTab === PANEL_TAB_OVERVIEW),
+    staleTime: 90_000,
+    gcTime: 600_000,
     refetchOnWindowFocus: false,
     retry: 1,
+    placeholderData: (previousData) => previousData,
   });
 
-  const totalBetails = betailStatsQuery.data?.total || 0;
-  const premiumBetails = betailStatsQuery.data?.premium || 0;
-  const standardBetails = betailStatsQuery.data?.standard || 0;
-  const premiumRatio = totalBetails > 0 ? premiumBetails / totalBetails : 0;
+  const ownerDashboardStats = ownerDashboardQuery.data || DEFAULT_OWNER_DASHBOARD_STATS;
+  const shippingPieRatio = ownerDashboardStats.population > 0
+    ? clampNumber(ownerDashboardStats.withShippingInProgress / ownerDashboardStats.population, 0, 1)
+    : 0;
+  const premiumRatio = ownerDashboardStats.population > 0
+    ? clampNumber(ownerDashboardStats.premiumCount / ownerDashboardStats.population, 0, 1)
+    : 0;
+  const standardRatio = ownerDashboardStats.population > 0
+    ? clampNumber(ownerDashboardStats.standardCount / ownerDashboardStats.population, 0, 1)
+    : 0;
+  const managedSitesData = useMemo(
+    () => FARM_SITE_VALUES.map((site, index) => {
+      const matchingSite = ownerDashboardStats.siteCountsBySite?.find((item) => item.site === site);
+      const count = Number(matchingSite?.count || 0);
+      return {
+        site,
+        count,
+        ratio: clampNumber(count / SITE_MANAGED_SITE_CAPACITY, 0, 1),
+        color: SITE_MANAGED_BAR_COLORS[index % SITE_MANAGED_BAR_COLORS.length],
+      };
+    }),
+    [ownerDashboardStats.siteCountsBySite],
+  );
 
   const updateSiteColorsMutation = useMutation({
     mutationFn: async ({ farmId: nextFarmId, ownerId, nextColors }) => {
@@ -518,6 +722,57 @@ function FarmPage() {
       );
     },
   });
+
+  const updateFarmVisibilityMutation = useMutation({
+    mutationFn: async ({ farmId: nextFarmId, ownerId, nextVisible }) => {
+      const { error } = await supabase
+        .from('farms_list')
+        .update({ visible: nextVisible })
+        .eq('id', nextFarmId)
+        .eq('proprietaire', ownerId);
+      if (error) throw error;
+      return nextVisible;
+    },
+    onMutate: async ({ farmId: nextFarmId, nextVisible }) => {
+      await queryClient.cancelQueries({ queryKey: ['farm', 'by-id', nextFarmId] });
+      const previousFarm = queryClient.getQueryData(['farm', 'by-id', nextFarmId]);
+      queryClient.setQueryData(['farm', 'by-id', nextFarmId], (currentFarm) =>
+        currentFarm ? { ...currentFarm, visible: nextVisible } : currentFarm,
+      );
+      return { previousFarm, farmId: nextFarmId };
+    },
+    onError: (_error, _variables, context) => {
+      if (context?.previousFarm && context.farmId != null) {
+        queryClient.setQueryData(['farm', 'by-id', context.farmId], context.previousFarm);
+      }
+      setFarmVisibleDraft(Boolean(context?.previousFarm?.visible));
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: { type: 'error', message: 'Impossible de mettre à jour la visibilité de la ferme.' },
+        }),
+      );
+    },
+  });
+
+  const equipFarmBadgeMutation = useMutation({
+    mutationFn: ({ badgeId, slot = null }) => equipFarmBadgeReborn({ badgeId, slot }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farm?.id || null] });
+    },
+  });
+
+  const unequipFarmBadgeMutation = useMutation({
+    mutationFn: ({ badgeId }) => unequipFarmBadgeReborn({ badgeId }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user?.id || 'anon'] });
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farm?.id || null] });
+    },
+  });
+
+  const isBadgeMutationPending = equipFarmBadgeMutation.isPending || unequipFarmBadgeMutation.isPending;
 
   const queueSiteColorPersist = (nextColors) => {
     if (!isOwner || !farm?.id || !user?.id) return;
@@ -595,7 +850,32 @@ function FarmPage() {
   );
 
   useEffect(() => {
-    if (!isCenterWidgetOpen || !farm?.id) return;
+    setFarmVisibleDraft(Boolean(farm?.visible));
+  }, [farm?.id, farm?.visible]);
+
+  useEffect(() => {
+    if (!isBadgePickerOpen) return undefined;
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        setIsBadgePickerOpen(false);
+        setBadgePickerSlot(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isBadgePickerOpen]);
+
+  useEffect(() => {
+    if (!isOwner || panelTab !== PANEL_TAB_OVERVIEW) {
+      setIsBadgePickerOpen(false);
+      setBadgePickerSlot(null);
+    }
+  }, [isOwner, panelTab]);
+
+  useEffect(() => {
+    if (!isCustomizationPanelActive || !farm?.id) return;
 
     const nextMode = normalizedCenterStyle.type === 'image' && normalizedCenterStyle.imageUrl
       ? CENTER_MODE_UPLOAD
@@ -640,7 +920,7 @@ function FarmPage() {
     setCenterCustomSymbol(normalizeSingleCharacter(normalizedCenterStyle.emoji, DEFAULT_CENTER_SYMBOL));
   }, [
     farm?.id,
-    isCenterWidgetOpen,
+    isCustomizationPanelActive,
     normalizedCenterStyle.backgroundColor,
     normalizedCenterStyle.emoji,
     normalizedCenterStyle.imageUrl,
@@ -655,7 +935,7 @@ function FarmPage() {
   ]);
 
   useEffect(() => {
-    if (!isCenterWidgetOpen) return;
+    if (!isCustomizationPanelActive) return;
 
     let frameA = 0;
     let frameB = 0;
@@ -691,7 +971,7 @@ function FarmPage() {
       previewResizeObserver?.disconnect();
       window.removeEventListener('resize', updatePreviewSize);
     };
-  }, [isCenterWidgetOpen, centerEditorMode, centerImagePreviewUrl]);
+  }, [isCustomizationPanelActive, centerEditorMode, centerImagePreviewUrl]);
 
   useEffect(() => {
     if (!centerImageNaturalSize.width || !centerImageNaturalSize.height) return;
@@ -906,7 +1186,6 @@ function FarmPage() {
     if (target.closest('.farm-design-preview__site') || target.closest('.farm-design-preview__media')) return;
     setSelectedSiteState({ farmId: farm?.id ?? null, siteIndex: null });
     setHoveredSiteState({ farmId: farm?.id ?? null, siteIndex: null });
-    setCenterWidgetState({ farmId: farm?.id ?? null, isOpen: false });
     setIsCustomColorPickerOpen(false);
   };
 
@@ -914,18 +1193,20 @@ function FarmPage() {
     if (farm?.id == null) return;
     if (!Number.isInteger(siteIndex) || siteIndex < 0 || siteIndex > 5) return;
     setSelectedSiteState({ farmId: farm.id, siteIndex });
-    setCenterWidgetState({ farmId: farm.id, isOpen: false });
+    setPanelTab(PANEL_TAB_CUSTOMIZATION);
+    setCustomizationView(CUSTOMIZATION_VIEW_SITES);
     setCustomColorDraft(siteColors[siteIndex] || DEFAULT_CUSTOM_COLOR);
     setIsCustomColorPickerOpen(false);
   };
 
   const handleApplySiteColor = (nextColorRaw) => {
     if (!isOwner || selectedSiteIndex == null) return;
+    const targetSiteIndex = selectedSiteIndex;
     const nextColor = String(nextColorRaw || '').trim();
     if (!nextColor) return;
-    const previousColor = siteColors[selectedSiteIndex];
+    const previousColor = siteColors[targetSiteIndex];
     if (colorEquals(previousColor, nextColor)) return;
-    const nextColors = siteColors.map((color, index) => (index === selectedSiteIndex ? nextColor : color));
+    const nextColors = siteColors.map((color, index) => (index === targetSiteIndex ? nextColor : color));
     if (farm?.id != null) {
       queryClient.setQueryData(['farm', 'by-id', farm.id], (currentFarm) =>
         currentFarm ? { ...currentFarm, site_colors: nextColors } : currentFarm,
@@ -936,7 +1217,8 @@ function FarmPage() {
 
   const openCustomColorPicker = () => {
     if (selectedSiteIndex == null) return;
-    setCustomColorDraft(siteColors[selectedSiteIndex] || DEFAULT_CUSTOM_COLOR);
+    const targetSiteIndex = selectedSiteIndex;
+    setCustomColorDraft(siteColors[targetSiteIndex] || DEFAULT_CUSTOM_COLOR);
     setIsCustomColorPickerOpen(true);
   };
 
@@ -961,15 +1243,138 @@ function FarmPage() {
     setCenterCustomSymbol(normalizedValue || '');
   };
 
-  const handleCenterWidgetToggle = () => {
-    if (!farm?.id) return;
-    const willOpen = !isCenterWidgetOpen;
-    if (willOpen) {
-      setSelectedSiteState({ farmId: farm.id, siteIndex: null });
-      setIsCustomColorPickerOpen(false);
-      setCenterInfoTab('stats');
+  const handlePanelTabChange = (nextTab) => {
+    setPanelTab(nextTab);
+    if (nextTab !== PANEL_TAB_OVERVIEW) {
+      setIsBadgePickerOpen(false);
+      setBadgePickerSlot(null);
     }
-    setCenterWidgetState({ farmId: farm.id, isOpen: willOpen });
+    if (nextTab !== PANEL_TAB_CUSTOMIZATION) {
+      setIsCustomColorPickerOpen(false);
+    }
+  };
+
+  const handleCenterClickFromHex = () => {
+    if (!farm?.id) return;
+    setPanelTab(PANEL_TAB_CUSTOMIZATION);
+    setCustomizationView(CUSTOMIZATION_VIEW_CENTER);
+    setIsCustomColorPickerOpen(false);
+  };
+
+  const handleRefreshBadges = async () => {
+    if (!farm?.id || !user?.id || !isOwner) return;
+    setRefreshSpinTick((currentTick) => currentTick + 1);
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farm.id] }),
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', user.id] }),
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', user.id] }),
+    ]);
+  };
+
+  const handleFarmVisibilityToggle = async () => {
+    if (!isOwner || !farm?.id || !user?.id || updateFarmVisibilityMutation.isPending) return;
+    const nextValue = !farmVisibleDraft;
+    setFarmVisibleDraft(nextValue);
+
+    try {
+      await updateFarmVisibilityMutation.mutateAsync({
+        farmId: farm.id,
+        ownerId: user.id,
+        nextVisible: nextValue,
+      });
+      window.dispatchEvent(
+        new CustomEvent('farmgestion-toast', {
+          detail: { type: 'success', message: nextValue ? 'Ferme publique activée.' : 'Ferme privée activée.' },
+        }),
+      );
+    } catch {
+      // rollback géré dans onError de la mutation
+    }
+  };
+
+  const handleEquipFarmBadge = async (badgeId, slot = null) => {
+    if (!isOwner || !badgeId || !farm?.id || equipFarmBadgeMutation.isPending) return;
+    try {
+      const result = await equipFarmBadgeMutation.mutateAsync({ badgeId, slot });
+      if (!result?.success) {
+        const reason = result?.reason || 'UNKNOWN';
+        if (reason === 'NO_FREE_SLOT') {
+          window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Tous les slots ferme sont occupés.' } }));
+        } else if (reason === 'BADGE_ALREADY_EQUIPPED') {
+          window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Ce badge est déjà équipé ailleurs.' } }));
+        } else if (reason === 'BADGE_NOT_OWNED') {
+          window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Ce badge n\'est pas dans ton inventaire.' } }));
+        } else {
+          window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Équipement ferme impossible pour le moment.' } }));
+        }
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'success', message: 'Badge équipé sur la ferme.' } }));
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (error?.code === '42883' || message.includes('equip_farm_badge_reborn')) {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Fonction SQL equip_farm_badge_reborn absente.' } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Erreur pendant l\'équipement de la ferme.' } }));
+      }
+    }
+  };
+
+  const handleUnequipFarmBadge = async (badgeId) => {
+    if (!isOwner || !badgeId || unequipFarmBadgeMutation.isPending) return;
+    try {
+      const result = await unequipFarmBadgeMutation.mutateAsync({ badgeId });
+      if (!result?.success) {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Déséquipement ferme impossible pour le moment.' } }));
+        return;
+      }
+      window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'success', message: 'Badge retiré de la ferme.' } }));
+    } catch (error) {
+      const message = String(error?.message || '').toLowerCase();
+      if (error?.code === '42883' || message.includes('unequip_farm_badge_reborn')) {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Fonction SQL unequip_farm_badge_reborn absente.' } }));
+      } else {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Erreur pendant le déséquipement de la ferme.' } }));
+      }
+    }
+  };
+
+  const openBadgePickerForSlot = (slot) => {
+    if (!isOwner || !Number.isFinite(Number(slot))) return;
+    setBadgePickerSlot(Number(slot));
+    setIsBadgePickerOpen(true);
+  };
+
+  const closeBadgePicker = () => {
+    setIsBadgePickerOpen(false);
+    setBadgePickerSlot(null);
+  };
+
+  const handleEquipBadgeFromSlotPicker = async (badge) => {
+    const slot = Number(badgePickerSlot);
+    if (!isOwner || !Number.isFinite(slot) || !badge?.id || !farm?.id || isBadgeMutationPending) return;
+
+    const currentlyEquipped = farmEquippedBySlot.get(slot);
+    if (currentlyEquipped?.id === badge.id) {
+      closeBadgePicker();
+      return;
+    }
+
+    if (currentlyEquipped?.id) {
+      try {
+        const unequipResult = await unequipFarmBadgeMutation.mutateAsync({ badgeId: currentlyEquipped.id });
+        if (!unequipResult?.success) {
+          window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Impossible de remplacer le badge sur ce slot.' } }));
+          return;
+        }
+      } catch {
+        window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type: 'error', message: 'Impossible de remplacer le badge sur ce slot.' } }));
+        return;
+      }
+    }
+
+    await handleEquipFarmBadge(badge.id, slot);
+    closeBadgePicker();
   };
 
   if (!validFarmId) {
@@ -1007,19 +1412,12 @@ function FarmPage() {
   return (
     <div className="farm-page">
       <header className="farm-page-header">
-        <div>
-          <p className="farm-page-eyebrow">{isOwner ? 'Votre ferme' : 'Mode visiteur'}</p>
-          <h1 className="farm-page-title">{farmLabel}</h1>
-          <p className="farm-page-subtitle">
-            {ownerName ? `Propriétaire : ${ownerName}` : 'Propriétaire inconnu'} - État : {farm.state || '-'}
-          </p>
-        </div>
         <div className="farm-page-actions">
           {myFarmId && Number(myFarmId) !== Number(farm.id) ? (
             <button type="button" className="farm-page-btn ghost" onClick={() => navigate(`/farm/${myFarmId}`)}>
               Aller à ma ferme
             </button>
-          ) : null}
+            ) : null}
           <button type="button" className="farm-page-btn ghost" onClick={() => navigate('/home')}>
             Tableau de bord
           </button>
@@ -1048,7 +1446,7 @@ function FarmPage() {
           }
         >
           <div className="farm-page-hex-toolbar">
-            <span className="farm-page-hex-label">Hexagone principal</span>
+            <span className="farm-page-hex-label">{farmLabel}</span>
             <button
               type="button"
               className="farm-page-rotate-btn"
@@ -1060,8 +1458,7 @@ function FarmPage() {
             </button>
           </div>
           <p className="farm-page-hex-intro">
-            Le cœur de votre domaine ! C'est ici que vous pourrez gérer votre ferme.
-            {isOwner ? " Cliquez sur un site dans l'hexagone pour afficher ses options." : ''}
+            {ownerName ? `Propriétaire : ${ownerName}` : 'Propriétaire inconnu'} - État : {farm.state || '-'}
           </p>
 
           {equippedBadges.length ? (
@@ -1071,7 +1468,7 @@ function FarmPage() {
                   key={badge.id}
                   className={`farm-page-badge-chip ${badge.rarity ? `is-${badge.rarity}` : 'is-unknown'}`}
                   role="listitem"
-                  title={`${badge.name} • ${badge.rarityLabel}`}
+                  title={`${badge.name} - ${badge.rarityLabel}`}
                 >
                   {badge.imageUrl ? (
                     <img
@@ -1117,186 +1514,382 @@ function FarmPage() {
                 siteIndex: Number.isInteger(siteIndex) ? siteIndex : null,
               })
             }
-            onCenterClick={handleCenterWidgetToggle}
-            centerAriaLabel="Afficher le widget de répartition des bétails"
+            onCenterClick={handleCenterClickFromHex}
+            centerAriaLabel="Ouvrir l'onglet customisation de la ferme"
             getSiteAriaLabel={(siteIndex) => `Site ${siteIndex + 1}`}
-            siteHoverHint={isOwner ? 'Cliquer pour voir' : ''}
+            siteHoverHint={isOwner ? 'Cliquer pour personnaliser' : ''}
           />
         </div>
 
         <div className="farm-page-panel">
-          <h2>Informations - {farm.name} #{farm.id}</h2>
-          <p>Visibilité : {farm.visible ? 'Publique' : 'Privée'}</p>
-          <p>Créée le : {farm.creation_date ? new Date(farm.creation_date).toLocaleDateString('fr-FR') : 'Date inconnue'}</p>
-          <p>
-            Vous êtes <strong>{isOwner ? 'propriétaire' : 'visiteur'}</strong> de cette ferme !
-          </p>
-          {selectedSiteNumber ? (
-            <div className="farm-page-site-subpanel" role="region" aria-live="polite" aria-label={`Site ${selectedSiteNumber}`}>
-              <div className="farm-page-site-subpanel-head">
-                <span className="farm-page-site-badge">Couleur - Site N°{selectedSiteNumber}</span>
-                <span className="farm-page-site-color-code">{selectedSiteColor}</span>
-              </div>
-              <p className="farm-page-site-subpanel-copy">
-                {isOwner ? 'Choisissez une couleur pour ce site.' : 'Mode visiteur : couleurs consultables seulement.'}
+          <div className="farm-page-panel-head">
+            <div>
+              <p className="farm-page-panel-kicker">Tableau de bord de la ferme</p>
+              <p className="farm-page-panel-subtitle">
+                {isOwner ? 'Administration propriétaire active.' : 'Mode visiteur : consultation uniquement.'}
               </p>
-              <div
-                className="farm-page-clay-slab"
-                role="list"
-                aria-label={`Couleurs disponibles pour le site ${selectedSiteNumber}`}
-              >
-                <div className="farm-page-clay-items">
-                  {SITE_COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      className={`farm-page-clay-color ${colorEquals(selectedSiteColor, color) ? 'is-active' : ''}`}
-                      style={{ '--color': color }}
-                      data-color={color}
-                      onClick={() => handleApplySiteColor(color)}
-                      disabled={!isOwner}
-                      aria-label={`Appliquer la couleur ${color}`}
-                    />
-                  ))}
-                  <button
-                    type="button"
-                    className={`farm-page-clay-color is-custom ${!selectedColorIsPreset ? 'is-active' : ''} ${isCustomColorPickerOpen ? 'is-open' : ''}`}
-                    style={{ '--color': customColorDraft || DEFAULT_CUSTOM_COLOR }}
-                    data-color="Custom"
-                    onClick={openCustomColorPicker}
-                    disabled={!isOwner}
-                    aria-label="Choisir une couleur personnalisée"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-              {isCustomColorPickerOpen ? (
-                <div className="farm-page-custom-color-popover">
-                  <label className="farm-page-custom-color-label">
-                    Couleur personnalisée
-                    <input
-                      type="color"
-                      value={customColorDraft}
-                      onChange={(event) => setCustomColorDraft(event.target.value || DEFAULT_CUSTOM_COLOR)}
-                      disabled={!isOwner}
-                    />
-                  </label>
-                  <button
-                    type="button"
-                    className="farm-page-custom-color-confirm"
-                    onClick={handleCustomColorConfirm}
-                    disabled={!isOwner}
-                  >
-                    OK
-                  </button>
-                </div>
+            </div>
+            <div className="farm-page-panel-visibility-controls">
+              <span className={`farm-page-panel-visibility-pill ${farmVisibleDraft ? 'is-public' : 'is-private'}`}>
+                {visibilityLabel}
+              </span>
+              {isOwner ? (
+                <label
+                  className={`farm-page-panel-visibility-switch settings-switch ${updateFarmVisibilityMutation.isPending ? 'is-busy' : ''}`}
+                  title={visibilityToggleHint}
+                >
+                  <input
+                    type="checkbox"
+                    onChange={handleFarmVisibilityToggle}
+                    checked={farmVisibleDraft}
+                    disabled={updateFarmVisibilityMutation.isPending}
+                    aria-label="Rendre la ferme publique"
+                    title={visibilityToggleHint}
+                  />
+                  <span className="settings-slider" />
+                </label>
               ) : null}
             </div>
-          ) : !isCenterWidgetOpen ? (
-            <p className="farm-page-site-empty">
-              Cliquez sur un site dans l'hexagone ou sur le centre pour découvrir les options.
-            </p>
-          ) : null}
-          {isCenterWidgetOpen ? (
-            <div className="farm-page-center-panel" aria-live="polite">
-              <div className="farm-page-center-main-tabs" role="tablist" aria-label="Onglets centre de la ferme">
-                <button
-                  type="button"
-                  className={`farm-page-center-main-tab ${centerInfoTab === 'stats' ? 'is-active' : ''}`}
-                  onClick={() => setCenterInfoTab('stats')}
-                  role="tab"
-                  aria-selected={centerInfoTab === 'stats'}
-                >
-                  Statistiques
-                </button>
-                <button
-                  type="button"
-                  className={`farm-page-center-main-tab ${centerInfoTab === 'customization' ? 'is-active' : ''}`}
-                  onClick={() => {
-                    if (!isOwner) return;
-                    setCenterInfoTab('customization');
-                  }}
-                  role="tab"
-                  aria-selected={centerInfoTab === 'customization'}
-                  disabled={!isOwner}
-                >
-                  Personnalisation
-                </button>
-              </div>
+          </div>
 
-              <div className="farm-page-center-main-content">
-                {(centerInfoTab === 'stats' || !isOwner) ? (
-                  <div className="farm-page-center-main-pane is-stats">
-                    <div className="farm-page-center-widget">
-                      <div className="farm-page-center-widget-head">
-                        <h3 className="farm-page-center-widget-title">Répartition</h3>
-                        <span className="farm-page-center-widget-total">{totalBetails}</span>
-                      </div>
-                      {betailStatsQuery.isError ? (
-                        <p className="farm-page-center-widget-state">Impossible de charger la répartition.</p>
-                      ) : (
-                        <>
-                          <div
-                            className={`farm-page-center-widget-pie ${betailStatsQuery.isLoading ? 'is-loading' : ''}`}
-                            style={{ '--premium-ratio': String(premiumRatio) }}
-                            role="img"
-                            aria-label={`Bétails premium ${premiumBetails}, bétails standard ${standardBetails}`}
-                          />
-                          <div className="farm-page-center-widget-legend">
-                            <span className="farm-page-center-legend-item premium">Bétail premium</span>
-                            <span className="farm-page-center-legend-item standard">Standard</span>
-                          </div>
-                          {betailStatsQuery.isLoading ? (
-                            <p className="farm-page-center-widget-state">Chargement...</p>
-                          ) : null}
-                        </>
-                      )}
+          <div className="farm-page-panel-tabs" role="tablist" aria-label="Onglets du panneau de ferme">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={panelTab === PANEL_TAB_OVERVIEW}
+              className={`farm-page-panel-tab ${panelTab === PANEL_TAB_OVERVIEW ? 'is-active' : ''}`}
+              onClick={() => handlePanelTabChange(PANEL_TAB_OVERVIEW)}
+            >
+              Aperçu
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={isCustomizationPanelActive}
+              className={`farm-page-panel-tab ${isCustomizationPanelActive ? 'is-active' : ''}`}
+              onClick={() => handlePanelTabChange(PANEL_TAB_CUSTOMIZATION)}
+            >
+              Customisation
+            </button>
+          </div>
+
+          <div className="farm-page-panel-content">
+            {panelTab === PANEL_TAB_OVERVIEW ? (
+              <div className="farm-page-overview-tab">
+                {isOwner ? (
+                  <div className="farm-page-owner-dashboard">
+                    <div className="farm-page-dashboard-top-cards" role="list" aria-label="Indicateurs principaux">
+                      <article className="farm-page-dashboard-stat-card" role="listitem">
+                        <p className="farm-page-dashboard-stat-title">
+                          <Users size={15} aria-hidden="true" />
+                          Population
+                        </p>
+                        <strong>{ownerDashboardStats.population}</strong>
+                        <span>Nombre total de bétails dans la ferme</span>
+                      </article>
+
+                      <article className="farm-page-dashboard-stat-card" role="listitem">
+                        <p className="farm-page-dashboard-stat-title">
+                          <Building2 size={15} aria-hidden="true" />
+                          Sites habités
+                        </p>
+                        <strong>{ownerDashboardStats.inhabitedSites}</strong>
+                        <span>Sites contenant au moins un bétail</span>
+                      </article>
                     </div>
+
+                    <section className="farm-page-dashboard-activity" aria-label="Activité récente">
+                      <p className="farm-page-dashboard-activity-title">Activité récente</p>
+
+                      <div className="farm-page-dashboard-activity-content">
+                        <div className="farm-page-dashboard-activity-metrics">
+                          <article className="farm-page-dashboard-activity-metric">
+                            <p>
+                              <ShoppingCart size={14} aria-hidden="true" />
+                              Achats aujourd'hui
+                            </p>
+                            <strong>{ownerDashboardStats.purchasesToday}</strong>
+                          </article>
+
+                          <article className="farm-page-dashboard-activity-metric">
+                            <p>
+                              <Truck size={14} aria-hidden="true" />
+                              Expéditions aujourd'hui
+                            </p>
+                            <strong>{ownerDashboardStats.shippedToday}</strong>
+                          </article>
+                        </div>
+
+                        <div className="farm-page-dashboard-pie-block" aria-label="Répartition des expéditions en cours">
+                          <div
+                            className="farm-page-dashboard-pie"
+                            style={{ '--with-shipping-ratio': shippingPieRatio }}
+                            role="img"
+                            aria-label={`Expéditions en cours: ${ownerDashboardStats.withShippingInProgress} avec date, ${ownerDashboardStats.withoutShippingInProgress} sans date`}
+                          >
+                            <span>{Math.round(shippingPieRatio * 100)}%</span>
+                          </div>
+
+                          <div className="farm-page-dashboard-pie-legend">
+                            <p>
+                              Avec expédition <strong>{ownerDashboardStats.withShippingInProgress}</strong>
+                            </p>
+                            <p>
+                              Sans expédition <strong>{ownerDashboardStats.withoutShippingInProgress}</strong>
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <div className="farm-page-dashboard-bottom-grid">
+                      <section className="farm-page-dashboard-split" aria-label="Répartition du bétail">
+                        <p className="farm-page-dashboard-split-title">Répartition du bétail</p>
+
+                        <article className="farm-page-dashboard-split-row">
+                          <p>
+                            Premium
+                            <strong>{ownerDashboardStats.premiumCount}</strong>
+                          </p>
+                          <div className="farm-page-dashboard-split-track" role="img" aria-label={`Premium ${Math.round(premiumRatio * 100)}%`}>
+                            <span
+                              className="is-premium"
+                              style={{ '--split-ratio': premiumRatio }}
+                            />
+                          </div>
+                        </article>
+
+                        <article className="farm-page-dashboard-split-row">
+                          <p>
+                            Produit standard
+                            <strong>{ownerDashboardStats.standardCount}</strong>
+                          </p>
+                          <div className="farm-page-dashboard-split-track" role="img" aria-label={`Standard ${Math.round(standardRatio * 100)}%`}>
+                            <span
+                              className="is-standard"
+                              style={{ '--split-ratio': standardRatio }}
+                            />
+                          </div>
+                        </article>
+                      </section>
+
+                      <section className="farm-page-dashboard-badges farm-page-badge-manager" aria-label="Badges équipés sur la ferme">
+                        <div className="farm-page-dashboard-badges-head">
+                          <p className="farm-page-dashboard-badges-title">Badges</p>
+                          <button
+                            type="button"
+                            className="settings-admin-refresh-icon-btn"
+                            onClick={handleRefreshBadges}
+                            aria-label="Rafraîchir les badges"
+                            disabled={isBadgesFetching || isBadgeMutationPending}
+                          >
+                            <RefreshCcw
+                              key={`farm-badges-refresh-${refreshSpinTick}`}
+                              size={16}
+                              className={`settings-admin-refresh-icon ${refreshSpinTick > 0 ? 'is-spinning' : ''}`}
+                            />
+                          </button>
+                        </div>
+
+                        {badgesLoadError ? (
+                          <p className="farm-page-badge-state is-error">
+                            {badgesLoadError?.message || 'Impossible de charger les badges de la ferme.'}
+                          </p>
+                        ) : null}
+                        {isBadgesLoading ? <p className="farm-page-badge-state">Chargement des badges...</p> : null}
+
+                        <div className="farm-page-dashboard-badge-slots" role="list" aria-label="Slots badges de la ferme">
+                          {Array.from({ length: MAX_BADGE_SLOTS }, (_, index) => {
+                            const slot = index + 1;
+                            const badge = farmEquippedBySlot.get(slot);
+
+                            if (!badge) {
+                              return (
+                                <button
+                                  key={`farm-slot-empty-${slot}`}
+                                  type="button"
+                                  className="farm-page-dashboard-badge-slot is-empty"
+                                  onClick={() => openBadgePickerForSlot(slot)}
+                                  disabled={!isOwner || isBadgeMutationPending}
+                                  role="listitem"
+                                >
+                                  <span className="farm-page-dashboard-badge-slot-label">Slot {slot}</span>
+                                  <span className="farm-page-dashboard-badge-slot-hint">Équiper</span>
+                                </button>
+                              );
+                            }
+
+                            return (
+                              <article
+                                key={`farm-slot-${badge.id}`}
+                                className={`farm-page-dashboard-badge-slot is-filled is-${badge.rarity}`}
+                                role="listitem"
+                              >
+                                <button
+                                  type="button"
+                                  className="farm-page-dashboard-badge-preview"
+                                  onClick={() => openBadgePickerForSlot(slot)}
+                                  disabled={!isOwner || isBadgeMutationPending}
+                                  title={`Changer ${badge.name}`}
+                                >
+                                  {badge.imageUrl ? (
+                                    <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                                  ) : (
+                                    <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                                  )}
+                                </button>
+                                <p className="farm-page-dashboard-badge-slot-label">Slot {slot}</p>
+                                <button
+                                  type="button"
+                                  className="settings-action settings-action--tiny"
+                                  onClick={() => handleUnequipFarmBadge(badge.id)}
+                                  disabled={!isOwner || isBadgeMutationPending}
+                                >
+                                  Retirer
+                                </button>
+                              </article>
+                            );
+                          })}
+                        </div>
+                      </section>
+                    </div>
+
+                    <section className="farm-page-dashboard-sites" aria-label="Sites gérés">
+                      <p className="farm-page-dashboard-sites-title">Sites gérés</p>
+                      <div className="farm-page-dashboard-sites-list" role="list" aria-label="Capacité des sites de la ferme">
+                        {managedSitesData.map((siteData) => (
+                          <article key={`farm-managed-site-${siteData.site}`} className="farm-page-dashboard-site-row" role="listitem">
+                            <p>
+                              <span>Site {siteData.site}</span>
+                              <strong>{siteData.count}</strong>
+                            </p>
+                            <div
+                              className="farm-page-dashboard-site-track"
+                              style={{
+                                '--site-ratio': siteData.ratio,
+                                '--site-color': siteData.color,
+                              }}
+                              role="img"
+                              aria-label={`Site ${siteData.site} : ${siteData.count} sur ${SITE_MANAGED_SITE_CAPACITY}`}
+                            >
+                              <span>{siteData.count}/{SITE_MANAGED_SITE_CAPACITY}</span>
+                            </div>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+
                   </div>
+                ) : (
+                  <p className="farm-page-overview-visitor-note">
+                    Cette ferme est actuellement <strong>{visibilityLabel.toLowerCase()}</strong>. Le propriétaire peut modifier cette option.
+                  </p>
+                )}
+              </div>
+            ) : null}
+
+            {isCustomizationPanelActive ? (
+              <div className="farm-page-customization-panel">
+                <div className="farm-page-customization-switch" role="tablist" aria-label="Sections de customisation">
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={customizationView === CUSTOMIZATION_VIEW_SITES}
+                    className={`farm-page-customization-switch-btn ${customizationView === CUSTOMIZATION_VIEW_SITES ? 'is-active' : ''}`}
+                    onClick={() => setCustomizationView(CUSTOMIZATION_VIEW_SITES)}
+                  >
+                    Palette des sites
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={customizationView === CUSTOMIZATION_VIEW_CENTER}
+                    className={`farm-page-customization-switch-btn ${customizationView === CUSTOMIZATION_VIEW_CENTER ? 'is-active' : ''}`}
+                    onClick={() => setCustomizationView(CUSTOMIZATION_VIEW_CENTER)}
+                  >
+                    Centre de la ferme
+                  </button>
+                </div>
+
+                {customizationView === CUSTOMIZATION_VIEW_SITES ? (
+                  selectedSiteNumber ? (
+                    <div className="farm-page-site-subpanel" role="region" aria-live="polite" aria-label={`Site ${selectedSiteNumber}`}>
+                      <div className="farm-page-site-subpanel-head">
+                        <span className="farm-page-site-badge">Couleur - Site n°{selectedSiteNumber}</span>
+                        <span className="farm-page-site-color-code">{activeSiteColor || DEFAULT_CUSTOM_COLOR}</span>
+                      </div>
+                      <p className="farm-page-site-subpanel-copy">
+                        {isOwner ? 'Palette active: cliquez une couleur pour ce site.' : 'Mode visiteur : couleurs consultables seulement.'}
+                      </p>
+                      <div
+                        className="farm-page-clay-slab"
+                        role="list"
+                        aria-label={`Couleurs disponibles pour le site ${selectedSiteNumber}`}
+                      >
+                        <div className="farm-page-clay-items">
+                          {SITE_COLOR_PRESETS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              className={`farm-page-clay-color ${colorEquals(activeSiteColor, color) ? 'is-active' : ''}`}
+                              style={{ '--color': color }}
+                              data-color={color}
+                              onClick={() => handleApplySiteColor(color)}
+                              disabled={!isOwner}
+                              aria-label={`Appliquer la couleur ${color}`}
+                            />
+                          ))}
+                          <button
+                            type="button"
+                            className={`farm-page-clay-color is-custom ${!selectedColorIsPreset ? 'is-active' : ''} ${isCustomColorPickerOpen ? 'is-open' : ''}`}
+                            style={{ '--color': customColorDraft || DEFAULT_CUSTOM_COLOR }}
+                            data-color="Custom"
+                            onClick={openCustomColorPicker}
+                            disabled={!isOwner}
+                            aria-label="Choisir une couleur personnalisée"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                      {isCustomColorPickerOpen ? (
+                        <div className="farm-page-custom-color-popover">
+                          <label className="farm-page-custom-color-label">
+                            Couleur personnalisée
+                            <input
+                              type="color"
+                              value={customColorDraft}
+                              onChange={(event) => setCustomColorDraft(event.target.value || DEFAULT_CUSTOM_COLOR)}
+                              disabled={!isOwner}
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            className="farm-page-custom-color-confirm"
+                            onClick={handleCustomColorConfirm}
+                            disabled={!isOwner}
+                          >
+                            OK
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <p className="farm-page-site-empty">
+                      Cliquez sur un site dans l'hexagone pour afficher la palette de couleurs.
+                    </p>
+                  )
                 ) : null}
 
-                {centerInfoTab === 'customization' && isOwner ? (
-                  <div className="farm-page-center-main-pane is-customization">
-                    <div className="farm-page-center-style-card" role="region" aria-label="Personnalisation du centre">
-                      <p className="farm-page-center-style-title">Apparence du centre</p>
+                {customizationView === CUSTOMIZATION_VIEW_CENTER ? (
+                  <div className="farm-page-center-panel" aria-live="polite">
+                    {isOwner ? (
+                      <section className="farm-page-center-style-card farm-page-center-style-card--modern" role="region" aria-label="Personnalisation du centre">
+                        <div className="farm-page-center-heading">
+                          <p className="farm-page-center-style-title">Centre de la ferme</p>
+                          <p className="farm-page-center-heading-copy">Importez, chargez par URL ou personnalisez le visuel en direct.</p>
+                        </div>
 
-                      <div className="radio-inputs" role="tablist" aria-label="Modes de personnalisation du centre">
-                        <label className="radio" htmlFor={`center-mode-upload-${farm.id}`}>
-                          <input
-                            type="radio"
-                            id={`center-mode-upload-${farm.id}`}
-                            name={`center-mode-tabs-${farm.id}`}
-                            checked={centerEditorMode === CENTER_MODE_UPLOAD}
-                            onChange={() => handleCenterModeChange(CENTER_MODE_UPLOAD)}
-                          />
-                          <span className="name">Importer</span>
-                        </label>
-
-                        <label className="radio" htmlFor={`center-mode-url-${farm.id}`}>
-                          <input
-                            type="radio"
-                            id={`center-mode-url-${farm.id}`}
-                            name={`center-mode-tabs-${farm.id}`}
-                            checked={centerEditorMode === CENTER_MODE_URL}
-                            onChange={() => handleCenterModeChange(CENTER_MODE_URL)}
-                          />
-                          <span className="name">URL</span>
-                        </label>
-
-                        <label className="radio" htmlFor={`center-mode-customize-${farm.id}`}>
-                          <input
-                            type="radio"
-                            id={`center-mode-customize-${farm.id}`}
-                            name={`center-mode-tabs-${farm.id}`}
-                            checked={centerEditorMode === CENTER_MODE_CUSTOMIZE}
-                            onChange={() => handleCenterModeChange(CENTER_MODE_CUSTOMIZE)}
-                          />
-                          <span className="name">Personnaliser</span>
-                        </label>
-                      </div>
-
-                      <div className="farm-page-center-style-body">
                         <input
                           ref={centerFileInputRef}
                           type="file"
@@ -1305,154 +1898,257 @@ function FarmPage() {
                           onChange={handleCenterImageFileChange}
                         />
 
-                        <div className={`farm-page-center-mode-pane ${centerEditorMode === CENTER_MODE_UPLOAD ? 'is-active' : ''}`}>
-                          <button
-                            type="button"
-                            className="farm-page-btn farm-page-center-action"
-                            onClick={() => centerFileInputRef.current?.click()}
-                            disabled={isCenterStyleSaving}
-                          >
-                            Choisir une image
-                          </button>
-                          <p className="farm-page-center-mode-hint">Import local puis recadrage du centre.</p>
-                        </div>
-
-                        <div className={`farm-page-center-mode-pane ${centerEditorMode === CENTER_MODE_URL ? 'is-active' : ''}`}>
-                          <label className="farm-page-center-url-label">
-                            URL image
-                            <input
-                              type="url"
-                              className="farm-page-center-url-input"
-                              value={centerImageInputUrl}
-                              onChange={(event) => setCenterImageInputUrl(event.target.value)}
-                              placeholder="https://..."
-                              disabled={isCenterUrlLoading || isCenterStyleSaving}
-                            />
-                          </label>
-                          <button
-                            type="button"
-                            className="farm-page-btn farm-page-center-action"
-                            onClick={handleCenterLoadFromUrl}
-                            disabled={isCenterUrlLoading || isCenterStyleSaving}
-                          >
-                            {isCenterUrlLoading ? 'Chargement...' : 'Charger l\'image'}
-                          </button>
-                        </div>
-
-                        <div className={`farm-page-center-mode-pane farm-page-center-mode-customize ${centerEditorMode === CENTER_MODE_CUSTOMIZE ? 'is-active' : ''}`}>
-                          <label className="farm-page-center-color-label">
-                            Couleur du centre
-                            <input
-                              type="color"
-                              value={centerBackgroundColor}
-                              onChange={(event) => setCenterCustomBackground(event.target.value || DEFAULT_CENTER_BACKGROUND_COLOR)}
-                              disabled={isCenterStyleSaving}
-                            />
-                          </label>
-                          <label className="farm-page-center-symbol-label">
-                            Lettre ou emoji
-                            <input
-                              type="text"
-                              value={centerCustomSymbol}
-                              maxLength={4}
-                              onChange={(event) => handleCenterSymbolChange(event.target.value)}
-                              placeholder="H"
-                              disabled={isCenterStyleSaving}
-                            />
-                          </label>
-                        </div>
-
-                        {centerDraftType === 'image' ? (
-                          <div className="farm-page-center-image-stage">
-                            <div
-                              ref={centerPreviewRef}
-                              className={`farm-page-center-image-preview ${isCenterImageDragging ? 'is-dragging' : ''}`}
-                              onPointerDown={handleCenterImagePointerDown}
-                              onPointerMove={handleCenterImagePointerMove}
-                              onPointerUp={handleCenterImagePointerUp}
-                              onPointerLeave={handleCenterImagePointerUp}
-                            >
-                              {centerImagePreviewUrl ? (
-                                <img
-                                  src={centerImagePreviewUrl}
-                                  alt="Aperçu centre"
-                                  draggable={false}
-                                  onDragStart={(event) => event.preventDefault()}
-                                  onLoad={(event) => {
-                                    setCenterImageNaturalSize({
-                                      width: event.currentTarget.naturalWidth || 0,
-                                      height: event.currentTarget.naturalHeight || 0,
-                                    });
-
-                                    const rect = centerPreviewRef.current?.getBoundingClientRect();
-                                    if (rect?.width && rect?.height) {
-                                      setCenterPreviewSize((currentSize) => {
-                                        const nextSize = Math.min(rect.width, rect.height);
-                                        return Math.abs(currentSize - nextSize) > 0.25 ? nextSize : currentSize;
-                                      });
-                                    }
-                                  }}
-                                  style={{
-                                    width: `${centerImageNaturalSize.width ? centerImageNaturalSize.width * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
-                                    height: `${centerImageNaturalSize.height ? centerImageNaturalSize.height * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
-                                    transform: `translate(-50%, -50%) translate(${centerImagePosition.x}px, ${centerImagePosition.y}px) scale(${centerImageZoom})`,
-                                  }}
-                                />
-                              ) : (
-                                <span className="farm-page-center-image-placeholder">Aucune image sélectionnée</span>
-                              )}
+                        <div className="farm-page-center-layout">
+                          <div className="farm-page-center-controls">
+                            <div className="farm-page-center-mode-tabs" role="tablist" aria-label="Modes de personnalisation du centre">
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={centerEditorMode === CENTER_MODE_UPLOAD}
+                                className={`farm-page-center-mode-tab ${centerEditorMode === CENTER_MODE_UPLOAD ? 'is-active' : ''}`}
+                                onClick={() => handleCenterModeChange(CENTER_MODE_UPLOAD)}
+                              >
+                                Import
+                              </button>
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={centerEditorMode === CENTER_MODE_URL}
+                                className={`farm-page-center-mode-tab ${centerEditorMode === CENTER_MODE_URL ? 'is-active' : ''}`}
+                                onClick={() => handleCenterModeChange(CENTER_MODE_URL)}
+                              >
+                                URL
+                              </button>
+                              <button
+                                type="button"
+                                role="tab"
+                                aria-selected={centerEditorMode === CENTER_MODE_CUSTOMIZE}
+                                className={`farm-page-center-mode-tab ${centerEditorMode === CENTER_MODE_CUSTOMIZE ? 'is-active' : ''}`}
+                                onClick={() => handleCenterModeChange(CENTER_MODE_CUSTOMIZE)}
+                              >
+                                Perso
+                              </button>
                             </div>
 
-                            {centerImagePreviewUrl ? (
-                              <div className="farm-page-center-image-controls">
-                                <label>
-                                  Zoom
+                            {centerEditorMode === CENTER_MODE_UPLOAD ? (
+                              <div className="farm-page-center-mode-pane">
+                                <p className="farm-page-center-mode-pane-title">Importer une image</p>
+                                <p className="farm-page-center-mode-hint">Chargement local puis recadrage direct dans l'aperçu.</p>
+                                <button
+                                  type="button"
+                                  className="farm-page-btn farm-page-center-action"
+                                  onClick={() => centerFileInputRef.current?.click()}
+                                  disabled={isCenterStyleSaving}
+                                >
+                                  Choisir une image
+                                </button>
+                              </div>
+                            ) : null}
+
+                            {centerEditorMode === CENTER_MODE_URL ? (
+                              <div className="farm-page-center-mode-pane">
+                                <label className="farm-page-center-url-label">
+                                  URL image
                                   <input
-                                    type="range"
-                                    min="1"
-                                    max="2.5"
-                                    step="0.01"
-                                    value={centerImageZoom}
-                                    onChange={(event) => {
-                                      const nextZoom = clampCenterZoom(event.target.value);
-                                      setCenterImageZoom(nextZoom);
-                                      setCenterImagePosition((currentPosition) => clampCenterPosition(currentPosition, nextZoom));
-                                    }}
+                                    type="url"
+                                    className="farm-page-center-url-input"
+                                    value={centerImageInputUrl}
+                                    onChange={(event) => setCenterImageInputUrl(event.target.value)}
+                                    placeholder="https://..."
+                                    disabled={isCenterUrlLoading || isCenterStyleSaving}
+                                  />
+                                </label>
+                                <button
+                                  type="button"
+                                  className="farm-page-btn farm-page-center-action"
+                                  onClick={handleCenterLoadFromUrl}
+                                  disabled={isCenterUrlLoading || isCenterStyleSaving}
+                                >
+                                  {isCenterUrlLoading ? 'Chargement...' : 'Charger l\'image'}
+                                </button>
+                              </div>
+                            ) : null}
+
+                            {centerEditorMode === CENTER_MODE_CUSTOMIZE ? (
+                              <div className="farm-page-center-mode-pane farm-page-center-mode-customize">
+                                <label className="farm-page-center-color-label">
+                                  Couleur du centre
+                                  <input
+                                    type="color"
+                                    value={centerBackgroundColor}
+                                    onChange={(event) => setCenterCustomBackground(event.target.value || DEFAULT_CENTER_BACKGROUND_COLOR)}
                                     disabled={isCenterStyleSaving}
                                   />
                                 </label>
-                                <p>Glissez l'image pour recadrer.</p>
+                                <label className="farm-page-center-symbol-label">
+                                  Lettre ou emoji
+                                  <input
+                                    type="text"
+                                    value={centerCustomSymbol}
+                                    maxLength={4}
+                                    onChange={(event) => handleCenterSymbolChange(event.target.value)}
+                                    placeholder="H"
+                                    disabled={isCenterStyleSaving}
+                                  />
+                                </label>
                               </div>
                             ) : null}
                           </div>
-                        ) : (
-                          <div className="farm-page-center-custom-stage">
-                            <div
-                              className="farm-page-center-custom-preview is-large"
-                              style={{ background: centerBackgroundColor }}
-                              aria-label="Aperçu centre personnalisé"
-                            >
-                              <span>{centerSymbol || DEFAULT_CENTER_SYMBOL}</span>
-                            </div>
-                            <p>Le symbole sera affiché sur le centre avec la couleur choisie.</p>
+
+                          <div className="farm-page-center-preview-card">
+                            <p className="farm-page-center-preview-kicker">Aperçu en direct</p>
+
+                            {centerDraftType === 'image' ? (
+                              <div className="farm-page-center-image-stage">
+                                <div
+                                  ref={centerPreviewRef}
+                                  className={`farm-page-center-image-preview ${isCenterImageDragging ? 'is-dragging' : ''}`}
+                                  onPointerDown={handleCenterImagePointerDown}
+                                  onPointerMove={handleCenterImagePointerMove}
+                                  onPointerUp={handleCenterImagePointerUp}
+                                  onPointerLeave={handleCenterImagePointerUp}
+                                >
+                                  {centerImagePreviewUrl ? (
+                                    <img
+                                      src={centerImagePreviewUrl}
+                                      alt="Aperçu centre"
+                                      draggable={false}
+                                      onDragStart={(event) => event.preventDefault()}
+                                      onLoad={(event) => {
+                                        setCenterImageNaturalSize({
+                                          width: event.currentTarget.naturalWidth || 0,
+                                          height: event.currentTarget.naturalHeight || 0,
+                                        });
+
+                                        const rect = centerPreviewRef.current?.getBoundingClientRect();
+                                        if (rect?.width && rect?.height) {
+                                          setCenterPreviewSize((currentSize) => {
+                                            const nextSize = Math.min(rect.width, rect.height);
+                                            return Math.abs(currentSize - nextSize) > 0.25 ? nextSize : currentSize;
+                                          });
+                                        }
+                                      }}
+                                      style={{
+                                        width: `${centerImageNaturalSize.width ? centerImageNaturalSize.width * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
+                                        height: `${centerImageNaturalSize.height ? centerImageNaturalSize.height * getCenterBaseScale() : effectiveCenterPreviewSize}px`,
+                                        transform: `translate(-50%, -50%) translate(${centerImagePosition.x}px, ${centerImagePosition.y}px) scale(${centerImageZoom})`,
+                                      }}
+                                    />
+                                  ) : (
+                                    <span className="farm-page-center-image-placeholder">Aucune image sélectionnée</span>
+                                  )}
+                                </div>
+
+                                {centerImagePreviewUrl ? (
+                                  <div className="farm-page-center-image-controls">
+                                    <label>
+                                      Zoom
+                                      <input
+                                        type="range"
+                                        min="1"
+                                        max="2.5"
+                                        step="0.01"
+                                        value={centerImageZoom}
+                                        onChange={(event) => {
+                                          const nextZoom = clampCenterZoom(event.target.value);
+                                          setCenterImageZoom(nextZoom);
+                                          setCenterImagePosition((currentPosition) => clampCenterPosition(currentPosition, nextZoom));
+                                        }}
+                                        disabled={isCenterStyleSaving}
+                                      />
+                                    </label>
+                                    <p>Glissez l'image pour recadrer.</p>
+                                  </div>
+                                ) : (
+                                  <p className="farm-page-center-image-controls-help">Importez ou chargez une image pour commencer.</p>
+                                )}
+                              </div>
+                            ) : (
+                              <div className="farm-page-center-custom-stage">
+                                <div
+                                  className="farm-page-center-custom-preview is-large"
+                                  style={{ background: centerBackgroundColor }}
+                                  aria-label="Aperçu centre personnalisé"
+                                >
+                                  <span>{centerSymbol || DEFAULT_CENTER_SYMBOL}</span>
+                                </div>
+                                <p>Le symbole sera affiché sur le centre avec la couleur choisie.</p>
+                              </div>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
 
-                      {centerImageError ? <p className="farm-page-center-feedback is-error">{centerImageError}</p> : null}
-                      {centerImageStatus ? <p className="farm-page-center-feedback is-success">{centerImageStatus}</p> : null}
+                        {centerImageError ? <p className="farm-page-center-feedback is-error">{centerImageError}</p> : null}
+                        {centerImageStatus ? <p className="farm-page-center-feedback is-success">{centerImageStatus}</p> : null}
 
-                      <button
-                        type="button"
-                        className="farm-page-btn farm-page-center-save-btn"
-                        onClick={handleSaveCenterStyle}
-                        disabled={!hasCenterPendingChange || isCenterStyleSaving || updateCenterStyleMutation.isPending}
-                      >
-                        {isCenterStyleSaving || updateCenterStyleMutation.isPending ? 'Enregistrement...' : 'Enregistrer les changements'}
-                      </button>
-                    </div>
+                        <button
+                          type="button"
+                          className="farm-page-btn farm-page-center-save-btn"
+                          onClick={handleSaveCenterStyle}
+                          disabled={!hasCenterPendingChange || isCenterStyleSaving || updateCenterStyleMutation.isPending}
+                        >
+                          {isCenterStyleSaving || updateCenterStyleMutation.isPending ? 'Enregistrement...' : 'Enregistrer les changements'}
+                        </button>
+                      </section>
+                    ) : (
+                      <p className="farm-page-site-empty">La customisation du centre est réservée au propriétaire de la ferme.</p>
+                    )}
                   </div>
                 ) : null}
+              </div>
+            ) : null}
+
+          </div>
+
+          {isBadgePickerOpen ? (
+            <div className="settings-badge-picker-backdrop farm-page-badge-picker-backdrop" role="presentation" onMouseDown={closeBadgePicker}>
+              <div
+                className="settings-badge-picker-modal farm-page-badge-picker-modal"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="farm-page-badge-picker-title"
+                onMouseDown={(event) => event.stopPropagation()}
+              >
+                <p className="settings-badge-picker-kicker">Slot {badgePickerSlot || '-'}</p>
+                <h4 id="farm-page-badge-picker-title" className="settings-badge-picker-title">
+                  {selectedSlotBadge ? 'Changer le badge du slot' : 'Équiper un badge'}
+                </h4>
+                <p className="settings-badge-picker-subtitle">
+                  {freeInventoryBadges.length
+                    ? `${freeInventoryBadges.length} badge(s) libre(s) et équipable(s).`
+                    : 'Aucun badge libre à équiper pour le moment.'}
+                </p>
+
+                {freeInventoryBadges.length ? (
+                  <div
+                    className={`settings-badge-picker-grid${freeInventoryBadges.length > 8 ? ' is-scrollable' : ''}`}
+                    role="list"
+                    aria-label="Badges libres équipables"
+                  >
+                    {freeInventoryBadges.map((badge) => (
+                      <button
+                        key={`farm-slot-picker-${badge.id}`}
+                        type="button"
+                        className={`settings-badge-picker-card is-${badge.rarity}`}
+                        onClick={() => handleEquipBadgeFromSlotPicker(badge)}
+                        disabled={isBadgeMutationPending}
+                      >
+                        {badge.imageUrl ? (
+                          <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                        ) : (
+                          <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                        )}
+                        <span className="settings-badge-picker-name">{badge.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+
+                <div className="settings-badge-picker-actions">
+                  <button type="button" className="settings-action" onClick={closeBadgePicker} disabled={isBadgeMutationPending}>
+                    Annuler
+                  </button>
+                </div>
               </div>
             </div>
           ) : null}

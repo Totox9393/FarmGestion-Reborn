@@ -26,8 +26,10 @@ import HomeBlock3Count from './Home_Block3_Count';
 import HomeBlock4Farm from './Home_Block4_Farm';
 import AuthFlowManager from '../authentification/AuthFlowManager';
 import { supabase } from '../authentification/supabaseClient';
+import { getShortVersionLabel } from '../utils/appVersion';
 
 function Home() {
+  const versionBadgeLabel = getShortVersionLabel();
   const sectionRefs = useRef([]);
   const [isDemon, setIsDemon] = React.useState(false);
   const [isFlash, setIsFlash] = React.useState(false);
@@ -163,7 +165,7 @@ function Home() {
               className="home-logo"
               draggable={false}
             />
-            <span className="home-version-badge">V1.7</span>
+            <span className="home-version-badge">{versionBadgeLabel}</span>
           </div>
           <p className="home-description">
             Vous gerez ce qu'ils ne doivent pas savoir...

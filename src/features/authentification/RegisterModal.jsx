@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Icon } from '@iconify/react';
 import './RegisterModal.css';
 import miloCreateAccount from '../../assets/img/milo_createaccount.png';
-import { signUpWithEmail } from './authApi';
+import { signInWithProvider, signUpWithEmail } from './authApi';
 import { supabase } from './supabaseClient';
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
@@ -153,6 +153,28 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
     }
   };
 
+  const handleGoogleSignUp = async () => {
+    setLoading(true);
+    setError('');
+    const redirectTo = `${window.location.origin}/home`;
+    const { error: oauthError } = await signInWithProvider('google', { redirectTo });
+    if (oauthError) {
+      setError(oauthError.message || 'Erreur de connexion Google.');
+      setLoading(false);
+    }
+  };
+
+  const handleDiscordSignUp = async () => {
+    setLoading(true);
+    setError('');
+    const redirectTo = `${window.location.origin}/home`;
+    const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
+    if (oauthError) {
+      setError(oauthError.message || 'Erreur de connexion Discord.');
+      setLoading(false);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -185,13 +207,22 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
 
         <div className="register-modal-body">
           <div className="register-modal-social">
-            <button type="button" className="register-modal-social-button" aria-label="Inscription Google">
+            <button
+              type="button"
+              className="register-modal-social-button"
+              aria-label="Inscription Google"
+              onClick={handleGoogleSignUp}
+              disabled={loading}
+            >
               <Icon icon="logos:google-icon" width={20} height={20} />
             </button>
-            <button type="button" className="register-modal-social-button" aria-label="Inscription Apple">
-              <Icon icon="logos:apple" width={20} height={20} />
-            </button>
-            <button type="button" className="register-modal-social-button" aria-label="Inscription Discord">
+            <button
+              type="button"
+              className="register-modal-social-button"
+              aria-label="Inscription Discord"
+              onClick={handleDiscordSignUp}
+              disabled={loading}
+            >
               <Icon icon="logos:discord-icon" width={20} height={20} />
             </button>
           </div>

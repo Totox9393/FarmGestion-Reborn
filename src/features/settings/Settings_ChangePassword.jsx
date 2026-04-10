@@ -12,6 +12,16 @@ function Settings_ChangePassword({ user }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccessOverlay, setIsSuccessOverlay] = useState(false);
 
+  const hasEmailProvider =
+    Array.isArray(user?.identities) &&
+    user.identities.some((identity) => identity?.provider === 'email');
+  const hasOAuthProvider =
+    Array.isArray(user?.identities) &&
+    user.identities.some((identity) => identity?.provider && identity.provider !== 'email');
+  const hasOAuthOnlyProvider =
+    hasOAuthProvider &&
+    !hasEmailProvider;
+
   const resetForm = () => {
     setCurrentPassword('');
     setNextPassword('');
@@ -24,7 +34,7 @@ function Settings_ChangePassword({ user }) {
       setStatus({ type: 'error', message: "Impossible de vérifier l'utilisateur." });
       return;
     }
-    if (!currentPassword || !nextPassword || !nextPasswordConfirm) {
+    if ((hasEmailProvider && !currentPassword) || !nextPassword || !nextPasswordConfirm) {
       setStatus({ type: 'error', message: 'Tous les champs sont requis.' });
       return;
     }
@@ -36,15 +46,17 @@ function Settings_ChangePassword({ user }) {
     setIsSubmitting(true);
     setStatus(null);
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({
-      email: user.email,
-      password: currentPassword,
-    });
+    if (hasEmailProvider) {
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: currentPassword,
+      });
 
-    if (signInError) {
-      setStatus({ type: 'error', message: "Mot de passe actuel incorrect." });
-      setIsSubmitting(false);
-      return;
+      if (signInError) {
+        setStatus({ type: 'error', message: "Mot de passe actuel incorrect." });
+        setIsSubmitting(false);
+        return;
+      }
     }
 
     const { error: updateError } = await supabase.auth.updateUser({
@@ -79,7 +91,11 @@ function Settings_ChangePassword({ user }) {
       <div className="settings-item-row">
         <div>
           <p className="settings-item-title">Mot de passe</p>
-          <p className="settings-item-subtitle">Modifiez votre mot de passe pour sécuriser votre compte.</p>
+          <p className="settings-item-subtitle">
+            {hasOAuthOnlyProvider
+              ? 'Ajoutez un mot de passe local pour pouvoir vous connecter aussi sans compte externe.'
+              : 'Modifiez votre mot de passe pour sécuriser votre compte.'}
+          </p>
         </div>
         <button
           type="button"
@@ -93,16 +109,18 @@ function Settings_ChangePassword({ user }) {
       {isOpen && (
         <form className={`settings-password-panel ${isSuccessOverlay ? 'is-success' : ''}`} onSubmit={handleSubmit}>
           <div className="settings-password-fields">
-            <label className="settings-password-field">
-              <span>Mot de passe actuel</span>
-              <input
-                type="password"
-                value={currentPassword}
-                onChange={(event) => setCurrentPassword(event.target.value)}
-                placeholder="Votre mot de passe actuel"
-                disabled={isSuccessOverlay}
-              />
-            </label>
+            {hasEmailProvider && (
+              <label className="settings-password-field">
+                <span>Mot de passe actuel</span>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
+                  placeholder="Votre mot de passe actuel"
+                  disabled={isSuccessOverlay}
+                />
+              </label>
+            )}
             <label className="settings-password-field">
               <span>Nouveau mot de passe</span>
               <div className="settings-password-input">

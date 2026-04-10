@@ -454,6 +454,8 @@ function BetailsListPageQuery() {
         .select('id, name, matricule, avatar_url, age, author_id, created_at, like_count, visible')
         .eq('id', selectedBetailId)
         .eq('visible', true)
+        .is('farm_id', null)
+        .is('owner_id', null)
         .maybeSingle()
 
       if (rowError) throw rowError
@@ -592,6 +594,10 @@ function BetailsListPageQuery() {
       { betailId },
       {
         onSuccess: () => {
+          if (selectedBetailId === betailId) {
+            setIsReportModalOpen(false)
+            navigate('/betail-register', { replace: true })
+          }
           void restartAudioSafely(purchaseAudio)
           window.dispatchEvent(
             new CustomEvent('farmgestion-toast', {
