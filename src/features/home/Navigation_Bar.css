@@ -118,6 +118,10 @@
   display: none;
 }
 
+.nav-logout--desktop {
+  display: inline-flex;
+}
+
 .nav-dropdown-trigger .nav-link {
   display: inline-flex;
   align-items: center;
@@ -710,7 +714,12 @@
   }
 
   .nav-friends-panel {
-    right: -4px;
+    position: fixed;
+    top: 66px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    max-width: none;
   }
 
   .nav-friends-badge {
@@ -727,11 +736,11 @@
   }
 
   .nav-identity,
-  .nav-link.nav-logout {
+  .nav-link.nav-logout.nav-logout--desktop {
     display: none;
   }
 
-  .nav-logout--mobile {
+  .nav-link.nav-logout.nav-logout--mobile {
     display: inline-flex;
     justify-content: flex-start;
   }

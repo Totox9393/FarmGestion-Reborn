@@ -149,17 +149,6 @@ const buildFilenameCandidates = (rawNeedle) => {
   return uniqueArray(candidates);
 };
 
-const buildCreateRpcVariants = ({ filename, name, rarity, price, stockTotal }) => {
-  const safePrice = toSafeInt(price, 0);
-  const safeStock = toSafeInt(stockTotal, 0);
-  return [
-    { p_filename: filename, p_name: name, p_rarity: rarity, p_price: safePrice, p_stock_total: safeStock },
-    { p_filename: filename, p_name: name, p_rarity: rarity, p_price: safePrice, p_stock: safeStock },
-    { filename, name, rarity, price: safePrice, stock_total: safeStock },
-    { filename, name, rarity, price: safePrice, stock: safeStock },
-  ];
-};
-
 const buildDeleteBadgeRpcVariants = ({ badgeId }) => {
   return [
     { p_badge_id: badgeId },
@@ -169,6 +158,38 @@ const buildDeleteBadgeRpcVariants = ({ badgeId }) => {
   ];
 };
 
+const createBadgeCatalogDirectly = async ({ filename, name, rarity, price, stockTotal, isShopVisible }) => {
+  const basePayload = {
+    filename,
+    name,
+    rarity,
+    price: Math.max(0, toSafeInt(price, 0)),
+    stock_total: Math.max(1, toSafeInt(stockTotal, 1)),
+    sold_count: 0,
+    is_active: true,
+  };
+
+  const withVisibilityPayload = {
+    ...basePayload,
+    is_shop_visible: Boolean(isShopVisible),
+  };
+
+  const { error } = await supabase.from('badges_catalog_reborn').insert(withVisibilityPayload);
+
+  if (!error) {
+    return { success: true, created: true, filename };
+  }
+
+  const message = String(error?.message || '').toLowerCase();
+  const missingVisibilityColumn = error?.code === '42703' || message.includes('is_shop_visible');
+
+  if (!missingVisibilityColumn) throw error;
+
+  const { error: fallbackError } = await supabase.from('badges_catalog_reborn').insert(basePayload);
+  if (fallbackError) throw fallbackError;
+
+  return { success: true, created: true, filename };
+};
 const reasonToFrenchMessage = (reason, fallback) => {
   const normalized = String(reason || '').toUpperCase();
   if (!normalized) return fallback;
@@ -213,18 +234,45 @@ const ensureRpcSuccess = (result, fallbackMessage) => {
 };
 
 const fetchAdminBadgeCatalog = async () => {
+  const baseSelect = 'id,filename,name,rarity,price,stock_total,sold_count,is_active,created_at,updated_at';
+  const fullSelect = `${baseSelect},is_shop_visible`;
+
   const { data, error } = await supabase
     .from('badges_catalog_reborn')
-    .select('id,filename,name,rarity,price,stock_total,sold_count,is_active,created_at,updated_at')
+    .select(fullSelect)
     .order('created_at', { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    const message = String(error?.message || '').toLowerCase();
+    const isMissingColumn = error?.code === '42703' || message.includes('is_shop_visible');
 
-  return sortBadgesByRarityThenName(
-    (data || [])
-      .map((row) => normalizeBadgeCatalogRow(row))
-      .filter(Boolean),
-  );
+    if (!isMissingColumn) throw error;
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('badges_catalog_reborn')
+      .select(baseSelect)
+      .order('created_at', { ascending: false });
+
+    if (fallbackError) throw fallbackError;
+
+    return {
+      supportsShopVisibility: false,
+      badges: sortBadgesByRarityThenName(
+        (fallbackData || [])
+          .map((row) => normalizeBadgeCatalogRow(row))
+          .filter(Boolean),
+      ),
+    };
+  }
+
+  return {
+    supportsShopVisibility: true,
+    badges: sortBadgesByRarityThenName(
+      (data || [])
+        .map((row) => normalizeBadgeCatalogRow(row))
+        .filter(Boolean),
+    ),
+  };
 };
 
 const fetchRealSoldCountsByBadge = async () => {
@@ -240,22 +288,6 @@ const fetchRealSoldCountsByBadge = async () => {
     acc[badgeId] = (acc[badgeId] || 0) + 1;
     return acc;
   }, {});
-};
-
-const createBadgeCatalogDirectly = async ({ filename, name, rarity, price, stockTotal }) => {
-  const payload = {
-    filename,
-    name,
-    rarity,
-    price: toSafeInt(price, 0),
-    stock_total: Math.max(1, toSafeInt(stockTotal, 1)),
-    sold_count: 0,
-    is_active: true,
-  };
-
-  const { error } = await supabase.from('badges_catalog_reborn').insert(payload);
-  if (error) throw error;
-  return payload;
 };
 
 const increaseBadgeStockDirectly = async ({ badgeId, increaseBy }) => {
@@ -439,6 +471,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState('');
   const [isPriceManual, setIsPriceManual] = useState(false);
   const [isRarityManual, setIsRarityManual] = useState(false);
+  const [isShopVisible, setIsShopVisible] = useState(true);
   const [stockIncreaseById, setStockIncreaseById] = useState({});
   const [confirmDeleteBadgeId, setConfirmDeleteBadgeId] = useState('');
 
@@ -481,8 +514,10 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     refetchOnWindowFocus: false,
   });
 
+  const supportsShopVisibility = badgesQuery.data?.supportsShopVisibility !== false;
+
   const filteredBadges = useMemo(() => {
-    const rows = badgesQuery.data || [];
+    const rows = badgesQuery.data?.badges || [];
     const needle = normalizeLower(searchValue);
     if (!needle) return rows;
     return rows.filter((badge) => {
@@ -526,35 +561,14 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
         }
 
         const safeDisplayName = safeName || stripFileExtension(finalFilename);
-        const result = await tryRpcVariants(
-          'admin_create_badge_reborn',
-          buildCreateRpcVariants({
-            filename: finalFilename,
-            name: safeDisplayName,
-            rarity: safeRarity,
-            price: safePrice,
-            stockTotal: safeStock,
-          }),
-        );
-
-        if (result && typeof result === 'object' && Object.prototype.hasOwnProperty.call(result, 'success') && !result.success) {
-          try {
-            await createBadgeCatalogDirectly({
-              filename: finalFilename,
-              name: safeDisplayName,
-              rarity: safeRarity,
-              price: safePrice,
-              stockTotal: safeStock,
-            });
-          } catch (directError) {
-            const rpcReason = extractRpcFailureReason(result);
-            const directReason = String(directError?.message || '');
-            const mergedMessage = [rpcReason, directReason].filter(Boolean).join(' | ');
-            throw new Error(mergedMessage || 'Création badge impossible.');
-          }
-        } else {
-          ensureRpcSuccess(result, 'Création badge impossible.');
-        }
+        await createBadgeCatalogDirectly({
+          filename: finalFilename,
+          name: safeDisplayName,
+          rarity: safeRarity,
+          price: safePrice,
+          stockTotal: safeStock,
+          isShopVisible,
+        });
 
         return {
           filename: finalFilename,
@@ -583,18 +597,14 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
       }
       setUploadPreviewUrl('');
       setStockTotal(50);
+      setIsShopVisible(true);
       setIsPriceManual(false);
       setIsRarityManual(false);
     },
     onError: (error) => {
       const message = String(error?.message || 'Création badge impossible.');
-      if (isRpcSignatureError(error) || message.toLowerCase().includes('admin_create_badge_reborn')) {
-        setFeedback({ type: 'error', message: 'Fonction SQL admin_create_badge_reborn absente ou signature différente.' });
-        emitToast('error', 'Fonction SQL admin_create_badge_reborn absente ou signature différente.');
-        return;
-      }
       if (error?.code === '42501' || message.includes('403')) {
-        setFeedback({ type: 'error', message: 'Permission refusée. Vérifie les policies RLS SQL (RPC admin + badges_catalog_reborn + storage.objects badges).' });
+        setFeedback({ type: 'error', message: 'Permission refusée. Vérifie les policies RLS SQL (badges_catalog_reborn + storage.objects badges).' });
         emitToast('error', 'Permission refusée pour création badge (RLS).');
         return;
       }
@@ -699,11 +709,37 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     },
   });
 
+  const toggleShopVisibilityMutation = useMutation({
+    mutationFn: async ({ badgeId, nextVisible }) => {
+      const { error } = await supabase
+        .from('badges_catalog_reborn')
+        .update({ is_shop_visible: Boolean(nextVisible) })
+        .eq('id', badgeId);
+
+      if (error) throw error;
+      return { nextVisible };
+    },
+    onSuccess: ({ nextVisible }) => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
+      queryClient.invalidateQueries({ queryKey: ['shop', 'catalog'] });
+      setFeedback({
+        type: 'success',
+        message: nextVisible ? 'Badge rendu visible en boutique.' : 'Badge masque de la boutique.',
+      });
+    },
+    onError: (error) => {
+      const message = String(error?.message || 'Mise a jour de visibilite impossible.');
+      setFeedback({ type: 'error', message });
+      emitToast('error', message);
+    },
+  });
+
   const isMutating =
     createBadgeMutation.isPending ||
     addBadgeMutation.isPending ||
     increaseStockMutation.isPending ||
-    deleteBadgeMutation.isPending;
+    deleteBadgeMutation.isPending ||
+    toggleShopVisibilityMutation.isPending;
 
   const previewUrl = useMemo(() => {
     if (sourceMode === 'upload') {
@@ -952,7 +988,26 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
               disabled={isMutating}
             />
           </label>
+
+          <label className="settings-admin-badge-label">
+            Visible en boutique
+            <select
+              className="settings-admin-badge-input"
+              value={isShopVisible ? 'yes' : 'no'}
+              onChange={(event) => setIsShopVisible(event.target.value === 'yes')}
+              disabled={isMutating || !supportsShopVisibility}
+            >
+              <option value="yes">Oui</option>
+              <option value="no">Non (badge special)</option>
+            </select>
+          </label>
         </div>
+
+        {!supportsShopVisibility ? (
+          <p className="settings-item-subtitle">
+            Option visible boutique indisponible: applique la migration SQL surprise_codes_referral_system.sql.
+          </p>
+        ) : null}
 
         <p className="settings-item-subtitle">
           Suggestion auto: faible stock = plus rare et plus cher. Tu peux modifier rareté/prix manuellement.
@@ -1044,6 +1099,9 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
                   <p className="settings-item-subtitle">
                     Stock: {badge.stockLeft}/{badge.stockTotal} (vendus: {realSoldCount}) {badge.isActive ? '' : '| Inactif'}
                   </p>
+                  <p className="settings-item-subtitle">
+                    Boutique: {badge.isShopVisible === false ? 'non visible' : 'visible'}
+                  </p>
                 </div>
               </div>
 
@@ -1100,6 +1158,15 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
                         title={canAddBadge ? 'Ajoute des badges disponibles sans changer la capacite' : 'Stock deja plein'}
                       >
                         Ajouter badge
+                      </button>
+                      <button
+                        type="button"
+                        className="settings-action settings-action--tiny"
+                        onClick={() => toggleShopVisibilityMutation.mutate({ badgeId: badge.id, nextVisible: badge.isShopVisible === false })}
+                        disabled={isMutating || !supportsShopVisibility}
+                        title="Rendre ce badge visible ou non dans la boutique"
+                      >
+                        {badge.isShopVisible === false ? 'Rendre visible boutique' : 'Masquer de la boutique'}
                       </button>
                       <button
                         type="button"

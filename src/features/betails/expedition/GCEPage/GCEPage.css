@@ -466,6 +466,11 @@
   z-index: 30;
 }
 
+.gce-day-cell:has(.gce-ship-item:hover),
+.gce-day-cell:has(.gce-ship-item:focus-within) {
+  z-index: 60;
+}
+
 .gce-avatar-pill {
   width: 33px;
   height: 33px;
@@ -519,6 +524,8 @@
 .gce-ship-item:focus-within .gce-tooltip {
   opacity: 1;
   transform: translateY(-50%) scale(1);
+  pointer-events: auto;
+  z-index: 120;
 }
 
 .gce-ship-item:hover .gce-tooltip.is-flip-left,
@@ -2035,22 +2042,43 @@
 
 @media (max-width: 920px) {
   .gce-page {
+    padding: 8px;
     height: auto;
-    min-height: calc(100vh - var(--nav-h, 58px));
+    min-height: 100vh;
+    min-height: 100dvh;
     max-height: none;
     overflow: visible;
+    padding-bottom: 14px;
+    background: #d8dce3;
   }
 
   .gce-shell {
     height: auto;
     grid-template-columns: 1fr;
     border-radius: 20px;
+    overflow: visible;
   }
 
   .gce-sidebar {
     border-right: 0;
     border-bottom: 1px solid #d9dde3;
     grid-template-rows: auto auto auto;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .gce-date-card {
+    display: flex;
+    align-items: flex-end;
+    gap: 10px;
+  }
+
+  .gce-date-day {
+    font-size: clamp(2.5rem, 9vw, 3.4rem);
+  }
+
+  .gce-date-month {
+    font-size: clamp(1.5rem, 5vw, 2rem);
   }
 
   .gce-nav-list {
@@ -2063,38 +2091,91 @@
 
   .gce-main-panel {
     min-height: 70vh;
+    overflow: visible;
+    background: #e5e7eb;
   }
 
   .gce-main-topbar {
     grid-template-columns: 1fr;
     justify-items: start;
     gap: 10px;
+    padding: 12px 14px;
   }
 
   .gce-topbar-center {
     justify-content: flex-start;
   }
 
+  .gce-topbar-right {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .gce-quick-menu {
+    left: 0;
+    right: auto;
+    z-index: 140;
+    min-width: min(232px, calc(100vw - 44px));
+    max-width: calc(100vw - 44px);
+  }
+
+  .gce-main-header-row {
+    padding: 10px 14px 6px;
+  }
+
+  .gce-state {
+    padding: 0 14px 7px;
+  }
+
+  .gce-calendar-surface {
+    margin: 0 8px 10px;
+    padding: 8px;
+  }
+
+  .gce-grid {
+    height: auto;
+    align-content: start;
+  }
+
   .gce-grid-weekday {
-    min-height: 30px;
-    font-size: 0.85rem;
+    min-height: 26px;
+    font-size: 0.78rem;
+    border-radius: 10px;
   }
 
   .gce-grid.gce-grid-month {
-    grid-template-rows: 30px repeat(6, minmax(76px, 1fr));
+    grid-template-rows: 26px repeat(6, minmax(64px, auto));
   }
 
   .gce-grid.gce-grid-week {
-    grid-template-rows: 30px minmax(82px, 1fr);
+    grid-template-rows: 26px minmax(76px, auto);
+  }
+
+  .gce-day-cell {
+    min-height: 64px;
+    padding: 6px;
+    gap: 4px;
   }
 
   .gce-day-number {
-    font-size: 1rem;
+    font-size: 1.15rem;
+  }
+
+  .gce-day-ship-stack {
+    gap: 4px;
   }
 
   .gce-avatar-pill {
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
+  }
+
+  .gce-day-more {
+    right: 6px;
+    bottom: 6px;
+    height: 19px;
+    min-width: 19px;
+    font-size: 0.68rem;
   }
 
   .gce-tooltip {
@@ -2102,6 +2183,14 @@
     left: 0;
     top: calc(100% + 8px);
     transform: translateY(0) scale(0.96);
+    max-height: min(48vh, 320px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  .gce-tooltip.is-flip-up {
+    top: auto;
+    bottom: calc(100% + 8px);
   }
 
   .gce-ship-item:hover .gce-tooltip,
@@ -2172,6 +2261,43 @@
 }
 
 @media (max-width: 768px) {
+  .gce-nav-item {
+    min-height: 42px;
+    padding: 0 9px;
+    font-size: 0.92rem;
+  }
+
+  .gce-view-tabs {
+    width: 100%;
+  }
+
+  .gce-view-tab {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .gce-topbar-center {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .gce-select {
+    min-width: 0;
+    flex: 1 1 116px;
+  }
+
+  .gce-month-arrows {
+    margin-left: auto;
+  }
+
+  .gce-main-title {
+    font-size: 0.94rem;
+  }
+
+  .gce-main-subtitle {
+    font-size: 0.78rem;
+  }
+
   .gce-track-live-grid {
     gap: 10px;
   }
@@ -2221,6 +2347,62 @@
 }
 
 @media (max-width: 480px) {
+  .gce-sidebar {
+    padding: 12px;
+  }
+
+  .gce-date-day {
+    font-size: clamp(2.2rem, 12vw, 3rem);
+  }
+
+  .gce-date-month {
+    font-size: 1.3rem;
+  }
+
+  .gce-nav-list,
+  .gce-sidebar-bottom {
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+
+  .gce-nav-item {
+    font-size: 0.88rem;
+    gap: 8px;
+  }
+
+  .gce-quick-menu {
+    min-width: min(220px, calc(100vw - 34px));
+    max-width: calc(100vw - 34px);
+  }
+
+  .gce-grid {
+    gap: 5px;
+  }
+
+  .gce-grid.gce-grid-month {
+    grid-template-rows: 24px repeat(6, minmax(58px, auto));
+  }
+
+  .gce-grid.gce-grid-week {
+    grid-template-rows: 24px minmax(70px, auto);
+  }
+
+  .gce-day-cell {
+    min-height: 58px;
+    border-radius: 11px;
+    padding: 5px;
+  }
+
+  .gce-day-number {
+    font-size: 1rem;
+  }
+
+  .gce-avatar-pill {
+    width: 22px;
+    height: 22px;
+    border-width: 1.5px;
+  }
+
   .gce-track-card-title {
     font-size: 1rem;
   }

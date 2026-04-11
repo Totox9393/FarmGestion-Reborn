@@ -32,7 +32,7 @@ const retryAudioLoad = (audio) => {
   }
 };
 
-export const createSafeAudio = (source, { volume, preload = 'auto' } = {}) => {
+export const createSafeAudio = (source, { volume, preload = 'none' } = {}) => {
   const audio = new Audio(source);
   audio[AUDIO_SOURCE_KEY] = source;
   audio[AUDIO_RETRIED_KEY] = false;

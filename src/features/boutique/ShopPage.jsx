@@ -236,7 +236,10 @@ function ShopPage() {
         if (!mounted) return
 
         setMoney(Math.max(0, Number(profileData?.money ?? 0)))
-        setCatalogBadges(Array.isArray(catalog) ? catalog : [])
+        const safeCatalog = Array.isArray(catalog)
+          ? catalog.filter((badge) => badge?.isShopVisible !== false)
+          : []
+        setCatalogBadges(safeCatalog)
         setOwnedBadges(Array.isArray(inventory) ? inventory : [])
         setSqlFunctionMissing(false)
       } catch (error) {

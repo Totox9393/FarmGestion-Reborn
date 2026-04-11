@@ -1113,8 +1113,55 @@
     grid-template-columns: auto 1fr;
   }
 
-  .community-profile-add-friend {
+  .community-profile-friend-actions {
     grid-column: 1 / -1;
     justify-self: start;
+    justify-content: flex-start;
+    width: 100%;
+  }
+
+  .community-profile-friend-actions .community-profile-add-friend,
+  .community-profile-friend-actions .community-profile-friend-btn {
+    flex: 0 1 auto;
+  }
+
+  .community-profile-actions {
+    gap: 8px;
+  }
+}
+
+@media (max-width: 1024px) {
+  .community-profile-pinned__grid {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 10px;
+    padding-bottom: 6px;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+    scrollbar-color: var(--pinned-scrollbar-thumb) var(--pinned-scrollbar-track);
+  }
+
+  .community-profile-pinned__grid::-webkit-scrollbar {
+    height: 8px;
+  }
+
+  .community-profile-pinned__grid::-webkit-scrollbar-track {
+    background: var(--pinned-scrollbar-track);
+    border-radius: 999px;
+  }
+
+  .community-profile-pinned__grid::-webkit-scrollbar-thumb {
+    background: var(--pinned-scrollbar-thumb);
+    border-radius: 999px;
+  }
+
+  .community-pinned-card {
+    flex: 0 0 min(230px, 76vw);
+    max-width: 280px;
+    scroll-snap-align: start;
+    touch-action: pan-x;
   }
 }

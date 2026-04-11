@@ -168,6 +168,38 @@
   color: #3d256f;
 }
 
+.register-modal-surprise-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.register-modal-surprise-toggle {
+  border: 1px dashed rgba(120, 90, 200, 0.4);
+  background: rgba(120, 90, 200, 0.06);
+  color: #5c3ca8;
+  height: 32px;
+  border-radius: 10px;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 0 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.register-modal-surprise-toggle:hover {
+  border-color: rgba(120, 90, 200, 0.62);
+  background: rgba(120, 90, 200, 0.12);
+}
+
+.register-modal-field--surprise {
+  color: #5c3ca8;
+}
+
+.register-modal-field--surprise span {
+  font-size: 0.84rem;
+}
+
 .register-modal-checkbox input {
   width: 18px;
   height: 18px;

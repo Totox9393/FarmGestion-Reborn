@@ -20,6 +20,7 @@ declare
   v_farm_id bigint;
   v_today date;
   v_count int;
+  v_farm_population int;
   v_betail_id uuid;
   v_owner_id uuid;
   v_farm_site text;
@@ -41,6 +42,9 @@ begin
     raise exception 'no_farm';
   end if;
 
+  -- Serialize purchases per farm to keep capacity checks consistent under concurrency.
+  perform pg_advisory_xact_lock(v_farm_id);
+
   v_today := (timezone('Europe/Paris', now()))::date;
 
   select count(*) into v_count
@@ -51,6 +55,32 @@ begin
 
   if v_count >= 10 then
     raise exception 'daily_limit_reached';
+  end if;
+
+  select count(*) into v_farm_population
+  from public.betails as b
+  where b.farm_id = v_farm_id;
+
+  if v_farm_population >= 180 then
+    raise exception 'farm_capacity_reached';
+  end if;
+
+  select candidate.site
+  into v_farm_site
+  from (
+    select gs.site
+    from generate_series(1, 6) as gs(site)
+    left join public.betails as b
+      on b.farm_id = v_farm_id
+     and b.farm_site = gs.site::text
+    group by gs.site
+    having count(b.id) < 30
+    order by random()
+    limit 1
+  ) as candidate;
+
+  if v_farm_site is null then
+    raise exception 'farm_sites_full';
   end if;
 
   if exists (
@@ -65,7 +95,7 @@ begin
   update public.betails as b
   set farm_id = v_farm_id,
       owner_id = v_user_id,
-      farm_site = (floor(random() * 6) + 1)::text,
+      farm_site = v_farm_site,
       purchased_at = now()
   where b.id = p_betail_id
     and coalesce(b.visible, true) = true

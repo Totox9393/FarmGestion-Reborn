@@ -3,6 +3,7 @@ import { signInWithEmail, signInWithProvider } from './authApi';
 import { Icon } from '@iconify/react';
 import './LoginModal.css';
 import miloHello from '../../assets/img/milo_hello2.png';
+import { readInitialSurpriseCode, saveSurpriseCode } from './surpriseCode';
 
 function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLoginSuccess }) {
   const emailInputRef = useRef(null);
@@ -63,6 +64,7 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
   const handleGoogleLogin = async () => {
     setLoading(true);
     setError('');
+    saveSurpriseCode(readInitialSurpriseCode());
     const redirectTo = `${window.location.origin}/home`;
     const { error: oauthError } = await signInWithProvider('google', { redirectTo });
     if (oauthError) {
@@ -74,6 +76,7 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
   const handleDiscordLogin = async () => {
     setLoading(true);
     setError('');
+    saveSurpriseCode(readInitialSurpriseCode());
     const redirectTo = `${window.location.origin}/home`;
     const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
     if (oauthError) {

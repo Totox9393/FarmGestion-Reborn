@@ -4,6 +4,12 @@ import './RegisterModal.css';
 import miloCreateAccount from '../../assets/img/milo_createaccount.png';
 import { signInWithProvider, signUpWithEmail } from './authApi';
 import { supabase } from './supabaseClient';
+import {
+  normalizeSurpriseCode,
+  readInitialSurpriseCode,
+  redeemSurpriseCode,
+  saveSurpriseCode,
+} from './surpriseCode';
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
 
@@ -32,6 +38,8 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [surpriseCode, setSurpriseCode] = useState('');
+  const [showSurpriseField, setShowSurpriseField] = useState(false);
   const [newsletter, setNewsletter] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,10 +73,18 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
     return () => window.clearTimeout(focusTimer);
   }, [isOpen]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    const initialCode = readInitialSurpriseCode();
+    setSurpriseCode(initialCode);
+    setShowSurpriseField(Boolean(initialCode));
+  }, [isOpen]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     const normalizedPseudo = normalizePseudo(pseudo);
+    const normalizedSurpriseCode = normalizeSurpriseCode(surpriseCode);
 
     if (!normalizedPseudo) {
       setError('Le pseudo est requis.');
@@ -134,6 +150,52 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
         }
       }
 
+      if (normalizedSurpriseCode) {
+        const redeemResult = await redeemSurpriseCode({
+          code: normalizedSurpriseCode,
+          source: 'register_modal_email',
+        });
+
+        if (redeemResult?.error) {
+          const message = String(redeemResult.error?.message || '').toLowerCase();
+          if (redeemResult.error?.code === '42883' || message.includes('redeem_surprise_code_reborn')) {
+            console.error('Fonction SQL redeem_surprise_code_reborn absente.', redeemResult.error);
+          } else {
+            window.dispatchEvent(
+              new CustomEvent('farmgestion-toast', {
+                detail: { type: 'error', message: 'Le code surprise n\'a pas pu etre applique.' },
+              }),
+            );
+          }
+        } else if (redeemResult?.success) {
+          const awardedMoney = Number(redeemResult?.awarded_money || 0);
+          const awardedBadgeIds = Array.isArray(redeemResult?.awarded_badge_ids)
+            ? redeemResult.awarded_badge_ids.filter(Boolean)
+            : [redeemResult?.awarded_badge_id].filter(Boolean);
+          const rewardParts = [];
+          if (awardedMoney > 0) rewardParts.push(`+${awardedMoney} argent`);
+          if (awardedBadgeIds.length > 0) {
+            rewardParts.push(awardedBadgeIds.length > 1 ? `${awardedBadgeIds.length} badges debloques` : 'badge debloque');
+          }
+          const rewardLabel = rewardParts.length ? rewardParts.join(' et ') : 'bonus applique';
+
+          window.dispatchEvent(
+            new CustomEvent('farmgestion-toast', {
+              detail: { type: 'success', message: `Code surprise valide: ${rewardLabel}.` },
+            }),
+          );
+        } else if (redeemResult?.reason) {
+          window.dispatchEvent(
+            new CustomEvent('farmgestion-toast', {
+              detail: {
+                type: 'error',
+                message: `Code surprise non applique (${String(redeemResult.reason).toLowerCase()}).`,
+              },
+            }),
+          );
+        }
+      }
+
       // Attendre que la session soit bien établie avant de fermer
       try {
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -156,6 +218,7 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const handleGoogleSignUp = async () => {
     setLoading(true);
     setError('');
+    saveSurpriseCode(surpriseCode);
     const redirectTo = `${window.location.origin}/home`;
     const { error: oauthError } = await signInWithProvider('google', { redirectTo });
     if (oauthError) {
@@ -167,6 +230,7 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
   const handleDiscordSignUp = async () => {
     setLoading(true);
     setError('');
+    saveSurpriseCode(surpriseCode);
     const redirectTo = `${window.location.origin}/home`;
     const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
     if (oauthError) {
@@ -244,6 +308,27 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
               <span>Confirmer le mot de passe</span>
               <input type="password" placeholder="Confirmez votre mot de passe" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
             </label>
+            <div className="register-modal-surprise-wrap">
+              <button
+                type="button"
+                className="register-modal-surprise-toggle"
+                onClick={() => setShowSurpriseField((current) => !current)}
+                aria-expanded={showSurpriseField}
+              >
+                {showSurpriseField ? 'Masquer le code bonus' : 'J\'ai un code bonus'}
+              </button>
+              {showSurpriseField ? (
+                <label className="register-modal-field register-modal-field--surprise">
+                  <span>Code surprise (facultatif)</span>
+                  <input
+                    type="text"
+                    placeholder="Ex: SALON_2026"
+                    value={surpriseCode}
+                    onChange={(event) => setSurpriseCode(normalizeSurpriseCode(event.target.value))}
+                  />
+                </label>
+              ) : null}
+            </div>
             <label className="register-modal-checkbox">
               <input type="checkbox" checked={newsletter} onChange={e => setNewsletter(e.target.checked)} />
               <span>Recevoir la newsletter</span>

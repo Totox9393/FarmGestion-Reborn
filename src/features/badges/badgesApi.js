@@ -2,6 +2,7 @@ import { supabase } from '../authentification/supabaseClient'
 import { normalizeBadgeCatalogRow, normalizeBadgeFromRelation, sortBadgesByRarityThenName } from './badgeUtils'
 
 const CATALOG_SELECT = 'id,filename,name,rarity,price,stock_total,sold_count,is_active'
+const CATALOG_SELECT_WITH_SHOP_VISIBILITY = `${CATALOG_SELECT},is_shop_visible`
 const CATALOG_REL_SELECT = 'badges_catalog_reborn!badges_inventory_reborn_badge_id_fkey(id,filename,name,rarity,price,stock_total,sold_count,is_active)'
 const EQUIP_CATALOG_REL_SELECT = 'badges_catalog_reborn!badges_equips_reborn_badge_id_fkey(id,filename,name,rarity,price,stock_total,sold_count,is_active)'
 
@@ -19,10 +20,28 @@ const parseRpcResult = (data) => {
 export const fetchBadgesCatalogReborn = async () => {
   const { data, error } = await supabase
     .from('badges_catalog_reborn')
-    .select(CATALOG_SELECT)
+    .select(CATALOG_SELECT_WITH_SHOP_VISIBILITY)
     .eq('is_active', true)
 
-  if (error) throw error
+  if (error) {
+    const message = String(error?.message || '').toLowerCase()
+    const isMissingColumn = message.includes('is_shop_visible') || error?.code === '42703'
+
+    if (!isMissingColumn) throw error
+
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from('badges_catalog_reborn')
+      .select(CATALOG_SELECT)
+      .eq('is_active', true)
+
+    if (fallbackError) throw fallbackError
+
+    return sortBadgesByRarityThenName(
+      (fallbackData || [])
+        .map((row) => normalizeBadgeCatalogRow(row))
+        .filter(Boolean),
+    )
+  }
 
   return sortBadgesByRarityThenName(
     (data || [])

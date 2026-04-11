@@ -289,7 +289,7 @@ function FarmDesignPreview({
               loading="lazy"
               decoding="async"
               style={{
-                transform: `translate(-50%, -50%) translate(${centerStyle.position.x}px, ${centerStyle.position.y}px) scale(${centerStyle.zoom})`,
+                transform: `translate(-50%, -50%) translate(calc(${centerStyle.position.x}px * var(--farm-center-offset-x-factor, 1)), calc(${centerStyle.position.y}px * var(--farm-center-offset-y-factor, 1))) scale(${centerStyle.zoom})`,
               }}
               onError={() => setFailedImageUrl(centerStyle.imageUrl || '__missing__')}
             />

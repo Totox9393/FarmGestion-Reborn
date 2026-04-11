@@ -2370,9 +2370,85 @@
   --farm-design-core-stroke: rgba(173, 206, 255, 0.42);
 }
 
+.farm-page-hex-wrap {
+  --farm-center-offset-x-factor: 1;
+  --farm-center-offset-y-factor: 1;
+}
+
 @media (max-width: 980px) {
   .farm-page {
     padding: 16px;
+  }
+
+  .farm-page-hex-stage--mobile-profile {
+    --farm-center-offset-x-factor: 0;
+    --farm-center-offset-y-factor: 0;
+    --farm-mobile-center-size: clamp(82px, 24vw, 108px);
+  }
+
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__media {
+    width: var(--farm-mobile-center-size) !important;
+    height: var(--farm-mobile-center-size) !important;
+    min-width: var(--farm-mobile-center-size);
+    min-height: var(--farm-mobile-center-size);
+    aspect-ratio: 1 / 1 !important;
+    border-radius: 50% !important;
+    clip-path: circle(50% at 50% 50%) !important;
+    -webkit-clip-path: circle(50% at 50% 50%);
+    overflow: hidden !important;
+    contain: paint;
+  }
+
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__image-wrap,
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__image {
+    border-radius: 50% !important;
+    clip-path: circle(50% at 50% 50%) !important;
+    -webkit-clip-path: circle(50% at 50% 50%);
+  }
+
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__image-wrap {
+    width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+    background-image: none !important;
+  }
+
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__image {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    object-position: 50% 50% !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) scale(1) !important;
+  }
+
+  .farm-page-hex-stage--mobile-profile .farm-design-preview__emoji {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: clamp(1.2rem, 8vw, 2rem);
+    line-height: 1;
+    letter-spacing: 0;
+    padding: 0 0.08em;
+    overflow: hidden;
+  }
+
+  /* Mobile safeguard: keep farm profile image perfectly centered and circular. */
+  .farm-page-hex-wrap .farm-design-preview__media,
+  .farm-page-hex-wrap .farm-design-preview__image-wrap,
+  .farm-page-hex-wrap .farm-design-preview__image {
+    border-radius: 50% !important;
+    clip-path: circle(50% at 50% 50%) !important;
+    -webkit-clip-path: circle(50% at 50% 50%);
+  }
+
+  .farm-page-hex-wrap {
+    --farm-center-offset-x-factor: 0;
+    --farm-center-offset-y-factor: 0;
   }
 
   .farm-page-main {

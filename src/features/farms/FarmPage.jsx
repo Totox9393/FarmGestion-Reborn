@@ -1501,7 +1501,7 @@ function FarmPage() {
             siteColorsRaw={siteColors}
             centerStyleRaw={farm.center_style}
             rotate={rotateHex}
-            className="farm-page-hex-stage"
+            className="farm-page-hex-stage farm-page-hex-stage--mobile-profile"
             maxSize={640}
             minHeight={620}
             onPointerDown={handleHexStagePointerDown}

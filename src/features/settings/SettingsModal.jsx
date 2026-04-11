@@ -13,10 +13,12 @@ import {
 import Settings_ChangePassword from './Settings_ChangePassword';
 import Settings_ChangeEmail from './Settings_ChangeEmail';
 import Settings_ChangeAvatar from './Settings_ChangeAvatar';
+import Settings_ClaimSurpriseCode from './Settings_ClaimSurpriseCode';
 import Settings_AdminShippingPanel from './Settings_AdminShippingPanel';
 import Settings_AdminInvisibleBetailsPanel from './Settings_AdminInvisibleBetailsPanel';
 import Settings_ReportsPanel from './Settings_ReportsPanel';
 import Settings_AdminBadgesPanel from './Settings_AdminBadgesPanel';
+import Settings_AdminSurpriseCodesPanel from './Settings_AdminSurpriseCodesPanel';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -33,6 +35,7 @@ const SECTIONS = {
   import: 'Importer',
   administration: 'Administration',
   adminBadges: 'Badges admin',
+  adminSurpriseCodes: 'Codes surprise',
   expeditions: 'Expéditions',
   invisibleBetails: 'Bétails invisibles',
   reports: 'Signalements',
@@ -146,6 +149,24 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     gcTime: 300_000,
     retry: 1,
   });
+
+  useEffect(() => {
+    const handleSurpriseRedemption = (event) => {
+      const redeemedUserId = String(event?.detail?.userId || '').trim();
+      const currentUserId = String(user?.id || '').trim();
+
+      if (!currentUserId || (redeemedUserId && redeemedUserId !== currentUserId)) {
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'inventory', currentUserId] });
+      queryClient.invalidateQueries({ queryKey: ['settings', 'badges', 'equips', currentUserId] });
+      queryClient.invalidateQueries({ queryKey: ['farm', 'equips', farmId || null] });
+    };
+
+    window.addEventListener('farmgestion-surprise-redeemed', handleSurpriseRedemption);
+    return () => window.removeEventListener('farmgestion-surprise-redeemed', handleSurpriseRedemption);
+  }, [farmId, queryClient, user?.id]);
 
   const equipFarmBadgeMutation = useMutation({
     mutationFn: ({ badgeId, slot = null }) => equipFarmBadgeReborn({ badgeId, slot }),
@@ -292,7 +313,12 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
 
   useEffect(() => {
     if (isAdmin) return;
-    if (activeSection === 'administration_badges') {
+    if (
+      activeSection === 'administration_badges'
+      || activeSection === 'administration_surprise_codes'
+      || activeSection === 'administration_expeditions'
+      || activeSection === 'administration_invisible_betails'
+    ) {
       setActiveSection('account');
     }
   }, [activeSection, isAdmin]);
@@ -716,6 +742,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                       </button>
                       <button
                         type="button"
+                        className={`settings-link ${activeSection === 'administration_surprise_codes' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_surprise_codes')}
+                      >
+                        {SECTIONS.adminSurpriseCodes}
+                      </button>
+                      <button
+                        type="button"
                         className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
                         onClick={() => setActiveSection('administration_expeditions')}
                       >
@@ -758,6 +791,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   <Settings_ChangePassword user={user} />
                   <Settings_ChangeEmail user={user} />
                   <Settings_ChangeAvatar user={user} profile={profile} />
+                  <Settings_ClaimSurpriseCode />
                   <div className="settings-item settings-item--disabled">
                     <div>
                       <p className="settings-item-title">Signaler un bug</p>
@@ -1113,6 +1147,14 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
             {isAdmin && activeSection === 'administration_badges' && (
               <Settings_AdminBadgesPanel
                 isActive={activeSection === 'administration_badges'}
+                isAdmin={isAdmin}
+                currentUserId={user?.id || null}
+              />
+            )}
+
+            {isAdmin && activeSection === 'administration_surprise_codes' && (
+              <Settings_AdminSurpriseCodesPanel
+                isActive={activeSection === 'administration_surprise_codes'}
                 isAdmin={isAdmin}
                 currentUserId={user?.id || null}
               />

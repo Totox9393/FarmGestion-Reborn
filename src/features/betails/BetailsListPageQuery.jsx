@@ -572,6 +572,9 @@ function BetailsListPageQuery() {
     if (rawMessage.includes('betail_invisible')) {
       return 'Ce bétail ne peut pas être acheté.'
     }
+    if (rawMessage.includes('farm_capacity_reached') || rawMessage.includes('farm_sites_full')) {
+      return 'Votre ferme est pleine (180/180). Programmez des expéditions avant de racheter.'
+    }
     if (rawMessage.includes('daily_limit_reached')) {
       return 'Limite quotidienne atteinte (10 achats).'
     }

@@ -634,7 +634,7 @@ function Navigation_Bar() {
           </button>
           <button
             type="button"
-            className="nav-link nav-logout"
+            className="nav-link nav-logout nav-logout--desktop"
             onClick={async () => {
               await supabase.auth.signOut();
               navigate('/');

@@ -997,6 +997,7 @@ function GCEPage() {
     const hasShipping = rowsForDay.length > 0
     const dayAccentRgb = hasShipping ? getDayAccentRgb(dayKey) : null
     const shouldFlipTooltipLeft = gridColumnIndex >= 5
+      const shouldFlipTooltipUp = options.gridRowIndex != null && options.gridRowIndex >= 4
 
     return (
       <div
@@ -1025,7 +1026,7 @@ function GCEPage() {
                   )}
                 </button>
 
-                <div className={`gce-tooltip ${shouldFlipTooltipLeft ? 'is-flip-left' : ''}`} role="tooltip">
+                <div className={`gce-tooltip ${shouldFlipTooltipLeft ? 'is-flip-left' : ''} ${shouldFlipTooltipUp ? 'is-flip-up' : ''}`} role="tooltip">
                   <div className="gce-tooltip-head">
                     <div className="gce-tooltip-avatar">
                       {row.avatarUrl ? <img src={row.avatarUrl} alt={row.betailName} loading="lazy" decoding="async" /> : <span>{getAvatarFallback(row.betailName)}</span>}
@@ -1561,6 +1562,7 @@ function GCEPage() {
                   const inCurrentMonth = viewMode === 'week' ? true : date.getMonth() === viewMonthStart.getMonth()
                   return renderDayCell(date, {
                     inCurrentMonth,
+                    gridRowIndex: Math.floor(index / 7),
                     keyPrefix: viewMode,
                     gridColumnIndex,
                   })

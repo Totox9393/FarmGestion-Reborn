@@ -1,7 +1,7 @@
 .report-betail-overlay {
   position: fixed;
   inset: 0;
-  z-index: 120;
+  z-index: 2000;
   background: rgba(14, 16, 24, 0.55);
   backdrop-filter: blur(6px);
   display: grid;
@@ -577,12 +577,37 @@
 
 @media (max-width: 540px) {
   .report-betail-overlay {
-    padding: 10px;
+    padding: 8px;
+    align-items: start;
+    place-items: start center;
+    overflow-y: auto;
   }
 
   .report-betail-modal {
-    max-height: min(650px, calc(100vh - 12px));
+    width: min(700px, 100%);
+    max-height: calc(100svh - 16px);
     border-radius: 16px;
+  }
+
+  .report-betail-form,
+  .report-betail-layout,
+  .report-betail-reasons {
+    min-height: 0;
+  }
+
+  .report-betail-form {
+    overflow: hidden;
+  }
+
+  .report-betail-layout {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-bottom: 10px;
+  }
+
+  .report-betail-reasons {
+    align-content: start;
+    padding-bottom: 2px;
   }
 
   .report-betail-header {

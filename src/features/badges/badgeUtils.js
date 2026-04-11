@@ -56,6 +56,7 @@ export const normalizeBadgeCatalogRow = (row) => {
     soldCount: safeSoldCount,
     stockLeft: Math.max(0, safeStockTotal - safeSoldCount),
     isActive: Boolean(row.is_active),
+    isShopVisible: row.is_shop_visible === undefined ? true : Boolean(row.is_shop_visible),
     imageUrl: getBadgeImageUrl(filename, rarity),
   }
 }

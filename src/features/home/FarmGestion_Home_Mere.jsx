@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from 'react';
+import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
@@ -137,6 +137,9 @@ function FarmGestion_Home_Mere() {
   const [pendingLikeIds, setPendingLikeIds] = useState([]);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
+  const [visibleBetails, setVisibleBetails] = useState(4);
+  const carouselTouchStartXRef = useRef(null);
+  const carouselTouchStartYRef = useRef(null);
 
   const weeklyShippingQuery = useQuery({
     queryKey: ['home', 'weekly-shipping', user?.id],
@@ -475,7 +478,6 @@ function FarmGestion_Home_Mere() {
 
   const initial = useMemo(() => (profile?.username ? profile.username[0]?.toUpperCase() : '?'), [profile]);
 
-  const visibleBetails = 4;
   const likedIdsSet = useMemo(() => new Set((likedBetailIds || []).map((id) => String(id))), [likedBetailIds]);
   const isLikeableId = useCallback((value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value || '')), []);
   const carouselBetails = useMemo(() => {
@@ -501,6 +503,41 @@ function FarmGestion_Home_Mere() {
 
   const nextSlide = () => setCarouselIndex(prev => Math.min(prev + 1, maxIndex));
   const prevSlide = () => setCarouselIndex(prev => Math.max(prev - 1, 0));
+
+  const handleCarouselTouchStart = useCallback((event) => {
+    const touch = event.changedTouches?.[0];
+    if (!touch) return;
+    carouselTouchStartXRef.current = touch.clientX;
+    carouselTouchStartYRef.current = touch.clientY;
+    setIsCarouselPaused(true);
+  }, []);
+
+  const handleCarouselTouchEnd = useCallback((event) => {
+    const touch = event.changedTouches?.[0];
+    const startX = carouselTouchStartXRef.current;
+    const startY = carouselTouchStartYRef.current;
+    carouselTouchStartXRef.current = null;
+    carouselTouchStartYRef.current = null;
+    if (!touch || startX == null || startY == null) return;
+
+    const deltaX = touch.clientX - startX;
+    const deltaY = touch.clientY - startY;
+    const isHorizontalSwipe = Math.abs(deltaX) >= 40 && Math.abs(deltaX) > Math.abs(deltaY);
+    if (!isHorizontalSwipe) {
+      setIsCarouselPaused(false);
+      return;
+    }
+
+    if (deltaX < 0) {
+      nextSlide();
+    } else {
+      prevSlide();
+    }
+
+    window.setTimeout(() => {
+      setIsCarouselPaused(false);
+    }, 900);
+  }, [nextSlide, prevSlide]);
   const openCommunityPage = useCallback(() => {
     navigate('/community');
   }, [navigate]);
@@ -777,6 +814,29 @@ function FarmGestion_Home_Mere() {
   }, []);
 
   useEffect(() => {
+    const updateVisibleBetails = () => {
+      const viewportWidth = window.innerWidth;
+      if (viewportWidth <= 640) {
+        setVisibleBetails(1);
+        return;
+      }
+      if (viewportWidth <= 900) {
+        setVisibleBetails(2);
+        return;
+      }
+      setVisibleBetails(4);
+    };
+
+    updateVisibleBetails();
+    window.addEventListener('resize', updateVisibleBetails);
+    return () => window.removeEventListener('resize', updateVisibleBetails);
+  }, []);
+
+  useEffect(() => {
+    setCarouselIndex((prev) => Math.min(prev, maxIndex));
+  }, [maxIndex]);
+
+  useEffect(() => {
     if (maxIndex === 0 || isCarouselPaused) return;
     const intervalId = setInterval(() => {
       setCarouselIndex((prev) => (prev >= maxIndex ? 0 : prev + 1));
@@ -937,6 +997,9 @@ function FarmGestion_Home_Mere() {
           <div
             className="home-carousel-track"
             style={{ transform: `translateX(-${carouselIndex * (100 / visibleBetails)}%)` }}
+            onTouchStart={handleCarouselTouchStart}
+            onTouchEnd={handleCarouselTouchEnd}
+            onTouchCancel={handleCarouselTouchEnd}
           >
             {carouselBetails.map(betail => (
               <div
