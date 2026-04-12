@@ -194,12 +194,27 @@ const reasonToFrenchMessage = (reason, fallback) => {
   const normalized = String(reason || '').toUpperCase();
   if (!normalized) return fallback;
   if (normalized === 'NOT_ADMIN') return 'Action réservée à un administrateur.';
+  if (normalized === 'FORBIDDEN') return 'Action refusée par la fonction SQL (FORBIDDEN).';
   if (normalized === 'BADGE_NOT_FOUND') return 'Badge introuvable.';
   if (normalized === 'INVALID_STOCK') return 'Stock invalide.';
   if (normalized === 'INVALID_PRICE') return 'Prix invalide.';
   if (normalized === 'INVALID_RARITY') return 'Rareté invalide.';
   if (normalized === 'BADGE_ALREADY_EXISTS' || normalized === 'FILENAME_ALREADY_EXISTS') return 'Ce fichier badge existe déjà.';
   return fallback;
+};
+
+const canFallbackToDirectBadgeDelete = (error) => {
+  const message = String(error?.message || '').toLowerCase();
+  return (
+    isRpcSignatureError(error) ||
+    message.includes('admin_delete_badge_reborn') ||
+    message.includes('not_admin') ||
+    message.includes('administrateur') ||
+    message.includes('forbidden') ||
+    message.includes('permission') ||
+    message.includes('not allowed') ||
+    message.includes('denied')
+  );
 };
 
 const extractRpcFailureReason = (result) => {
@@ -455,7 +470,7 @@ const uploadBadgeImageToBucket = async ({ file, rarity, preferredFilename }) => 
   throw new Error(`Upload bucket impossible: ${errorMessage}`);
 };
 
-function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
+function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState({ type: '', message: '' });
   const [searchValue, setSearchValue] = useState('');
@@ -497,7 +512,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
   const badgesQuery = useQuery({
     queryKey: ADMIN_BADGES_QUERY_KEY,
     queryFn: fetchAdminBadgeCatalog,
-    enabled: Boolean(isActive && isAdmin),
+    enabled: Boolean(isActive && canAccessAdministration),
     staleTime: 15_000,
     gcTime: 300_000,
     retry: 1,
@@ -507,7 +522,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
   const soldCountsQuery = useQuery({
     queryKey: ['settings', 'admin', 'badges', 'sold-counts-reborn'],
     queryFn: fetchRealSoldCountsByBadge,
-    enabled: Boolean(isActive && isAdmin),
+    enabled: Boolean(isActive && canAccessAdministration),
     staleTime: 15_000,
     gcTime: 300_000,
     retry: 1,
@@ -665,11 +680,26 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
 
   const deleteBadgeMutation = useMutation({
     mutationFn: async ({ badgeId, rarity: badgeRarity, filename: badgeFilename }) => {
-      const result = await tryRpcVariants(
-        'admin_delete_badge_reborn',
-        buildDeleteBadgeRpcVariants({ badgeId }),
-      );
-      ensureRpcSuccess(result, 'Suppression badge impossible.');
+      let usedFallback = false;
+      try {
+        const result = await tryRpcVariants(
+          'admin_delete_badge_reborn',
+          buildDeleteBadgeRpcVariants({ badgeId }),
+        );
+        ensureRpcSuccess(result, 'Suppression badge impossible.');
+      } catch (error) {
+        if (!canFallbackToDirectBadgeDelete(error)) {
+          throw error;
+        }
+
+        const { error: deleteError } = await supabase
+          .from('badges_catalog_reborn')
+          .delete()
+          .eq('id', badgeId);
+
+        if (deleteError) throw deleteError;
+        usedFallback = true;
+      }
 
       let storageErrorMessage = '';
       const storagePath = `${badgeRarity}/${badgeFilename}`;
@@ -680,9 +710,9 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
         }
       }
 
-      return { badgeFilename, storageErrorMessage };
+      return { badgeFilename, storageErrorMessage, usedFallback };
     },
-    onSuccess: ({ badgeFilename, storageErrorMessage }) => {
+    onSuccess: ({ badgeFilename, storageErrorMessage, usedFallback }) => {
       setConfirmDeleteBadgeId('');
       queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['settings', 'badges'] });
@@ -694,11 +724,19 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
         return;
       }
 
-      setFeedback({ type: 'success', message: `Badge ${badgeFilename || ''} supprimé.` });
-      emitToast('success', `Badge ${badgeFilename || ''} supprimé.`);
+      const successMessage = usedFallback
+        ? `Badge ${badgeFilename || ''} supprimé (mode RLS direct).`
+        : `Badge ${badgeFilename || ''} supprimé.`;
+      setFeedback({ type: 'success', message: successMessage });
+      emitToast('success', successMessage);
     },
     onError: (error) => {
       const message = String(error?.message || 'Suppression badge impossible.');
+      if (error?.code === '42501' || message.includes('403')) {
+        setFeedback({ type: 'error', message: 'Permission refusée pour supprimer ce badge (RLS).' });
+        emitToast('error', 'Permission refusée pour supprimer ce badge (RLS).');
+        return;
+      }
       if (isRpcSignatureError(error) || message.toLowerCase().includes('admin_delete_badge_reborn')) {
         setFeedback({ type: 'error', message: 'Fonction SQL admin_delete_badge_reborn absente ou signature différente.' });
         emitToast('error', 'Fonction SQL admin_delete_badge_reborn absente ou signature différente.');
@@ -750,7 +788,7 @@ function Settings_AdminBadgesPanel({ isActive, isAdmin }) {
     return '';
   }, [bucketPreview?.imageUrl, filename, rarity, sourceMode, uploadPreviewUrl]);
 
-  if (!isActive || !isAdmin) return null;
+  if (!isActive || !canAccessAdministration) return null;
 
   const handleLoadFromBucket = async () => {
     const needle = normalizeFilenameInput(bucketLookupInput);

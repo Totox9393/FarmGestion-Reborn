@@ -1,4 +1,4 @@
--- Bucket badges + policies RLS Storage (admin only write)
+-- Bucket badges + policies RLS Storage (admin + moderation write)
 -- A executer dans l'editeur SQL Supabase.
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
@@ -23,7 +23,7 @@ for select
 to public
 using (bucket_id = 'badges');
 
--- Ecriture reservee aux admins dans les dossiers de rarete.
+-- Ecriture reservee aux admins/moderation dans les dossiers de rarete.
 drop policy if exists badges_admin_insert_rarity_folder on storage.objects;
 create policy badges_admin_insert_rarity_folder
 on storage.objects
@@ -39,6 +39,8 @@ with check (
       and (
         upper(coalesce(up.role, '')) like '%ADMIN%'
         or upper(coalesce(up.role_ingame, '')) like '%ADMIN%'
+        or upper(coalesce(up.role, '')) like '%MODERATION%'
+        or upper(coalesce(up.role_ingame, '')) like '%MODERATION%'
       )
   )
 );
@@ -58,6 +60,8 @@ using (
       and (
         upper(coalesce(up.role, '')) like '%ADMIN%'
         or upper(coalesce(up.role_ingame, '')) like '%ADMIN%'
+        or upper(coalesce(up.role, '')) like '%MODERATION%'
+        or upper(coalesce(up.role_ingame, '')) like '%MODERATION%'
       )
   )
 )
@@ -71,6 +75,8 @@ with check (
       and (
         upper(coalesce(up.role, '')) like '%ADMIN%'
         or upper(coalesce(up.role_ingame, '')) like '%ADMIN%'
+        or upper(coalesce(up.role, '')) like '%MODERATION%'
+        or upper(coalesce(up.role_ingame, '')) like '%MODERATION%'
       )
   )
 );
@@ -90,6 +96,8 @@ using (
       and (
         upper(coalesce(up.role, '')) like '%ADMIN%'
         or upper(coalesce(up.role_ingame, '')) like '%ADMIN%'
+        or upper(coalesce(up.role, '')) like '%MODERATION%'
+        or upper(coalesce(up.role_ingame, '')) like '%MODERATION%'
       )
   )
 );

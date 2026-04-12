@@ -329,7 +329,9 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
     supabase
       .from('betails')
       .select('id', { count: 'exact', head: true })
-      .eq('farm_id', farmId),
+      .eq('farm_id', farmId)
+      .eq('owner_id', ownerId)
+      .eq('visible', true),
   );
 
   const inhabitedSitePromises = FARM_SITE_VALUES.map((siteValue) =>
@@ -338,6 +340,8 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
         .from('betails')
         .select('id', { count: 'exact', head: true })
         .eq('farm_id', farmId)
+        .eq('owner_id', ownerId)
+        .eq('visible', true)
         .eq('farm_site', siteValue),
     ),
   );
@@ -356,6 +360,7 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
       .from('shipping')
       .select('id, betails!inner(owner_id)', { count: 'exact', head: true })
       .eq('betails.owner_id', ownerId)
+      .eq('betails.visible', true)
       .eq('status', 'scheduled')
       .gte('scheduled_for', startIso)
       .lt('scheduled_for', endIso),
@@ -367,6 +372,7 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
       .select('id, betails!inner(owner_id, farm_id)', { count: 'exact', head: true })
       .eq('betails.owner_id', ownerId)
       .eq('betails.farm_id', farmId)
+      .eq('betails.visible', true)
       .eq('status', 'scheduled'),
   );
 
@@ -375,6 +381,8 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
       .from('betails')
       .select('id', { count: 'exact', head: true })
       .eq('farm_id', farmId)
+      .eq('owner_id', ownerId)
+      .eq('visible', true)
       .eq('premium', true),
   );
 
@@ -383,6 +391,8 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
       .from('betails')
       .select('id', { count: 'exact', head: true })
       .eq('farm_id', farmId)
+      .eq('owner_id', ownerId)
+      .eq('visible', true)
       .eq('premium', false),
   );
 
@@ -1627,14 +1637,14 @@ function FarmPage() {
                             role="img"
                             aria-label={`Expéditions en cours: ${ownerDashboardStats.withShippingInProgress} avec date, ${ownerDashboardStats.withoutShippingInProgress} sans date`}
                           >
-                            <span>{Math.round(shippingPieRatio * 100)}%</span>
+                            <span className="farm-page-dashboard-pie-value">{Math.round(shippingPieRatio * 100)}%</span>
                           </div>
 
                           <div className="farm-page-dashboard-pie-legend">
-                            <p>
+                            <p className="is-with-shipping">
                               Avec expédition <strong>{ownerDashboardStats.withShippingInProgress}</strong>
                             </p>
-                            <p>
+                            <p className="is-without-shipping">
                               Sans expédition <strong>{ownerDashboardStats.withoutShippingInProgress}</strong>
                             </p>
                           </div>

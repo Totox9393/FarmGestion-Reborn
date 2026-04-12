@@ -7,6 +7,7 @@ import maintenanceOnSound from '../../assets/sounds/CH1_GRP1_00000006.wav';
 import { WAITING_SOUND_OPTIONS, isWaitingSoundKey, resolveWaitingSoundUrl } from '../other/waitingSoundOptions';
 
 const MAINTENANCE_QUERY_KEY = ['settings', 'admin', 'maintenance-config'];
+const MAINTENANCE_ALLOWLIST_QUERY_KEY = ['settings', 'admin', 'maintenance-allowlist'];
 
 const DEFAULT_CONFIG = {
   enabled: false,
@@ -44,10 +45,47 @@ const normalizeConfigFromRow = (row) => ({
   music_url: toSafeText(row?.music_url),
 });
 
+const invokeMaintenanceFunction = async (payload) => {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError) {
+    throw new Error(sessionError.message || 'Impossible de verifier la session utilisateur.');
+  }
+
+  const accessToken = sessionData?.session?.access_token;
+  if (!accessToken) {
+    throw new Error('Session expirée. Reconnecte-toi puis réessaie.');
+  }
+
+  const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
+    body: payload,
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+  });
+
+  if (error) {
+    let details = '';
+    const context = error?.context;
+    if (context && typeof context.json === 'function') {
+      try {
+        const body = await context.json();
+        details = String(body?.error || body?.message || '');
+      } catch {
+        // noop
+      }
+    }
+
+    throw new Error(details || error.message || 'Erreur Edge Function');
+  }
+  return data;
+};
+
 function Settings_MaintenancePanel({ isActive, isAdmin }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
+  const [allowlistInput, setAllowlistInput] = useState('');
+  const [allowlistComment, setAllowlistComment] = useState('');
   const previousCloudflareStatusRef = useRef(null);
   const previewAudioRef = useRef(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
@@ -59,10 +97,7 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     queryKey: MAINTENANCE_QUERY_KEY,
     enabled: Boolean(isActive && isAdmin),
     queryFn: async () => {
-      const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
-        body: { action: 'status' },
-      });
-      if (error) throw error;
+      const data = await invokeMaintenanceFunction({ action: 'status' });
       if (!data?.success) {
         throw new Error(data?.error || 'Impossible de charger le statut maintenance');
       }
@@ -76,6 +111,37 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     },
     staleTime: 15_000,
     gcTime: 300_000,
+    retry: 1,
+    refetchOnWindowFocus: false,
+  });
+
+  const allowlistQuery = useQuery({
+    queryKey: MAINTENANCE_ALLOWLIST_QUERY_KEY,
+    enabled: Boolean(isActive && isAdmin),
+    queryFn: async () => {
+      const data = await invokeMaintenanceFunction({ action: 'allowlist_status' });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Impossible de charger la liste des IP autorisées');
+      }
+
+      return {
+        list_id: String(data?.allowlist?.list_id || ''),
+        list_name: String(data?.allowlist?.list_name || ''),
+        requester_ip: String(data?.allowlist?.requester_ip || ''),
+        requester_allowed: Boolean(data?.allowlist?.requester_allowed),
+        total: Number(data?.allowlist?.total || 0),
+        items: Array.isArray(data?.allowlist?.items)
+          ? data.allowlist.items.map((item) => ({
+            id: String(item?.id || ''),
+            value: String(item?.value || ''),
+            comment: String(item?.comment || ''),
+            modified_on: String(item?.modified_on || ''),
+          })).filter((item) => item.id && item.value)
+          : [],
+      };
+    },
+    staleTime: 12_000,
+    gcTime: 240_000,
     retry: 1,
     refetchOnWindowFocus: false,
   });
@@ -105,11 +171,7 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
         music_url: isWaitingSoundKey(nextDraft.music_url) ? nextDraft.music_url : '',
       };
 
-      const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
-        body: payload,
-      });
-
-      if (error) throw error;
+      const data = await invokeMaintenanceFunction(payload);
       if (!data?.success) {
         throw new Error(data?.error || 'Échec de synchronisation maintenance');
       }
@@ -130,10 +192,7 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
 
   const syncTestMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
-        body: { action: 'sync_test' },
-      });
-      if (error) throw error;
+      const data = await invokeMaintenanceFunction({ action: 'sync_test' });
       if (!data?.success) {
         throw new Error(data?.error || 'Test de synchronisation Cloudflare échoué');
       }
@@ -147,6 +206,68 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
         type: 'error',
         message: error?.message || 'Test synchro Cloudflare en échec.',
       });
+    },
+  });
+
+  const allowlistAddMutation = useMutation({
+    mutationFn: async ({ ip, comment }) => {
+      const data = await invokeMaintenanceFunction({
+        action: 'allowlist_add',
+        ip: String(ip || '').trim(),
+        comment: String(comment || '').trim(),
+      });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Impossible d\'ajouter cette IP');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      setAllowlistInput('');
+      setAllowlistComment('');
+      queryClient.invalidateQueries({ queryKey: MAINTENANCE_ALLOWLIST_QUERY_KEY });
+      setFeedback({ type: 'success', message: 'IP autorisée ajoutée.' });
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error?.message || 'Ajout IP impossible.' });
+    },
+  });
+
+  const allowlistAddMyIpMutation = useMutation({
+    mutationFn: async () => {
+      const data = await invokeMaintenanceFunction({
+        action: 'allowlist_add_my_ip',
+      });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Impossible d\'ajouter ton IP actuelle');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: MAINTENANCE_ALLOWLIST_QUERY_KEY });
+      setFeedback({ type: 'success', message: 'Ton IP actuelle a été ajoutée à la liste.' });
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error?.message || 'Ajout auto IP impossible.' });
+    },
+  });
+
+  const allowlistRemoveMutation = useMutation({
+    mutationFn: async ({ itemId }) => {
+      const data = await invokeMaintenanceFunction({
+        action: 'allowlist_remove',
+        item_id: String(itemId || '').trim(),
+      });
+      if (!data?.success) {
+        throw new Error(data?.error || 'Impossible de supprimer cette IP');
+      }
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: MAINTENANCE_ALLOWLIST_QUERY_KEY });
+      setFeedback({ type: 'success', message: 'IP retirée de la liste autorisée.' });
+    },
+    onError: (error) => {
+      setFeedback({ type: 'error', message: error?.message || 'Suppression IP impossible.' });
     },
   });
 
@@ -178,7 +299,21 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
   const cloudflareRuleId = String(configQuery.data?.cloudflare_rule_id || '').trim();
   const cloudflareLabel = cloudflareEnabled ? 'MAINTENANCE ACTIVE' : 'MAINTENANCE INACTIVE';
   const isBusy = saveMutation.isPending || syncTestMutation.isPending || configQuery.isFetching;
+  const isAllowlistBusy = allowlistAddMutation.isPending || allowlistAddMyIpMutation.isPending || allowlistRemoveMutation.isPending;
+  const allowlistItems = allowlistQuery.data?.items || [];
+  const requesterIp = String(allowlistQuery.data?.requester_ip || '').trim();
+  const requesterAllowed = Boolean(allowlistQuery.data?.requester_allowed);
+  const allowlistTotal = Number(allowlistQuery.data?.total || allowlistItems.length || 0);
   const selectedSoundUrl = resolveWaitingSoundUrl(draft.music_url);
+
+  const handleAddAllowlistIp = () => {
+    const candidate = String(allowlistInput || '').trim();
+    if (!candidate) {
+      setFeedback({ type: 'error', message: 'Saisis une IP ou un CIDR avant d\'ajouter.' });
+      return;
+    }
+    allowlistAddMutation.mutate({ ip: candidate, comment: allowlistComment });
+  };
 
   useEffect(() => {
     if (!configQuery.isSuccess) return;
@@ -436,6 +571,99 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
               </div>
             </label>
           </div>
+        </section>
+
+        <section className="settings-maintenance-card settings-maintenance-allowlist-card">
+          <div className="settings-maintenance-status-head">
+            <div>
+              <p className="settings-item-title">IPs autorisées (bypass maintenance)</p>
+              <p className="settings-item-subtitle">Liste Cloudflare autorisée à ignorer la redirection maintenance.</p>
+            </div>
+            <span className={`settings-maintenance-pill ${requesterAllowed ? 'is-on' : 'is-off'}`}>
+              <span className={`settings-maintenance-dot ${requesterAllowed ? 'is-on' : 'is-off'}`} aria-hidden="true" />
+              {requesterAllowed ? 'TON IP EST AUTORISÉE' : 'TON IP N\'EST PAS AUTORISÉE'}
+            </span>
+          </div>
+
+          <div className="settings-maintenance-meta">
+            <p className="settings-item-subtitle">Total IPs autorisées: {allowlistTotal}</p>
+            {requesterIp ? <p className="settings-item-subtitle mono">IP détectée: {requesterIp}</p> : null}
+            {allowlistQuery.data?.list_id ? <p className="settings-item-subtitle mono">List ID: {allowlistQuery.data.list_id}</p> : null}
+          </div>
+
+          <div className="settings-maintenance-allowlist-editor">
+            <input
+              className="settings-admin-badge-input"
+              type="text"
+              value={allowlistInput}
+              onChange={(event) => setAllowlistInput(event.target.value)}
+              placeholder="Ex: 31.36.183.232 ou 31.36.183.0/24"
+              disabled={allowlistQuery.isLoading || isAllowlistBusy}
+            />
+            <input
+              className="settings-admin-badge-input"
+              type="text"
+              value={allowlistComment}
+              onChange={(event) => setAllowlistComment(event.target.value)}
+              placeholder="Commentaire optionnel"
+              disabled={allowlistQuery.isLoading || isAllowlistBusy}
+            />
+            <div className="settings-maintenance-actions">
+              <button
+                type="button"
+                className="settings-action"
+                onClick={() => allowlistQuery.refetch()}
+                disabled={allowlistQuery.isLoading || isAllowlistBusy}
+              >
+                Rafraîchir la liste
+              </button>
+              <button
+                type="button"
+                className="settings-action"
+                onClick={() => allowlistAddMyIpMutation.mutate()}
+                disabled={allowlistQuery.isLoading || isAllowlistBusy}
+              >
+                {allowlistAddMyIpMutation.isPending ? 'Ajout en cours...' : 'Ajouter mon IP actuelle'}
+              </button>
+              <button
+                type="button"
+                className="settings-action settings-action--primary"
+                onClick={handleAddAllowlistIp}
+                disabled={allowlistQuery.isLoading || isAllowlistBusy}
+              >
+                {allowlistAddMutation.isPending ? 'Ajout en cours...' : 'Ajouter IP'}
+              </button>
+            </div>
+          </div>
+
+          {allowlistQuery.isLoading ? (
+            <p className="settings-item-subtitle">Chargement des IPs autorisées...</p>
+          ) : allowlistQuery.isError ? (
+            <p className="settings-maintenance-feedback is-error">
+              {allowlistQuery.error?.message || 'Impossible de charger la liste IP autorisée.'}
+            </p>
+          ) : allowlistItems.length === 0 ? (
+            <p className="settings-item-subtitle">Aucune IP autorisée pour le moment.</p>
+          ) : (
+            <div className="settings-maintenance-allowlist-list">
+              {allowlistItems.map((item) => (
+                <article key={item.id} className="settings-maintenance-allowlist-item">
+                  <div className="settings-maintenance-allowlist-texts">
+                    <p className="settings-maintenance-allowlist-ip mono">{item.value}</p>
+                    {item.comment ? <p className="settings-item-subtitle">{item.comment}</p> : null}
+                  </div>
+                  <button
+                    type="button"
+                    className="settings-action settings-action--danger"
+                    onClick={() => allowlistRemoveMutation.mutate({ itemId: item.id })}
+                    disabled={isAllowlistBusy}
+                  >
+                    Retirer
+                  </button>
+                </article>
+              ))}
+            </div>
+          )}
         </section>
 
         {feedback.message ? (

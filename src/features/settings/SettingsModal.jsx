@@ -35,7 +35,7 @@ const SECTIONS = {
   badges: 'Badges',
   import: 'Importer',
   administration: 'Administration',
-  adminBadges: 'Badges admin',
+  adminBadges: 'Gestion des badges',
   adminSurpriseCodes: 'Codes surprise',
   maintenance: 'Maintenance',
   expeditions: 'Expéditions',
@@ -316,8 +316,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
   useEffect(() => {
     if (isAdmin) return;
     if (
-      activeSection === 'administration_badges'
-      || activeSection === 'administration_surprise_codes'
+      activeSection === 'administration_surprise_codes'
       || activeSection === 'administration_maintenance'
       || activeSection === 'administration_expeditions'
       || activeSection === 'administration_invisible_betails'
@@ -734,15 +733,15 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               {canAccessAdministration && (
                 <div className="settings-category">
                   <p className="settings-category-title">{SECTIONS.administration}</p>
+                  <button
+                    type="button"
+                    className={`settings-link ${activeSection === 'administration_badges' ? 'active' : ''}`}
+                    onClick={() => setActiveSection('administration_badges')}
+                  >
+                    {SECTIONS.adminBadges}
+                  </button>
                   {isAdmin && (
                     <>
-                      <button
-                        type="button"
-                        className={`settings-link ${activeSection === 'administration_badges' ? 'active' : ''}`}
-                        onClick={() => setActiveSection('administration_badges')}
-                      >
-                        {SECTIONS.adminBadges}
-                      </button>
                       <button
                         type="button"
                         className={`settings-link ${activeSection === 'administration_surprise_codes' ? 'active' : ''}`}
@@ -1154,10 +1153,10 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
               <Settings_AdminShippingPanel isActive={activeSection === 'administration_expeditions'} isAdmin={isAdmin} />
             )}
 
-            {isAdmin && activeSection === 'administration_badges' && (
+            {canAccessAdministration && activeSection === 'administration_badges' && (
               <Settings_AdminBadgesPanel
                 isActive={activeSection === 'administration_badges'}
-                isAdmin={isAdmin}
+                canAccessAdministration={canAccessAdministration}
                 currentUserId={user?.id || null}
               />
             )}
