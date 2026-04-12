@@ -2718,6 +2718,71 @@
   gap: 10px;
 }
 
+.settings-maintenance-editor {
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--settings-panel) 92%, transparent);
+}
+
+.settings-maintenance-mode {
+  align-items: stretch;
+}
+
+.settings-maintenance-radio-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-maintenance-radio {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  border: 1px solid var(--settings-border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-maintenance-radio input {
+  accent-color: var(--settings-accent);
+}
+
+.settings-maintenance-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.settings-maintenance-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-maintenance-feedback {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.settings-maintenance-feedback.is-success {
+  color: #20c997;
+}
+
+.settings-maintenance-feedback.is-error {
+  color: #ff7b7b;
+}
+
 @media (max-width: 900px) {
   .settings-body {
     grid-template-columns: 1fr;
@@ -2826,6 +2891,15 @@
 
   .settings-admin-shipping-meta {
     white-space: normal;
+  }
+
+  .settings-maintenance-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-maintenance-radio-group {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .settings-badge-section-header {

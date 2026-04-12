@@ -529,11 +529,6 @@ function ShopPage() {
                       className={`shop-badge-card is-${badge.rarity} ${isOwned ? 'is-owned' : ''} ${isSoldOut ? 'is-soldout' : ''}`}
                       role="listitem"
                     >
-                      <div className="shop-badge-top">
-                        <span className="shop-rarity-pill">{badge.rarityLabel}</span>
-                        {isSoldOut ? <span className="shop-stock-chip is-empty">Épuisé</span> : null}
-                      </div>
-
                       <div className="shop-badge-media">
                         {badge.imageUrl ? (
                           <img
@@ -555,11 +550,13 @@ function ShopPage() {
                         )}
                       </div>
 
-                      <p className="shop-badge-name">{badge.name}</p>
+                      <h3 className="shop-badge-name">{badge.name}</h3>
+                      <p className="shop-badge-description">
+                        Ce badge est classé <span className="shop-rarity-text">{badge.rarityLabel}</span>
+                      </p>
                       <p className="shop-badge-price">
                         <strong>{badge.price} 💸</strong>
                       </p>
-                      <p className="shop-badge-stock">Stock restant: {badge.stockLeft}</p>
 
                       <button
                         type="button"

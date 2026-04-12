@@ -19,6 +19,7 @@ import Settings_AdminInvisibleBetailsPanel from './Settings_AdminInvisibleBetail
 import Settings_ReportsPanel from './Settings_ReportsPanel';
 import Settings_AdminBadgesPanel from './Settings_AdminBadgesPanel';
 import Settings_AdminSurpriseCodesPanel from './Settings_AdminSurpriseCodesPanel';
+import Settings_MaintenancePanel from './Settings_MaintenancePanel';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -36,6 +37,7 @@ const SECTIONS = {
   administration: 'Administration',
   adminBadges: 'Badges admin',
   adminSurpriseCodes: 'Codes surprise',
+  maintenance: 'Maintenance',
   expeditions: 'Expéditions',
   invisibleBetails: 'Bétails invisibles',
   reports: 'Signalements',
@@ -316,6 +318,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
     if (
       activeSection === 'administration_badges'
       || activeSection === 'administration_surprise_codes'
+      || activeSection === 'administration_maintenance'
       || activeSection === 'administration_expeditions'
       || activeSection === 'administration_invisible_betails'
     ) {
@@ -749,6 +752,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                       </button>
                       <button
                         type="button"
+                        className={`settings-link ${activeSection === 'administration_maintenance' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_maintenance')}
+                      >
+                        {SECTIONS.maintenance}
+                      </button>
+                      <button
+                        type="button"
                         className={`settings-link ${activeSection === 'administration_expeditions' ? 'active' : ''}`}
                         onClick={() => setActiveSection('administration_expeditions')}
                       >
@@ -1157,6 +1167,13 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                 isActive={activeSection === 'administration_surprise_codes'}
                 isAdmin={isAdmin}
                 currentUserId={user?.id || null}
+              />
+            )}
+
+            {isAdmin && activeSection === 'administration_maintenance' && (
+              <Settings_MaintenancePanel
+                isActive={activeSection === 'administration_maintenance'}
+                isAdmin={isAdmin}
               />
             )}
 

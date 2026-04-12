@@ -12,6 +12,8 @@ import ResetPasswordPage from './features/authentification/ResetPasswordPage';
 import { AuthProvider } from './features/authentification/AuthContext';
 import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
+import TestSurpriseDemoPage from './features/other/TestSurpriseDemoPage';
+import MaintenancePage from './features/other/MaintenancePage';
 import FarmPage from './features/farms/FarmPage';
 import ShopPage from './features/boutique/ShopPage';
 import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
@@ -207,6 +209,8 @@ function AppRoutes() {
     <>
       <Routes>
         <Route path="/" element={<Home />} />
+        <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/test" element={<TestSurpriseDemoPage />} />
         <Route
           path="/betail-maker"
           element={

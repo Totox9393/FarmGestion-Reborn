@@ -254,83 +254,48 @@
 
 .shop-badges-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 14px;
 }
 
 .shop-badge-card {
-  border: 1px solid var(--shop-border);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.78);
-  padding: 10px;
+  border: 1px solid rgba(51, 94, 177, 0.14);
+  border-radius: 16px;
+  background: #ffffff;
+  padding: 14px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+  box-shadow: 0 8px 20px rgba(25, 52, 103, 0.08);
 }
 
 .shop-badge-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 22px rgba(67, 52, 133, 0.16);
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(25, 52, 103, 0.14);
 }
 
 .shop-badge-card.is-owned {
-  background: rgba(212, 213, 228, 0.45);
-  border-color: rgba(110, 111, 136, 0.3);
+  background: #f2f4f8;
+  border-color: rgba(111, 124, 145, 0.34);
 }
 
 .shop-badge-card.is-soldout {
-  border-style: dashed;
-  opacity: 0.82;
-}
-
-.shop-badge-top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 8px;
-}
-
-.shop-rarity-pill {
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 0.66rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 1px solid rgba(88, 73, 168, 0.28);
-  background: rgba(102, 86, 188, 0.16);
-  color: #5141b6;
-}
-
-.shop-stock-chip {
-  margin-left: auto;
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 0.62rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  border: 1px solid rgba(44, 171, 110, 0.28);
-  background: rgba(44, 171, 110, 0.12);
-  color: #1f7a4f;
-}
-
-.shop-stock-chip.is-empty {
-  border-color: rgba(201, 66, 66, 0.38);
-  background: rgba(201, 66, 66, 0.14);
-  color: #8b2f2f;
+  opacity: 0.84;
 }
 
 .shop-badge-media {
-  height: 82px;
+  min-height: 132px;
   display: grid;
   place-items: center;
+  border-radius: 12px;
+  background: linear-gradient(160deg, #f7f9fc 0%, #edf3ff 100%);
+  border: 1px solid rgba(61, 108, 191, 0.12);
 }
 
 .shop-badge-media img,
 .shop-badge-fallback {
-  width: 56px;
-  height: 56px;
+  width: 88px;
+  height: 88px;
   object-fit: contain;
 }
 
@@ -349,7 +314,7 @@
 
 .shop-badge-fallback {
   border-radius: 10px;
-  background: rgba(88, 72, 165, 0.16);
+  background: rgba(88, 72, 165, 0.14);
   display: grid;
   place-items: center;
   font-weight: 800;
@@ -357,71 +322,111 @@
 
 .shop-badge-name {
   margin: 0;
-  font-size: 0.83rem;
-  text-align: center;
-  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  font-weight: 800;
+  color: #22324f;
+}
+
+.shop-badge-description {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #6a7793;
+}
+
+.shop-rarity-text {
+  font-weight: 800;
 }
 
 .shop-badge-price {
   margin: 0;
-  text-align: center;
-  font-size: 0.86rem;
-  color: var(--shop-muted);
+  font-size: 0.95rem;
+  color: #4f617f;
 }
 
 .shop-badge-price strong {
-  color: var(--shop-text);
+  color: #1e4d92;
   font-weight: 900;
 }
 
-.shop-badge-stock {
-  margin: 0;
-  font-size: 0.75rem;
-  text-align: center;
-  color: var(--shop-muted);
+.shop-buy-btn {
+  width: 100%;
+  border: 1px solid rgba(67, 128, 83, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  color: #1f4b30;
+  font-size: 0.86rem;
+  font-weight: 800;
+  padding: 10px 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
-.shop-buy-btn {
-  border: 1px solid rgba(99, 86, 213, 0.28);
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(111, 98, 226, 0.18), rgba(111, 98, 226, 0.12));
-  color: #4b3bb2;
-  font-weight: 700;
-  padding: 7px 9px;
-  cursor: pointer;
+.shop-buy-btn:hover:not(:disabled) {
+  background: rgba(244, 255, 247, 0.95);
+  border-color: rgba(67, 128, 83, 0.34);
+  box-shadow: 0 10px 20px rgba(31, 75, 48, 0.12);
+  transform: translateY(-1px);
+}
+
+.shop-buy-btn:focus-visible {
+  outline: 2px solid rgba(67, 128, 83, 0.35);
+  outline-offset: 2px;
 }
 
 .shop-buy-btn:disabled {
+  cursor: not-allowed;
   opacity: 0.7;
-  cursor: default;
+  box-shadow: none;
+  transform: none;
 }
 
 .shop-buy-btn.is-owned {
-  border-color: rgba(122, 123, 145, 0.3);
-  background: rgba(165, 168, 188, 0.25);
-  color: #5f6175;
+  border: 1px dashed rgba(108, 120, 140, 0.42);
+  background: rgba(239, 242, 247, 0.85);
+  color: #5b667b;
 }
 
 .shop-buy-btn.is-soldout {
-  border-color: rgba(201, 66, 66, 0.32);
-  background: rgba(201, 66, 66, 0.14);
-  color: #8b2f2f;
+  border: 1px dashed rgba(194, 89, 89, 0.45);
+  background: rgba(248, 234, 234, 0.92);
+  color: #9e3d3d;
 }
 
 .shop-badge-card.is-1_common {
-  border-color: rgba(101, 113, 132, 0.34);
+  border-top: 4px solid #8ca0bb;
 }
 
 .shop-badge-card.is-2_rare {
-  border-color: rgba(66, 120, 194, 0.38);
+  border-top: 4px solid #3f89f2;
 }
 
 .shop-badge-card.is-3_epic {
-  border-color: rgba(121, 84, 194, 0.4);
+  border-top: 4px solid #9a63d8;
 }
 
 .shop-badge-card.is-4_legendary {
-  border-color: rgba(191, 120, 36, 0.4);
+  border-top: 4px solid #e0ad39;
+}
+
+.shop-badge-card.is-1_common .shop-rarity-text {
+  color: #5f728c;
+}
+
+.shop-badge-card.is-2_rare .shop-rarity-text {
+  color: #2f74d6;
+}
+
+.shop-badge-card.is-3_epic .shop-rarity-text {
+  color: #8747cd;
+}
+
+.shop-badge-card.is-4_legendary .shop-rarity-text {
+  color: #bc891f;
 }
 
 .shop-placeholder-grid {
