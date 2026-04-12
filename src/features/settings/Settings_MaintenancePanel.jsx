@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../authentification/supabaseClient';
+import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
+import maintenanceOffSound from '../../assets/sounds/CH1_GRP1_00000005.wav';
+import maintenanceOnSound from '../../assets/sounds/CH1_GRP1_00000006.wav';
+import { WAITING_SOUND_OPTIONS, isWaitingSoundKey, resolveWaitingSoundUrl } from '../other/waitingSoundOptions';
 
 const MAINTENANCE_QUERY_KEY = ['settings', 'admin', 'maintenance-config'];
 
@@ -8,25 +12,25 @@ const DEFAULT_CONFIG = {
   enabled: false,
   page_variant: 'maintenance',
   title: 'La ferme passe en atelier',
-  message: 'Nous preparons une version plus stable et plus rapide. Merci pour votre patience.',
+  message: 'Nous préparons une version plus stable et plus rapide. Merci pour votre patience.',
   eta_text: '',
   music_url: '',
 };
 
 const TITLE_PRESETS = [
-  'La ferme passe en atelier',
-  'Le portail de la ferme sommeille',
-  'Signal brouille, ouverture imminente',
-  'Les ecuries se preparent dans l\'ombre',
-  'Le mystere de FarmGestion s\'eveille',
+  'FarmGestion arrive prochainement',
+  'Milo s’occupe de la maintenance',
+  'Les mères optimisent la ferme',
+  'Pas d\'expedition pour le moment !',
+  'Isabella fait du tri dans les stocks',
 ];
 
 const MESSAGE_PRESETS = [
-  'Nous preparons une version plus stable et plus rapide. Merci pour votre patience.',
-  'Les lumieres de la ferme clignotent encore. Revenez dans quelques instants.',
-  'Les enclos se calibrent en silence. Une surprise arrive bientot.',
-  'L\'acces public reste ferme pour le moment. Le signal reviendra tres vite.',
-  'Une phase de preparation est en cours. Merci de patienter pendant le reveil du domaine.',
+  'Nous préparons une version plus stable et plus rapide. Merci pour votre patience.',
+  'Milo et Isabella travaillent dur pour remettre la ferme en ligne au plus vite.',
+  'Soeur Krone est en pleine inspection de sécurité. Revenez bientôt !',
+  'Les bétails sont en train de se faire une beauté. La ferme rouvrira ses portes dès qu\'ils seront prêts.',
+  'Les fermes sont en alerte rouge, Isabella et Milo font tout leur possible pour régler le problème',
 ];
 
 const toSafeText = (value, fallback = '') => String(value ?? fallback).trim();
@@ -44,21 +48,30 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(DEFAULT_CONFIG);
   const [feedback, setFeedback] = useState({ type: '', message: '' });
+  const previousCloudflareStatusRef = useRef(null);
+  const previewAudioRef = useRef(null);
+  const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
+
+  const maintenanceOnAudio = useMemo(() => createSafeAudio(maintenanceOnSound, { preload: 'auto', volume: 0.78 }), []);
+  const maintenanceOffAudio = useMemo(() => createSafeAudio(maintenanceOffSound, { preload: 'auto', volume: 0.78 }), []);
 
   const configQuery = useQuery({
     queryKey: MAINTENANCE_QUERY_KEY,
     enabled: Boolean(isActive && isAdmin),
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('site_maintenance_config')
-        .select('enabled,page_variant,title,message,eta_text,music_url,updated_at')
-        .eq('id', true)
-        .maybeSingle();
-
+      const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
+        body: { action: 'status' },
+      });
       if (error) throw error;
+      if (!data?.success) {
+        throw new Error(data?.error || 'Impossible de charger le statut maintenance');
+      }
+
       return {
-        ...normalizeConfigFromRow(data || DEFAULT_CONFIG),
-        updated_at: data?.updated_at || null,
+        ...normalizeConfigFromRow(data?.config || DEFAULT_CONFIG),
+        updated_at: data?.config?.updated_at || null,
+        cloudflare_enabled: Boolean(data?.cloudflare?.enabled),
+        cloudflare_rule_id: String(data?.cloudflare?.rule_id || ''),
       };
     },
     staleTime: 15_000,
@@ -72,6 +85,14 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     setDraft(normalizeConfigFromRow(configQuery.data));
   }, [configQuery.data]);
 
+  useEffect(() => () => {
+    try {
+      previewAudioRef.current?.pause();
+    } catch {
+      // noop
+    }
+  }, []);
+
   const saveMutation = useMutation({
     mutationFn: async (nextDraft) => {
       const payload = {
@@ -81,7 +102,7 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
         title: toSafeText(nextDraft.title, DEFAULT_CONFIG.title).slice(0, 160),
         message: toSafeText(nextDraft.message, DEFAULT_CONFIG.message).slice(0, 700),
         eta_text: toSafeText(nextDraft.eta_text).slice(0, 140),
-        music_url: toSafeText(nextDraft.music_url).slice(0, 800),
+        music_url: isWaitingSoundKey(nextDraft.music_url) ? nextDraft.music_url : '',
       };
 
       const { data, error } = await supabase.functions.invoke('save-maintenance-config', {
@@ -90,14 +111,14 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
 
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || 'Echec de synchronisation maintenance');
+        throw new Error(data?.error || 'Échec de synchronisation maintenance');
       }
 
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: MAINTENANCE_QUERY_KEY });
-      setFeedback({ type: 'success', message: 'Configuration maintenance enregistree.' });
+      setFeedback({ type: 'success', message: 'Configuration maintenance enregistrée.' });
     },
     onError: (error) => {
       setFeedback({
@@ -114,17 +135,17 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
       });
       if (error) throw error;
       if (!data?.success) {
-        throw new Error(data?.error || 'Test de synchronisation Cloudflare echoue');
+        throw new Error(data?.error || 'Test de synchronisation Cloudflare échoué');
       }
       return data;
     },
     onSuccess: () => {
-      setFeedback({ type: 'success', message: 'Test synchro Cloudflare reussi.' });
+      setFeedback({ type: 'success', message: 'Test synchro Cloudflare réussi.' });
     },
     onError: (error) => {
       setFeedback({
         type: 'error',
-        message: error?.message || 'Test synchro Cloudflare en echec.',
+        message: error?.message || 'Test synchro Cloudflare en échec.',
       });
     },
   });
@@ -153,6 +174,49 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     }).format(date);
   }, [configQuery.data?.updated_at]);
 
+  const cloudflareEnabled = Boolean(configQuery.data?.cloudflare_enabled);
+  const cloudflareRuleId = String(configQuery.data?.cloudflare_rule_id || '').trim();
+  const cloudflareLabel = cloudflareEnabled ? 'MAINTENANCE ACTIVE' : 'MAINTENANCE INACTIVE';
+  const isBusy = saveMutation.isPending || syncTestMutation.isPending || configQuery.isFetching;
+  const selectedSoundUrl = resolveWaitingSoundUrl(draft.music_url);
+
+  useEffect(() => {
+    if (!configQuery.isSuccess) return;
+
+    const previous = previousCloudflareStatusRef.current;
+    previousCloudflareStatusRef.current = cloudflareEnabled;
+    if (previous === null || previous === cloudflareEnabled) return;
+
+    if (cloudflareEnabled) {
+      void playAudioSafely(maintenanceOnAudio);
+      return;
+    }
+    void playAudioSafely(maintenanceOffAudio);
+  }, [cloudflareEnabled, configQuery.isSuccess, maintenanceOffAudio, maintenanceOnAudio]);
+
+  const handlePreviewSound = async () => {
+    if (!selectedSoundUrl) {
+      if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+      }
+      setIsPreviewPlaying(false);
+      return;
+    }
+
+    if (isPreviewPlaying && previewAudioRef.current) {
+      previewAudioRef.current.pause();
+      setIsPreviewPlaying(false);
+      return;
+    }
+
+    const audio = createSafeAudio(selectedSoundUrl, { volume: 0.72, preload: 'auto' });
+    audio.loop = false;
+    audio.onended = () => setIsPreviewPlaying(false);
+    previewAudioRef.current = audio;
+    const ok = await playAudioSafely(audio);
+    setIsPreviewPlaying(ok);
+  };
+
   if (!isAdmin) {
     return null;
   }
@@ -161,35 +225,75 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     <div className="settings-section">
       <h3 className="settings-section-title">Maintenance</h3>
 
-      <div className="settings-list">
-        <div className="settings-toggle">
-          <div>
-            <p className="settings-item-title">Maintenance active</p>
-            <p className="settings-item-subtitle">
-              Active le mode maintenance pour les contenus relies a la page /maintenance.
-            </p>
+      <div className="settings-maintenance-layout">
+        <section className="settings-maintenance-card settings-maintenance-status-card">
+          <div className="settings-maintenance-status-head">
+            <div>
+              <p className="settings-item-title">État réel Cloudflare</p>
+              <p className="settings-item-subtitle">Source de vérité récupérée en direct sur la règle.</p>
+            </div>
+            <span className={`settings-maintenance-pill ${cloudflareEnabled ? 'is-on' : 'is-off'}`}>
+              <span className={`settings-maintenance-dot ${cloudflareEnabled ? 'is-on' : 'is-off'}`} aria-hidden="true" />
+              {cloudflareLabel}
+            </span>
           </div>
-          <label className="settings-switch">
-            <input
-              type="checkbox"
-              checked={draft.enabled}
-              onChange={(event) => {
-                const checked = event.target.checked;
-                setDraft((prev) => ({ ...prev, enabled: checked }));
-              }}
-              disabled={saveMutation.isPending || configQuery.isLoading}
-            />
-            <span className="settings-slider" />
-          </label>
-        </div>
+          <div className="settings-maintenance-meta">
+            <p className="settings-item-subtitle">Dernière mise à jour: {updatedLabel}</p>
+            {cloudflareRuleId ? <p className="settings-item-subtitle mono">Rule ID: {cloudflareRuleId}</p> : null}
+          </div>
+        </section>
 
-        <div className="settings-item settings-item--column settings-maintenance-mode">
-          <div>
-            <p className="settings-item-title">Style de page publique</p>
-            <p className="settings-item-subtitle">
-              Choisis entre une ambience de lancement mysterieux (waiting-page) ou une maintenance classique.
-            </p>
+        <section className="settings-maintenance-card">
+          <div className="settings-maintenance-row">
+            <div>
+              <p className="settings-item-title">Activation maintenance</p>
+              <p className="settings-item-subtitle">Allume ou coupe la redirection publique vers la page dédiée.</p>
+            </div>
+            <label className="settings-switch settings-maintenance-main-switch">
+              <input
+                type="checkbox"
+                checked={draft.enabled}
+                onChange={(event) => {
+                  const checked = event.target.checked;
+                  setDraft((prev) => ({ ...prev, enabled: checked }));
+                }}
+                disabled={isBusy || configQuery.isLoading}
+              />
+              <span className="settings-slider" />
+            </label>
           </div>
+
+          <div className="settings-maintenance-actions">
+            <button
+              type="button"
+              className="settings-action"
+              onClick={() => syncTestMutation.mutate()}
+              disabled={isBusy || configQuery.isLoading}
+            >
+              {syncTestMutation.isPending ? 'Test en cours...' : 'Tester la synchro'}
+            </button>
+            <button
+              type="button"
+              className="settings-action"
+              onClick={() => configQuery.refetch()}
+              disabled={isBusy || configQuery.isLoading}
+            >
+              Rafraîchir l’état
+            </button>
+            <button
+              type="button"
+              className="settings-action settings-action--primary"
+              onClick={() => saveMutation.mutate(draft)}
+              disabled={isBusy || configQuery.isLoading}
+            >
+              {saveMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
+            </button>
+          </div>
+        </section>
+
+        <section className="settings-maintenance-card settings-maintenance-mode-card">
+          <p className="settings-item-title">Style de page publique</p>
+          <p className="settings-item-subtitle">Waiting-page pour une ambiance mystérieuse, maintenance pour un message technique.</p>
           <div className="settings-maintenance-radio-group" role="radiogroup" aria-label="Style de la page publique">
             <label className="settings-maintenance-radio">
               <input
@@ -197,9 +301,9 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
                 name="maintenance-page-variant"
                 checked={draft.page_variant === 'waiting'}
                 onChange={() => setDraft((prev) => ({ ...prev, page_variant: 'waiting' }))}
-                disabled={saveMutation.isPending || configQuery.isLoading}
+                disabled={isBusy || configQuery.isLoading}
               />
-              <span>Waiting-page (mysterieux)</span>
+              <span>Waiting-page (mystérieux)</span>
             </label>
             <label className="settings-maintenance-radio">
               <input
@@ -207,33 +311,58 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
                 name="maintenance-page-variant"
                 checked={draft.page_variant === 'maintenance'}
                 onChange={() => setDraft((prev) => ({ ...prev, page_variant: 'maintenance' }))}
-                disabled={saveMutation.isPending || configQuery.isLoading}
+                disabled={isBusy || configQuery.isLoading}
               />
               <span>Maintenance (classique)</span>
             </label>
           </div>
-        </div>
+        </section>
 
-        <div className="settings-item settings-item--column settings-maintenance-editor">
-          <label className="settings-admin-badge-label" htmlFor="maintenance-title-preset">
-            Titre predefini (combobox)
-            <select
-              id="maintenance-title-preset"
-              className="settings-admin-badge-input"
-              value={titlePresetValue}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (next === '__custom__') return;
-                setDraft((prev) => ({ ...prev, title: next }));
-              }}
-              disabled={saveMutation.isPending || configQuery.isLoading}
-            >
-              {TITLE_PRESETS.map((preset) => (
-                <option key={preset} value={preset}>{preset}</option>
-              ))}
-              <option value="__custom__">Personnalise</option>
-            </select>
-          </label>
+        <section className="settings-maintenance-card settings-maintenance-content-card">
+          <p className="settings-item-title">Contenu affiché aux visiteurs</p>
+          <p className="settings-item-subtitle">Choisis un preset puis ajuste le texte librement si besoin.</p>
+
+          <div className="settings-maintenance-grid">
+            <label className="settings-admin-badge-label" htmlFor="maintenance-title-preset">
+              Titre prédéfini
+              <select
+                id="maintenance-title-preset"
+                className="settings-admin-badge-input"
+                value={titlePresetValue}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (next === '__custom__') return;
+                  setDraft((prev) => ({ ...prev, title: next }));
+                }}
+                disabled={isBusy || configQuery.isLoading}
+              >
+                {TITLE_PRESETS.map((preset) => (
+                  <option key={preset} value={preset}>{preset}</option>
+                ))}
+                <option value="__custom__">Personnalisé</option>
+              </select>
+            </label>
+
+            <label className="settings-admin-badge-label" htmlFor="maintenance-message-preset">
+              Message prédéfini
+              <select
+                id="maintenance-message-preset"
+                className="settings-admin-badge-input"
+                value={messagePresetValue}
+                onChange={(event) => {
+                  const next = event.target.value;
+                  if (next === '__custom__') return;
+                  setDraft((prev) => ({ ...prev, message: next }));
+                }}
+                disabled={isBusy || configQuery.isLoading}
+              >
+                {MESSAGE_PRESETS.map((preset) => (
+                  <option key={preset} value={preset}>{preset}</option>
+                ))}
+                <option value="__custom__">Personnalisé</option>
+              </select>
+            </label>
+          </div>
 
           <label className="settings-admin-badge-label" htmlFor="maintenance-title">
             Titre principal
@@ -244,47 +373,27 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
               maxLength={160}
               value={draft.title}
               onChange={(event) => setDraft((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="La ferme passe en atelier"
-              disabled={saveMutation.isPending || configQuery.isLoading}
+              placeholder="Le portail est scellé jusqu'au prochain signal"
+              disabled={isBusy || configQuery.isLoading}
             />
           </label>
 
-          <label className="settings-admin-badge-label" htmlFor="maintenance-message-preset">
-            Message predefini (combobox)
-            <select
-              id="maintenance-message-preset"
-              className="settings-admin-badge-input"
-              value={messagePresetValue}
-              onChange={(event) => {
-                const next = event.target.value;
-                if (next === '__custom__') return;
-                setDraft((prev) => ({ ...prev, message: next }));
-              }}
-              disabled={saveMutation.isPending || configQuery.isLoading}
-            >
-              {MESSAGE_PRESETS.map((preset) => (
-                <option key={preset} value={preset}>{preset}</option>
-              ))}
-              <option value="__custom__">Personnalise</option>
-            </select>
-          </label>
-
           <label className="settings-admin-badge-label" htmlFor="maintenance-message">
-            Message maintenance
+            Message principal
             <textarea
               id="maintenance-message"
               className="settings-admin-badge-input settings-admin-surprise-description-input"
               maxLength={700}
               value={draft.message}
               onChange={(event) => setDraft((prev) => ({ ...prev, message: event.target.value }))}
-              placeholder="Texte principal affiche aux visiteurs."
-              disabled={saveMutation.isPending || configQuery.isLoading}
+              placeholder="Message affiché aux visiteurs pendant la période privée."
+              disabled={isBusy || configQuery.isLoading}
             />
           </label>
 
           <div className="settings-maintenance-grid">
             <label className="settings-admin-badge-label" htmlFor="maintenance-eta">
-              Temps estime (optionnel)
+              Temps estimé (optionnel)
               <input
                 id="maintenance-eta"
                 className="settings-admin-badge-input"
@@ -292,61 +401,48 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
                 maxLength={140}
                 value={draft.eta_text}
                 onChange={(event) => setDraft((prev) => ({ ...prev, eta_text: event.target.value }))}
-                placeholder="Ex: Retour estime vers 19h30"
-                disabled={saveMutation.isPending || configQuery.isLoading}
+                placeholder="Ex: Retour estimé vers 19h30"
+                disabled={isBusy || configQuery.isLoading}
               />
             </label>
 
             <label className="settings-admin-badge-label" htmlFor="maintenance-music-url">
-              URL musique (optionnel)
-              <input
-                id="maintenance-music-url"
-                className="settings-admin-badge-input"
-                type="url"
-                maxLength={800}
-                value={draft.music_url}
-                onChange={(event) => setDraft((prev) => ({ ...prev, music_url: event.target.value }))}
-                placeholder="https://.../maintenance.mp3"
-                disabled={saveMutation.isPending || configQuery.isLoading}
-              />
+              Son d'ambiance (optionnel)
+              <div className="settings-maintenance-sound-row">
+                <select
+                  id="maintenance-music-url"
+                  className="settings-admin-badge-input"
+                  value={isWaitingSoundKey(draft.music_url) ? draft.music_url : ''}
+                  onChange={(event) => {
+                    const next = String(event.target.value || '');
+                    setDraft((prev) => ({ ...prev, music_url: next }));
+                    setIsPreviewPlaying(false);
+                    if (previewAudioRef.current) previewAudioRef.current.pause();
+                  }}
+                  disabled={isBusy || configQuery.isLoading}
+                >
+                  {WAITING_SOUND_OPTIONS.map((option) => (
+                    <option key={option.key || 'none'} value={option.key}>{option.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="settings-action"
+                  onClick={handlePreviewSound}
+                  disabled={!selectedSoundUrl || isBusy || configQuery.isLoading}
+                >
+                  {isPreviewPlaying ? 'Pause' : 'Préécouter'}
+                </button>
+              </div>
             </label>
           </div>
+        </section>
 
-          <div className="settings-maintenance-actions">
-            <button
-              type="button"
-              className="settings-action"
-              onClick={() => syncTestMutation.mutate()}
-              disabled={saveMutation.isPending || syncTestMutation.isPending || configQuery.isLoading}
-            >
-              {syncTestMutation.isPending ? 'Test en cours...' : 'Test synchro'}
-            </button>
-            <button
-              type="button"
-              className="settings-action"
-              onClick={() => configQuery.refetch()}
-              disabled={saveMutation.isPending || syncTestMutation.isPending || configQuery.isFetching}
-            >
-              Recharger
-            </button>
-            <button
-              type="button"
-              className="settings-action settings-action--primary"
-              onClick={() => saveMutation.mutate(draft)}
-              disabled={saveMutation.isPending || syncTestMutation.isPending || configQuery.isLoading}
-            >
-              {saveMutation.isPending ? 'Enregistrement...' : 'Enregistrer'}
-            </button>
-          </div>
-
-          <p className="settings-item-subtitle">Derniere mise a jour: {updatedLabel}</p>
-
-          {feedback.message ? (
-            <p className={`settings-maintenance-feedback ${feedback.type === 'error' ? 'is-error' : 'is-success'}`}>
-              {feedback.message}
-            </p>
-          ) : null}
-        </div>
+        {feedback.message ? (
+          <p className={`settings-maintenance-feedback ${feedback.type === 'error' ? 'is-error' : 'is-success'}`}>
+            {feedback.message}
+          </p>
+        ) : null}
       </div>
     </div>
   );

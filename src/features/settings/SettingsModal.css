@@ -2718,11 +2718,91 @@
   gap: 10px;
 }
 
-.settings-maintenance-editor {
+.settings-maintenance-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.settings-maintenance-card {
   border: 1px solid var(--settings-border);
-  border-radius: 12px;
+  border-radius: 14px;
   padding: 14px;
-  background: color-mix(in srgb, var(--settings-panel) 92%, transparent);
+  background: color-mix(in srgb, var(--settings-panel) 90%, transparent);
+  display: grid;
+  gap: 12px;
+}
+
+.settings-maintenance-status-card {
+  background:
+    radial-gradient(circle at 92% 8%, color-mix(in srgb, var(--settings-accent-soft) 70%, transparent) 0%, transparent 40%),
+    color-mix(in srgb, var(--settings-panel) 90%, transparent);
+}
+
+.settings-maintenance-status-head {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-maintenance-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-maintenance-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-maintenance-main-switch {
+  flex: 0 0 auto;
+}
+
+.settings-maintenance-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  border-radius: 999px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--settings-border);
+}
+
+.settings-maintenance-pill.is-on {
+  color: #1f7a49;
+  background: rgba(47, 158, 95, 0.16);
+  border-color: rgba(47, 158, 95, 0.45);
+}
+
+.settings-maintenance-pill.is-off {
+  color: #a12c2c;
+  background: rgba(216, 69, 69, 0.16);
+  border-color: rgba(216, 69, 69, 0.45);
+}
+
+.settings-maintenance-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.settings-maintenance-dot.is-on {
+  background: #29b765;
+  box-shadow: 0 0 0 4px rgba(41, 183, 101, 0.2);
+}
+
+.settings-maintenance-dot.is-off {
+  background: #e04b4b;
+  box-shadow: 0 0 0 4px rgba(224, 75, 75, 0.2);
 }
 
 .settings-maintenance-mode {
@@ -2750,6 +2830,10 @@
   font-weight: 700;
 }
 
+.settings-maintenance-mode-card .settings-maintenance-radio {
+  min-width: 260px;
+}
+
 .settings-maintenance-radio input {
   accent-color: var(--settings-accent);
 }
@@ -2761,6 +2845,17 @@
   gap: 10px;
 }
 
+.settings-maintenance-content-card .settings-admin-badge-label {
+  width: 100%;
+}
+
+.settings-maintenance-sound-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
 .settings-maintenance-actions {
   display: flex;
   align-items: center;
@@ -2770,7 +2865,7 @@
 }
 
 .settings-maintenance-feedback {
-  margin: 4px 0 0;
+  margin: -4px 0 0;
   font-size: 12px;
   font-weight: 700;
 }
@@ -2897,9 +2992,22 @@
     grid-template-columns: 1fr;
   }
 
+  .settings-maintenance-sound-row {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-maintenance-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
   .settings-maintenance-radio-group {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .settings-maintenance-mode-card .settings-maintenance-radio {
+    min-width: 0;
   }
 
   .settings-badge-section-header {

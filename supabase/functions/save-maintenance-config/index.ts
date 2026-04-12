@@ -10,7 +10,7 @@ type MaintenanceRow = {
   page_variant: "maintenance" | "waiting";
 };
 
-type FunctionAction = "save" | "sync_test";
+type FunctionAction = "save" | "sync_test" | "status";
 
 type MaintenancePayload = MaintenanceRow & {
   action: FunctionAction;
@@ -39,7 +39,13 @@ const env = {
 
 const parseBody = async (req: Request): Promise<MaintenancePayload> => {
   const body = await req.json();
-  const action = body?.action === "sync_test" ? "sync_test" : "save";
+  const rawAction = String(body?.action || "save").trim().toLowerCase();
+  const action: FunctionAction =
+    rawAction === "status"
+      ? "status"
+      : rawAction === "sync_test"
+        ? "sync_test"
+        : "save";
   const pageVariant = String(body?.page_variant || "maintenance").toLowerCase() === "waiting"
     ? "waiting"
     : "maintenance";
@@ -62,6 +68,9 @@ const isAdminProfile = (profile: { role?: string | null; role_ingame?: string | 
   const roleIngame = normalizeRole(profile?.role_ingame);
   return role.includes("ADMIN") || roleIngame.includes("ADMIN");
 };
+
+const normalizePageVariant = (value: unknown): "maintenance" | "waiting" =>
+  String(value || "maintenance").toLowerCase() === "waiting" ? "waiting" : "maintenance";
 
 type CloudflareRule = {
   id: string;
@@ -154,6 +163,26 @@ const setCloudflareMaintenanceRuleEnabled = async (enabled: boolean) => {
   }
 };
 
+const readMaintenanceConfig = async (supabaseAdmin: ReturnType<typeof createClient>) => {
+  const { data, error } = await supabaseAdmin
+    .from("site_maintenance_config")
+    .select("enabled,page_variant,title,message,eta_text,music_url,updated_at")
+    .eq("id", true)
+    .maybeSingle();
+
+  if (error) throw new Error("Unable to read maintenance configuration");
+
+  return {
+    enabled: Boolean(data?.enabled),
+    page_variant: normalizePageVariant(data?.page_variant),
+    title: String(data?.title || "La ferme passe en atelier"),
+    message: String(data?.message || "Nous preparons une version plus stable et plus rapide. Merci pour votre patience."),
+    eta_text: data?.eta_text ? String(data.eta_text) : null,
+    music_url: data?.music_url ? String(data.music_url) : null,
+    updated_at: data?.updated_at ? String(data.updated_at) : null,
+  };
+};
+
 const testCloudflareSync = async () => {
   const currentRule = await getCloudflareMaintenanceRule();
   await setCloudflareMaintenanceRuleEnabled(Boolean(currentRule.enabled));
@@ -224,6 +253,50 @@ serve(async (req: Request) => {
     return jsonResponse(400, { success: false, error: "Invalid JSON payload" });
   }
 
+  if (payload.action === "status") {
+    try {
+      const dbConfig = await readMaintenanceConfig(supabaseAdmin);
+      const cloudflareRule = await getCloudflareMaintenanceRule();
+      const cloudflareEnabled = Boolean(cloudflareRule.enabled);
+
+      if (dbConfig.enabled !== cloudflareEnabled) {
+        await supabaseAdmin
+          .from("site_maintenance_config")
+          .upsert(
+            {
+              id: true,
+              enabled: cloudflareEnabled,
+              page_variant: dbConfig.page_variant,
+              title: dbConfig.title,
+              message: dbConfig.message,
+              eta_text: dbConfig.eta_text,
+              music_url: dbConfig.music_url,
+              updated_by: currentUserId,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "id" },
+          );
+      }
+
+      return jsonResponse(200, {
+        success: true,
+        config: {
+          ...dbConfig,
+          enabled: cloudflareEnabled,
+        },
+        cloudflare: {
+          enabled: cloudflareEnabled,
+          rule_id: cloudflareRule.id,
+        },
+      });
+    } catch (error) {
+      return jsonResponse(502, {
+        success: false,
+        error: `Cloudflare sync failed: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+
   if (payload.action === "sync_test") {
     try {
       const result = await testCloudflareSync();
@@ -243,26 +316,12 @@ serve(async (req: Request) => {
   const safeTitle = payload.title || "La ferme passe en atelier";
   const safeMessage = payload.message || "Nous preparons une version plus stable et plus rapide. Merci pour votre patience.";
 
-  const { data: previousConfig, error: previousError } = await supabaseAdmin
-    .from("site_maintenance_config")
-    .select("enabled,title,message,eta_text,music_url,page_variant")
-    .eq("id", true)
-    .maybeSingle();
-
-  if (previousError) {
+  let previousRow: MaintenanceRow;
+  try {
+    previousRow = await readMaintenanceConfig(supabaseAdmin);
+  } catch {
     return jsonResponse(500, { success: false, error: "Unable to read maintenance configuration" });
   }
-
-  const previousRow: MaintenanceRow = {
-    enabled: Boolean(previousConfig?.enabled),
-    title: String(previousConfig?.title || "La ferme passe en atelier"),
-    message: String(previousConfig?.message || "Nous preparons une version plus stable et plus rapide. Merci pour votre patience."),
-    eta_text: previousConfig?.eta_text ? String(previousConfig.eta_text) : null,
-    music_url: previousConfig?.music_url ? String(previousConfig.music_url) : null,
-    page_variant: String(previousConfig?.page_variant || "maintenance").toLowerCase() === "waiting"
-      ? "waiting"
-      : "maintenance",
-  };
 
   const nowIso = new Date().toISOString();
   const nextRow = {
