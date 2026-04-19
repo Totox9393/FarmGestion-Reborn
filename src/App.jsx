@@ -14,6 +14,7 @@ import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
 import TestSurpriseDemoPage from './features/other/TestSurpriseDemoPage';
 import MaintenancePage from './features/other/MaintenancePage';
+import NotFoundPage from './features/other/NotFoundPage';
 import FarmPage from './features/farms/FarmPage';
 import ShopPage from './features/boutique/ShopPage';
 import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
@@ -21,9 +22,42 @@ import CommunityPage from './features/community/CommunityPage';
 import CommunityProfilePage from './features/community/CommunityProfilePage';
 import './App.css';
 
+const getStaticPageTitle = (pathname) => {
+  if (pathname.startsWith('/betail-register')) return null;
+  if (pathname === '/mes-betails') return null;
+  if (pathname.startsWith('/farm/')) return null;
+
+  switch (pathname) {
+    case '/':
+      return 'FarmGestion FR';
+    case '/home':
+      return 'FarmGestion - Accueil';
+    case '/betail-maker':
+      return 'FG - Création de bétail';
+    case '/community':
+    case '/farms-actives':
+      return 'FG - Communauté';
+    case '/gce':
+      return 'FG - Grand Calendrier Expéditions';
+    case '/boutique':
+      return 'FG - Boutique';
+    case '/rules':
+      return 'FG - Règlement';
+    default:
+      return 'FarmGestion FR';
+  }
+};
+
 function AppRoutes() {
   const location = useLocation();
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    const staticTitle = getStaticPageTitle(location.pathname);
+    if (staticTitle) {
+      document.title = staticTitle;
+    }
+  }, [location.pathname]);
 
   const showToastFromStorage = () => {
     const raw = localStorage.getItem('farmgestion_toast');
@@ -210,7 +244,14 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
-        <Route path="/test" element={<TestSurpriseDemoPage />} />
+        <Route
+          path="/test"
+          element={
+            <PrivateRoute requireOnboarding={false} requireAdmin>
+              <TestSurpriseDemoPage />
+            </PrivateRoute>
+          }
+        />
         <Route
           path="/betail-maker"
           element={
@@ -323,6 +364,7 @@ function AppRoutes() {
             </PrivateRoute>
           }
         />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
       {toast && typeof document !== 'undefined'
         ? createPortal(

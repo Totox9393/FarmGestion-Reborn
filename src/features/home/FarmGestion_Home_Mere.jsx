@@ -3,8 +3,9 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { Heart, Crown, CalendarDays, PlusCircle, ShoppingCart, Tractor, ListChecks, ArrowRight, ShoppingBag } from 'lucide-react';
+import { Heart, Crown, CalendarDays, PlusCircle, ShoppingCart, Tractor, ListChecks, ArrowRight, ShoppingBag, LifeBuoy } from 'lucide-react';
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
+import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
@@ -138,6 +139,7 @@ function FarmGestion_Home_Mere() {
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [visibleBetails, setVisibleBetails] = useState(4);
+  const [isWelcomeHelpOpen, setIsWelcomeHelpOpen] = useState(false);
   const carouselTouchStartXRef = useRef(null);
   const carouselTouchStartYRef = useRef(null);
 
@@ -563,6 +565,17 @@ function FarmGestion_Home_Mere() {
   const openShopPage = useCallback(() => {
     navigate('/boutique');
   }, [navigate]);
+  const openWelcomeHelp = useCallback(() => {
+    setIsWelcomeHelpOpen(true);
+  }, []);
+  const closeWelcomeHelp = useCallback(() => {
+    setIsWelcomeHelpOpen(false);
+  }, []);
+  const navigateFromWelcomeHelp = useCallback((path) => {
+    setIsWelcomeHelpOpen(false);
+    if (!path) return;
+    navigate(path);
+  }, [navigate]);
   const farmName = farmStats.farmName ?? farm?.name ?? '—';
   const farmState = farmStats.farmState ?? farm?.state ?? 'Inconnu';
   const hasBetailCount = typeof farmStats.betailCount === 'number';
@@ -874,7 +887,8 @@ function FarmGestion_Home_Mere() {
   if (!profile) return <div className="home-loader">Profil introuvable.</div>;
 
   return (
-    <div className="home-shell">
+    <>
+      <div className="home-shell">
       <div className="home-hero">
         <div
           className="home-hero__title-block"
@@ -885,11 +899,24 @@ function FarmGestion_Home_Mere() {
               <p className="home-hero__eyebrow">Tableau de bord</p>
               <h1 className="home-hero__title">Bienvenue, {profile.username || 'fermier·e'} !</h1>
             </div>
-            <div className="home-hero__tags">
-              <span className="home-hero__tag">Profil actif</span>
-              <span className={`home-hero__tag ${roleInfo.className}`}>
-                {roleInfo.label}
-              </span>
+            <div className="home-hero__header-side">
+              <div className="home-hero__tags">
+                <span className="home-hero__tag">Profil actif</span>
+                <span className={`home-hero__tag ${roleInfo.className}`}>
+                  {roleInfo.label}
+                </span>
+              </div>
+              <button
+                type="button"
+                className="home-hero__help-launch"
+                onClick={openWelcomeHelp}
+                aria-haspopup="dialog"
+                aria-expanded={isWelcomeHelpOpen}
+                aria-label="Ouvrir l'aide de bienvenue"
+              >
+                <LifeBuoy size={15} aria-hidden="true" />
+                Besoin d'aide ?
+              </button>
             </div>
           </div>
           <p className="home-hero__subtitle">Prêt à gérer ta ferme et tes bétails en quelques clics.</p>
@@ -1251,20 +1278,37 @@ function FarmGestion_Home_Mere() {
       <div className="home-footer">
         <div className="home-footer__left">
           <p className="home-footer__title">Besoin d’aide ?</p>
-          <p className="home-footer__text">Support et onboarding arrivent très vite. En attendant, explore et donne-nous ton feedback.</p>
+          <p className="home-footer__text">Le guide interactif est disponible. Le support arrive bientôt, ton feedback nous aide à améliorer l'expérience.</p>
         </div>
-        <button
-          type="button"
-          className="home-btn ghost"
-          onClick={async () => {
-            await supabase.auth.signOut();
-            window.location.reload();
-          }}
-        >
-          Déconnexion
-        </button>
+        <div className="home-footer__actions">
+          <button
+            type="button"
+            className="home-btn ghost"
+            onClick={openWelcomeHelp}
+            aria-haspopup="dialog"
+            aria-expanded={isWelcomeHelpOpen}
+            aria-label="Ouvrir le guide d'aide"
+          >
+            Ouvrir le guide
+          </button>
+          <button type="button" className="home-btn is-muted" disabled>
+            Signaler un problème
+          </button>
+          <button type="button" className="home-btn is-muted" disabled>
+            Contact
+          </button>
+        </div>
       </div>
-    </div>
+      </div>
+
+      <HomeWelcomeGuidesModal
+        isOpen={isWelcomeHelpOpen}
+        onClose={closeWelcomeHelp}
+        onNavigate={navigateFromWelcomeHelp}
+        hasFarm={Boolean(profile?.farm_id)}
+        farmPath={profile?.farm_id ? `/farm/${profile.farm_id}` : null}
+      />
+    </>
   );
 }
 

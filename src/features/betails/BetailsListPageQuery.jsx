@@ -251,9 +251,10 @@ function BetailsListPageQuery() {
       return {
         nextVisible,
         removedBadges: Number(result?.removed_badges || 0),
+        removedShipping: Number(result?.removed_shipping || 0),
       }
     },
-    onSuccess: ({ nextVisible, removedBadges }) => {
+    onSuccess: ({ nextVisible, removedBadges, removedShipping }) => {
       setReportBetailVisible(nextVisible)
       queryClient.invalidateQueries({ queryKey: ['betails'] })
       window.dispatchEvent(
@@ -261,7 +262,9 @@ function BetailsListPageQuery() {
           detail: {
             type: 'success',
             message: nextVisible
-              ? 'Betail rendu visible.'
+              ? removedShipping > 0
+                ? 'Betail rendu visible. Historique d\'expedition annule.'
+                : 'Betail rendu visible.'
               : removedBadges > 0
                 ? `Betail rendu invisible. ${removedBadges} badge(s) retire(s) de l\'inventaire du proprietaire.`
                 : 'Betail rendu invisible.',
@@ -463,6 +466,7 @@ function BetailsListPageQuery() {
     },
   })
   const selectedBetail = selectedBetailFromList ?? selectedBetailFromRoute
+  const selectedBetailTitle = String(selectedBetail?.name || '').trim()
   const { data: selectedDetails, isFetching: isFetchingSelectedDetails } = useBetailDetails(
     selectedBetailId,
     Boolean(selectedBetailId),
@@ -644,6 +648,10 @@ function BetailsListPageQuery() {
       setReportBetailVisible(Boolean(selectedBetail.visible ?? true))
     }
   }, [selectedBetail])
+
+  useEffect(() => {
+    document.title = selectedBetailTitle ? `FG - ${selectedBetailTitle}` : 'FG - Registre'
+  }, [selectedBetailTitle])
 
   return (
     <div className="betails-page">

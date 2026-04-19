@@ -541,6 +541,10 @@ function FarmPage() {
   const farmLabel = farm?.name || (farm?.id ? `Ferme #${farm.id}` : 'Ferme');
   const ownerName = ownerNameQuery.data || '';
   const myFarmId = myFarmIdQuery.data ?? null;
+  useEffect(() => {
+    document.title = `FG - Ferme ${farmLabel}`;
+  }, [farmLabel]);
+
   const isCustomizationPanelActive = panelTab === PANEL_TAB_CUSTOMIZATION;
   const equippedBadges = useMemo(() => {
     return [...(farmBadgesQuery.data || [])]
@@ -1771,7 +1775,10 @@ function FarmPage() {
                           <article key={`farm-managed-site-${siteData.site}`} className="farm-page-dashboard-site-row" role="listitem">
                             <p>
                               <span>Site {siteData.site}</span>
-                              <strong>{siteData.count}</strong>
+                              <strong>
+                                <span className="farm-page-dashboard-site-count">{siteData.count}</span>
+                                <span className="farm-page-dashboard-site-unit">bétail(s)</span>
+                              </strong>
                             </p>
                             <div
                               className="farm-page-dashboard-site-track"

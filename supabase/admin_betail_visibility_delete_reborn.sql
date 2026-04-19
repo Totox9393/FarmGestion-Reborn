@@ -13,6 +13,7 @@ declare
   v_profile public.users_profiles%rowtype;
   v_roles text := '';
   v_deleted_inventory_count integer := 0;
+  v_deleted_shipping_count integer := 0;
   v_exists boolean := false;
 begin
   if v_user_id is null then
@@ -60,6 +61,17 @@ begin
     select count(*)::integer
     into v_deleted_inventory_count
     from removed_inventory;
+  else
+    if to_regclass('public.shipping') is not null then
+      with removed_shipping as (
+        delete from public.shipping s
+        where s.betail_id = p_betail_id
+        returning s.id
+      )
+      select count(*)::integer
+      into v_deleted_shipping_count
+      from removed_shipping;
+    end if;
   end if;
 
   update public.betails
@@ -72,7 +84,8 @@ begin
     'success', true,
     'betail_id', p_betail_id,
     'visible', coalesce(p_visible, true),
-    'removed_badges', v_deleted_inventory_count
+    'removed_badges', v_deleted_inventory_count,
+    'removed_shipping', v_deleted_shipping_count
   );
 end;
 $$;

@@ -852,8 +852,21 @@
 }
 
 .farm-page-dashboard-site-row strong {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
   font-size: 0.84rem;
   color: rgba(38, 26, 84, 0.96);
+}
+
+.farm-page-dashboard-site-count {
+  font-size: 0.84rem;
+}
+
+.farm-page-dashboard-site-unit {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: color-mix(in srgb, currentColor 72%, white 28%);
 }
 
 .farm-page-dashboard-site-track {

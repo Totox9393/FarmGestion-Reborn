@@ -2,12 +2,13 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, HelpCircle, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon } from 'lucide-react';
+import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, ShoppingBag, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import SettingsModal from '../settings/SettingsModal';
+import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import {
   acceptFriendRequestById,
   declineFriendRequestById,
@@ -104,6 +105,7 @@ function Navigation_Bar() {
   const [farm, setFarm] = useState(null);
   const [openMenu, setOpenMenu] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isWelcomeHelpOpen, setIsWelcomeHelpOpen] = useState(false);
   const [friendsTab, setFriendsTab] = useState('received');
   const [receivedRequests, setReceivedRequests] = useState([]);
   const [sentRequests, setSentRequests] = useState([]);
@@ -250,6 +252,20 @@ function Navigation_Bar() {
   const go = (path) => {
     setIsMenuOpen(false);
     navigate(path);
+  };
+
+  const openWelcomeHelpFromSettings = () => {
+    setIsWelcomeHelpOpen(true);
+  };
+
+  const closeWelcomeHelp = () => {
+    setIsWelcomeHelpOpen(false);
+  };
+
+  const navigateFromWelcomeHelp = (path) => {
+    setIsWelcomeHelpOpen(false);
+    if (!path) return;
+    go(path);
   };
 
   const goMyFarm = () => {
@@ -444,8 +460,8 @@ function Navigation_Bar() {
           </Popover>
 
           <div className="nav-item">
-            <button className="nav-link" onClick={() => go('/faq')}>
-              <HelpCircle size={16} /> FAQ / Tutoriel
+            <button className="nav-link" onClick={() => go('/boutique')}>
+              <ShoppingBag size={16} /> Boutique
             </button>
           </div>
 
@@ -658,8 +674,16 @@ function Navigation_Bar() {
     <SettingsModal
       isOpen={isSettingsOpen}
       onClose={() => setIsSettingsOpen(false)}
+      onOpenHelp={openWelcomeHelpFromSettings}
       user={user}
       profile={profile}
+    />
+    <HomeWelcomeGuidesModal
+      isOpen={isWelcomeHelpOpen}
+      onClose={closeWelcomeHelp}
+      onNavigate={navigateFromWelcomeHelp}
+      hasFarm={Boolean(profile?.farm_id)}
+      farmPath={profile?.farm_id ? `/farm/${profile.farm_id}` : null}
     />
     </>
   );

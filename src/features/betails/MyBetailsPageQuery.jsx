@@ -512,6 +512,7 @@ function MyBetailsPageQuery() {
     () => filteredBetails.find((item) => item.id === selectedBetailId) ?? null,
     [filteredBetails, selectedBetailId],
   )
+  const selectedBetailTitle = String(selectedBetail?.name || '').trim()
 
   const { data: selectedDetails, isFetching: isFetchingSelectedDetails } = useBetailDetails(
     selectedBetailId,
@@ -727,6 +728,10 @@ function MyBetailsPageQuery() {
     },
     [clearPremiumAnimationTimeout, clearShippingPanelTimeout],
   )
+
+  useEffect(() => {
+    document.title = selectedBetailTitle ? `FG - ${selectedBetailTitle}` : 'FG - Mes bétails'
+  }, [selectedBetailTitle])
 
   const handleSelectBetail = (betailId) => {
     clearShippingPanelTimeout()

@@ -78,14 +78,6 @@ function RulesPage() {
   const [theme, setTheme] = useState(() => getLocalThemePreference());
 
   useEffect(() => {
-    const previousTitle = document.title;
-    document.title = '📜 Règlement | FarmGestion';
-    return () => {
-      document.title = previousTitle;
-    };
-  }, []);
-
-  useEffect(() => {
     if (!isAuthenticated) {
       return undefined;
     }

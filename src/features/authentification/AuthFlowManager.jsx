@@ -1,4 +1,4 @@
-import { useState, forwardRef, useImperativeHandle } from 'react';
+import { useEffect, useState, forwardRef, useImperativeHandle } from 'react';
 import { useNavigate } from 'react-router-dom';
 import RegisterModal from './RegisterModal';
 import LoginModal from './LoginModal';
@@ -45,6 +45,19 @@ const AuthFlowManager = forwardRef((props, ref) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showFarmStepper, setShowFarmStepper] = useState(false);
   const [pendingFarmCheck, setPendingFarmCheck] = useState(false);
+
+  useEffect(() => {
+    if (!showRegister && !showLogin) return undefined;
+    const previousTitle = document.title;
+    if (showRegister) {
+      document.title = "FG - S'inscrire";
+    } else if (showLogin) {
+      document.title = 'FG - Se connecter';
+    }
+    return () => {
+      document.title = previousTitle;
+    };
+  }, [showRegister, showLogin]);
 
   // Ouvre le stepper après inscription
   const handleRegisterSuccess = () => {

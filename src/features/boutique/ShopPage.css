@@ -131,32 +131,45 @@
 .shop-mode-switch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
+  padding: 6px;
+  border: 1px solid rgba(99, 86, 213, 0.22);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(248, 245, 255, 0.92), rgba(236, 232, 248, 0.9));
 }
 
 .shop-mode-chip {
   border: 1px solid rgba(99, 86, 213, 0.28);
-  border-radius: 14px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(239, 235, 251, 0.9));
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(243, 239, 252, 0.94));
   color: #433598;
-  padding: 10px 12px;
-  display: grid;
-  gap: 4px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   text-align: left;
   cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease, background 0.2s ease;
+  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.2s ease, background 0.2s ease, filter 0.2s ease;
+}
+
+.shop-mode-chip-main {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
 }
 
 .shop-mode-chip:hover {
   transform: translateY(-1px);
-  border-color: rgba(99, 86, 213, 0.38);
+  border-color: rgba(99, 86, 213, 0.44);
+  box-shadow: 0 10px 20px rgba(67, 53, 152, 0.16);
 }
 
 .shop-mode-chip.is-active {
   border-color: rgba(58, 161, 108, 0.38);
-  background: linear-gradient(145deg, rgba(232, 253, 242, 0.92), rgba(216, 245, 232, 0.9));
+  background: linear-gradient(145deg, rgba(232, 253, 242, 0.98), rgba(216, 245, 232, 0.95));
   color: #1f7c4f;
-  box-shadow: 0 9px 18px rgba(43, 136, 92, 0.16);
+  box-shadow: 0 11px 22px rgba(43, 136, 92, 0.2);
 }
 
 .shop-mode-chip-title {
@@ -173,8 +186,51 @@
   font-weight: 600;
 }
 
+.shop-mode-chip-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 86, 213, 0.34);
+  background: rgba(99, 86, 213, 0.12);
+  color: #5141b6;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
 .shop-mode-chip.is-active .shop-mode-chip-subtitle {
   color: rgba(27, 117, 75, 0.85);
+}
+
+.shop-mode-chip.is-active .shop-mode-chip-badge {
+  border-color: rgba(32, 124, 79, 0.4);
+  background: rgba(32, 124, 79, 0.14);
+  color: #1f7c4f;
+}
+
+.shop-mode-chip.is-disabled {
+  border-color: rgba(139, 132, 169, 0.36);
+  background: linear-gradient(145deg, rgba(242, 241, 247, 0.9), rgba(236, 234, 244, 0.9));
+  color: #7d7697;
+  cursor: not-allowed;
+  filter: grayscale(0.32);
+}
+
+.shop-mode-chip.is-disabled:hover {
+  transform: none;
+  box-shadow: none;
+  border-color: rgba(139, 132, 169, 0.36);
+}
+
+.shop-mode-chip.is-disabled .shop-mode-chip-subtitle {
+  color: rgba(99, 94, 122, 0.86);
+}
+
+.shop-mode-chip.is-disabled .shop-mode-chip-badge {
+  border-color: rgba(124, 119, 146, 0.44);
+  background: rgba(124, 119, 146, 0.14);
+  color: #69637f;
 }
 
 .shop-hero-milo {
@@ -627,9 +683,22 @@
   color: #d8e7ff;
 }
 
+.auth-theme.dark_theme .shop-mode-switch,
+.auth-theme.galactic_theme .shop-mode-switch {
+  border-color: rgba(141, 179, 255, 0.4);
+  background: linear-gradient(145deg, rgba(36, 52, 83, 0.54), rgba(23, 35, 58, 0.72));
+}
+
 .auth-theme.dark_theme .shop-mode-chip-subtitle,
 .auth-theme.galactic_theme .shop-mode-chip-subtitle {
   color: rgba(206, 224, 250, 0.86);
+}
+
+.auth-theme.dark_theme .shop-mode-chip-badge,
+.auth-theme.galactic_theme .shop-mode-chip-badge {
+  border-color: rgba(155, 193, 255, 0.52);
+  background: rgba(88, 120, 186, 0.3);
+  color: rgba(223, 237, 255, 0.95);
 }
 
 .auth-theme.dark_theme .shop-mode-chip.is-active,
@@ -637,6 +706,32 @@
   border-color: rgba(97, 214, 163, 0.56);
   background: linear-gradient(145deg, rgba(36, 112, 86, 0.48), rgba(28, 82, 65, 0.58));
   color: #dcffe9;
+}
+
+.auth-theme.dark_theme .shop-mode-chip.is-active .shop-mode-chip-badge,
+.auth-theme.galactic_theme .shop-mode-chip.is-active .shop-mode-chip-badge {
+  border-color: rgba(123, 240, 189, 0.62);
+  background: rgba(51, 160, 117, 0.28);
+  color: #ddffed;
+}
+
+.auth-theme.dark_theme .shop-mode-chip.is-disabled,
+.auth-theme.galactic_theme .shop-mode-chip.is-disabled {
+  border-color: rgba(131, 155, 197, 0.36);
+  background: linear-gradient(145deg, rgba(58, 70, 96, 0.56), rgba(40, 52, 74, 0.74));
+  color: rgba(188, 203, 230, 0.88);
+}
+
+.auth-theme.dark_theme .shop-mode-chip.is-disabled .shop-mode-chip-subtitle,
+.auth-theme.galactic_theme .shop-mode-chip.is-disabled .shop-mode-chip-subtitle {
+  color: rgba(175, 193, 224, 0.82);
+}
+
+.auth-theme.dark_theme .shop-mode-chip.is-disabled .shop-mode-chip-badge,
+.auth-theme.galactic_theme .shop-mode-chip.is-disabled .shop-mode-chip-badge {
+  border-color: rgba(145, 165, 200, 0.46);
+  background: rgba(108, 122, 151, 0.3);
+  color: rgba(195, 209, 235, 0.9);
 }
 
 .auth-theme.dark_theme .shop-mode-chip.is-active .shop-mode-chip-subtitle,
@@ -743,10 +838,19 @@
 
   .shop-mode-chip {
     text-align: center;
+    justify-content: center;
   }
 
   .shop-mode-chip-title {
     justify-content: center;
+  }
+
+  .shop-mode-chip-main {
+    justify-items: center;
+  }
+
+  .shop-mode-chip-badge {
+    display: none;
   }
 
   .shop-panel-actions,

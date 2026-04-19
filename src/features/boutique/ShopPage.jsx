@@ -123,6 +123,7 @@ function ShopPage() {
   const { user } = useAuth()
   const queryClient = useQueryClient()
   const badgePurchaseAudio = useMemo(() => createSafeAudio(purchaseSound), [])
+  const isPacksAvailable = false
 
   const [activeTab, setActiveTab] = useState('badges')
   const [sortOrder, setSortOrder] = useState('asc')
@@ -445,25 +446,32 @@ function ShopPage() {
                   aria-selected={activeTab === 'badges'}
                   onClick={() => setActiveTab('badges')}
                 >
-                  <span className="shop-mode-chip-title">
-                    <ShoppingBag size={15} aria-hidden="true" />
-                    Badges
+                  <span className="shop-mode-chip-main">
+                    <span className="shop-mode-chip-title">
+                      <ShoppingBag size={15} aria-hidden="true" />
+                      Badges
+                    </span>
+                    <span className="shop-mode-chip-subtitle">Achat en 💸</span>
                   </span>
-                  <span className="shop-mode-chip-subtitle">Achat en 💸</span>
+                  <span className="shop-mode-chip-badge">Actif</span>
                 </button>
 
                 <button
                   type="button"
-                  className={`shop-mode-chip ${activeTab === 'packs' ? 'is-active' : ''}`}
+                  className={`shop-mode-chip ${activeTab === 'packs' ? 'is-active' : ''} ${!isPacksAvailable ? 'is-disabled' : ''}`}
                   role="tab"
                   aria-selected={activeTab === 'packs'}
+                  disabled={!isPacksAvailable}
                   onClick={() => setActiveTab('packs')}
                 >
-                  <span className="shop-mode-chip-title">
-                    <Crown size={15} aria-hidden="true" />
-                    Packs
+                  <span className="shop-mode-chip-main">
+                    <span className="shop-mode-chip-title">
+                      <Crown size={15} aria-hidden="true" />
+                      Packs
+                    </span>
+                    <span className="shop-mode-chip-subtitle">Paiement en euros</span>
                   </span>
-                  <span className="shop-mode-chip-subtitle">Paiement en euros</span>
+                  <span className="shop-mode-chip-badge">Bientot</span>
                 </button>
               </div>
             </div>

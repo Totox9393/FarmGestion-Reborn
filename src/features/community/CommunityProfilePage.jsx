@@ -280,6 +280,12 @@ function CommunityProfilePage() {
   });
 
   const profile = profileQuery.data;
+  const profileTitleName = String(profile?.username || handle || '').trim();
+
+  useEffect(() => {
+    document.title = profileTitleName ? `FG - Profil de ${profileTitleName}` : 'FG - Profil utilisateur';
+  }, [profileTitleName]);
+
   const isOwnProfile = Boolean(user?.id && profile?.id && user.id === profile.id);
   const pinnedBetailsQueryKey = ['community', 'profile', 'pinned-betails', profile?.id];
   const profileBadgesQuery = useQuery({

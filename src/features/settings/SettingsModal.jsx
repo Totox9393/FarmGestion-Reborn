@@ -71,7 +71,7 @@ const resolveFriendRequestsEnabled = (row) => {
   return parseNewsletterSettingValue(row.setting_value);
 };
 
-function SettingsModal({ isOpen, onClose, user, profile }) {
+function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
   const versionLabel = getFullVersionLabel();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -810,13 +810,20 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   </div>
                   <div className="settings-item">
                     <div>
-                      <p className="settings-item-title">ID utilisateur</p>
-                      <p className="settings-item-subtitle mono">{user?.id || '—'}</p>
+                      <p className="settings-item-title">Guide d'aide</p>
+                      <p className="settings-item-subtitle">Ouvrez le guide interactif pour creation, achat, ferme et expedition.</p>
                     </div>
-                    <button type="button" className="settings-action" onClick={handleCopyId}>
-                      {copiedId ? 'Copié !' : 'Copier'}
+                    <button
+                      type="button"
+                      className="settings-action"
+                      onClick={() => {
+                        onClose?.();
+                        onOpenHelp?.();
+                      }}
+                    >
+                      Ouvrir
                     </button>
-                  </div>
+                  </div>         
                 </div>
               </div>
             )}
@@ -862,10 +869,10 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                       <span className="settings-slider" />
                     </label>
                   </div>
-                  <div className="settings-toggle">
+                  <div className="settings-toggle settings-item--disabled" aria-disabled="true">
                     <div>
                       <p className="settings-item-title">Recevoir du bétail</p>
-                      <p className="settings-item-subtitle">Autorisez les dons et transferts de bétail.</p>
+                      <p className="settings-item-subtitle">Option non disponible. Les dons et transferts de bétail arrivent bientôt.</p>
                     </div>
                     <label className="settings-switch">
                       <input type="checkbox" disabled />
@@ -1117,7 +1124,7 @@ function SettingsModal({ isOpen, onClose, user, profile }) {
                   <div className="settings-item">
                     <div>
                       <p className="settings-item-title">Boutique</p>
-                      <p className="settings-item-subtitle">Accédez aux packs et récompenses.</p>
+                      <p className="settings-item-subtitle">Achetez de nouveaux badges depuis la boutique.</p>
                     </div>
                     <button
                       type="button"

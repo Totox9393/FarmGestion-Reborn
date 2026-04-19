@@ -1612,23 +1612,94 @@
 
 .settings-admin-badges-create {
   border: 1px solid var(--settings-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--settings-panel) 94%, transparent);
+  padding: 14px;
+  margin-bottom: 14px;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-admin-badges-create-header {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-admin-badges-create-kicker {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: var(--settings-muted);
+}
+
+.settings-admin-badges-create-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--settings-text);
+}
+
+.settings-admin-badges-create-subtitle {
+  margin: 0;
+}
+
+.settings-admin-badges-step {
+  border: 1px dashed color-mix(in srgb, var(--settings-border) 86%, transparent);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--settings-bg) 82%, transparent);
   padding: 12px;
-  margin-bottom: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.settings-admin-badges-step-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.settings-admin-badges-step-index {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--settings-accent);
+  background: var(--settings-accent-soft);
+  color: var(--settings-text);
+  font-size: 12px;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.settings-admin-badges-step-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--settings-text);
 }
 
 .settings-admin-badges-loader-row {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
   gap: 8px;
 }
 
 .settings-admin-badge-source-switch {
-  margin-top: 10px;
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+.settings-admin-badges-create-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
 }
 
 .settings-modal-checkbox-like {
@@ -1653,25 +1724,25 @@
 .settings-admin-badges-form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin-top: 10px;
+  gap: 11px;
 }
 
 .settings-admin-badge-label {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
+  font-weight: 600;
   color: var(--settings-muted);
 }
 
 .settings-admin-badge-input {
-  height: 36px;
-  border-radius: 9px;
+  height: 38px;
+  border-radius: 10px;
   border: 1px solid var(--settings-border);
   background: var(--settings-panel);
   color: var(--settings-text);
-  padding: 0 10px;
+  padding: 0 11px;
   font-size: 13px;
 }
 
@@ -1683,8 +1754,76 @@
 }
 
 .settings-admin-badge-file-input {
-  padding: 6px 10px;
+  padding: 7px 10px;
   height: auto;
+}
+
+.settings-admin-badge-preview-panel {
+  border: 1px solid var(--settings-border);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--settings-panel) 88%, transparent);
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.settings-admin-badge-preview-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--settings-text);
+}
+
+.settings-admin-badge-preview-placeholder {
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
+  border: 1px dashed var(--settings-border);
+  color: var(--settings-muted);
+  font-size: 26px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--settings-bg) 86%, transparent);
+}
+
+.settings-admin-badge-preview-meta {
+  display: grid;
+  gap: 4px;
+}
+
+.settings-admin-badge-preview-meta .settings-item-subtitle {
+  margin: 0;
+}
+
+.settings-admin-badge-checklist {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.settings-admin-badge-checkitem {
+  margin: 0;
+  border-radius: 9px;
+  border: 1px solid var(--settings-border);
+  padding: 8px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--settings-muted);
+  background: color-mix(in srgb, var(--settings-panel) 86%, transparent);
+}
+
+.settings-admin-badge-checkitem.is-ready {
+  border-color: color-mix(in srgb, var(--settings-accent) 52%, var(--settings-border));
+  color: var(--settings-text);
+  background: color-mix(in srgb, var(--settings-accent-soft) 78%, transparent);
+}
+
+.settings-admin-badge-checkitem.is-missing {
+  border-color: rgba(255, 107, 107, 0.45);
+  color: #ff9d9d;
+  background: rgba(255, 107, 107, 0.08);
 }
 
 .settings-admin-surprise-badges-field {
@@ -2171,20 +2310,34 @@
 }
 
 .settings-admin-badge-preview {
-  margin-top: 10px;
-  width: 82px;
-  height: 82px;
-  border-radius: 10px;
+  width: 88px;
+  height: 88px;
+  border-radius: 12px;
   border: 1px solid var(--settings-border);
   object-fit: cover;
   background: rgba(255, 255, 255, 0.04);
 }
 
 .settings-admin-badges-create-actions {
-  margin-top: 12px;
   display: flex;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 8px;
+}
+
+.settings-admin-badges-create-actions .settings-action:disabled,
+.settings-admin-badges-create-actions .settings-action.settings-action--is-disabled {
+  opacity: 0.52;
+  cursor: not-allowed;
+  border-color: color-mix(in srgb, var(--settings-border) 86%, transparent);
+  background: color-mix(in srgb, var(--settings-panel) 92%, transparent);
+  color: color-mix(in srgb, var(--settings-muted) 88%, #8a8a8a);
+  filter: grayscale(0.15);
+}
+
+.settings-admin-badges-create-actions .settings-action:disabled:hover,
+.settings-admin-badges-create-actions .settings-action.settings-action--is-disabled:hover {
+  border-color: color-mix(in srgb, var(--settings-border) 86%, transparent);
+  background: color-mix(in srgb, var(--settings-panel) 92%, transparent);
 }
 
 .settings-admin-badges-list {
@@ -2945,6 +3098,14 @@
     grid-template-columns: 1fr;
   }
 
+  .settings-admin-badges-create-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-admin-badge-checklist {
+    grid-template-columns: 1fr;
+  }
+
   .settings-admin-surprise-badges-field {
     grid-column: span 1;
   }
@@ -2958,7 +3119,7 @@
   }
 
   .settings-admin-badges-loader-row {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     align-items: stretch;
   }
 

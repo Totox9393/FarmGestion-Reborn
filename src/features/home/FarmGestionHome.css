@@ -1379,7 +1379,19 @@
   border: 1px solid rgba(72, 52, 130, 0.18);
 }
 
-.home-btn:hover {
+.home-btn.is-muted {
+  background: rgba(116, 118, 132, 0.14);
+  color: rgba(31, 26, 51, 0.62);
+  border: 1px solid rgba(116, 118, 132, 0.26);
+  box-shadow: none;
+}
+
+.home-btn:disabled {
+  cursor: not-allowed;
+  transform: none;
+}
+
+.home-btn:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(35, 26, 70, 0.16);
 }
@@ -1411,6 +1423,18 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+}
+
+.home-footer__actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.home-footer__actions .home-btn {
+  padding: 10px 14px;
 }
 
 /* Loader fallback */
@@ -2149,6 +2173,12 @@
   border: 1px solid rgba(122, 91, 255, 0.35);
 }
 
+.auth-theme.dark_theme .home-btn.is-muted {
+  background: rgba(162, 173, 198, 0.16);
+  color: rgba(233, 240, 255, 0.62);
+  border: 1px solid rgba(162, 173, 198, 0.28);
+}
+
 .auth-theme.dark_theme .home-btn:hover {
   box-shadow: 0 14px 28px rgba(0, 0, 0, 0.4);
 }
@@ -2360,6 +2390,12 @@
   background: rgba(245, 138, 198, 0.16);
   color: #4a2435;
   border: 1px solid rgba(245, 138, 198, 0.35);
+}
+
+.auth-theme.pastel_theme .home-btn.is-muted {
+  background: rgba(164, 149, 158, 0.14);
+  color: rgba(74, 36, 53, 0.58);
+  border: 1px solid rgba(164, 149, 158, 0.28);
 }
 
 .auth-theme.pastel_theme .home-footer {
@@ -2695,6 +2731,12 @@
   border: 1px solid rgba(141, 179, 255, 0.35);
 }
 
+.auth-theme.galactic_theme .home-btn.is-muted {
+  background: rgba(150, 168, 205, 0.16);
+  color: rgba(226, 236, 255, 0.6);
+  border: 1px solid rgba(150, 168, 205, 0.3);
+}
+
 .auth-theme.galactic_theme .home-footer {
   background: rgba(24, 32, 50, 0.92);
   border-color: rgba(141, 179, 255, 0.24);
@@ -2925,6 +2967,12 @@
   background: rgba(127, 107, 255, 0.16);
   color: #35204b;
   border: 1px solid rgba(127, 107, 255, 0.35);
+}
+
+.auth-theme.multicolor_theme .home-btn.is-muted {
+  background: rgba(152, 141, 179, 0.16);
+  color: rgba(53, 32, 75, 0.58);
+  border: 1px solid rgba(152, 141, 179, 0.3);
 }
 
 .auth-theme.multicolor_theme .home-footer {

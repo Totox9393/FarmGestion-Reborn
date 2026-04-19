@@ -185,12 +185,15 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
         betailId,
         nextVisible,
         removedBadges: Number(result?.removed_badges || 0),
+        removedShipping: Number(result?.removed_shipping || 0),
       };
     },
-    onSuccess: ({ nextVisible, removedBadges }) => {
+    onSuccess: ({ nextVisible, removedBadges, removedShipping }) => {
       queryClient.invalidateQueries({ queryKey: ['settings', 'admin'] });
       const message = nextVisible
-        ? 'Betail restaure et visible de nouveau.'
+        ? removedShipping > 0
+          ? 'Betail restaure, visible de nouveau, et historique expedition annule.'
+          : 'Betail restaure et visible de nouveau.'
         : removedBadges > 0
           ? `Betail rendu invisible. ${removedBadges} badge(s) retire(s) de l\'inventaire.`
           : 'Betail rendu invisible.';

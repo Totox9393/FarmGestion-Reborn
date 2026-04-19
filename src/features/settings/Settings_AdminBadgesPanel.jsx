@@ -203,14 +203,14 @@ const reasonToFrenchMessage = (reason, fallback) => {
   return fallback;
 };
 
-const canFallbackToDirectBadgeDelete = (error) => {
+const canFallbackToRpcBadgeDelete = (error) => {
   const message = String(error?.message || '').toLowerCase();
   return (
-    isRpcSignatureError(error) ||
-    message.includes('admin_delete_badge_reborn') ||
-    message.includes('not_admin') ||
-    message.includes('administrateur') ||
+    error?.code === '42501' ||
+    message.includes('403') ||
     message.includes('forbidden') ||
+    message.includes('rls') ||
+    message.includes('policy') ||
     message.includes('permission') ||
     message.includes('not allowed') ||
     message.includes('denied')
@@ -680,25 +680,25 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
 
   const deleteBadgeMutation = useMutation({
     mutationFn: async ({ badgeId, rarity: badgeRarity, filename: badgeFilename }) => {
-      let usedFallback = false;
+      let usedRpcFallback = false;
       try {
-        const result = await tryRpcVariants(
-          'admin_delete_badge_reborn',
-          buildDeleteBadgeRpcVariants({ badgeId }),
-        );
-        ensureRpcSuccess(result, 'Suppression badge impossible.');
-      } catch (error) {
-        if (!canFallbackToDirectBadgeDelete(error)) {
-          throw error;
-        }
-
         const { error: deleteError } = await supabase
           .from('badges_catalog_reborn')
           .delete()
           .eq('id', badgeId);
 
         if (deleteError) throw deleteError;
-        usedFallback = true;
+      } catch (directDeleteError) {
+        if (!canFallbackToRpcBadgeDelete(directDeleteError)) {
+          throw directDeleteError;
+        }
+
+        const result = await tryRpcVariants(
+          'admin_delete_badge_reborn',
+          buildDeleteBadgeRpcVariants({ badgeId }),
+        );
+        ensureRpcSuccess(result, 'Suppression badge impossible.');
+        usedRpcFallback = true;
       }
 
       let storageErrorMessage = '';
@@ -710,9 +710,9 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
         }
       }
 
-      return { badgeFilename, storageErrorMessage, usedFallback };
+      return { badgeFilename, storageErrorMessage, usedRpcFallback };
     },
-    onSuccess: ({ badgeFilename, storageErrorMessage, usedFallback }) => {
+    onSuccess: ({ badgeFilename, storageErrorMessage, usedRpcFallback }) => {
       setConfirmDeleteBadgeId('');
       queryClient.invalidateQueries({ queryKey: ADMIN_BADGES_QUERY_KEY });
       queryClient.invalidateQueries({ queryKey: ['settings', 'badges'] });
@@ -724,8 +724,8 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
         return;
       }
 
-      const successMessage = usedFallback
-        ? `Badge ${badgeFilename || ''} supprimé (mode RLS direct).`
+      const successMessage = usedRpcFallback
+        ? `Badge ${badgeFilename || ''} supprimé (mode RPC).`
         : `Badge ${badgeFilename || ''} supprimé.`;
       setFeedback({ type: 'success', message: successMessage });
       emitToast('success', successMessage);
@@ -787,6 +787,10 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
     if (filename && rarity) return getBadgeImageUrl(filename, rarity);
     return '';
   }, [bucketPreview?.imageUrl, filename, rarity, sourceMode, uploadPreviewUrl]);
+  const stockSuggestion = useMemo(() => buildSuggestionsFromStock(stockTotal), [stockTotal]);
+  const hasDisplayName = Boolean(name.trim());
+  const hasAssetSource = sourceMode === 'upload' ? Boolean(uploadFile) : Boolean(filename.trim());
+  const canSubmitCreateBadge = !isMutating && hasDisplayName && Boolean(rarity) && hasAssetSource;
 
   if (!isActive || !canAccessAdministration) return null;
 
@@ -887,179 +891,242 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
       ) : null}
 
       <div className="settings-admin-badges-create">
-        <div className="settings-admin-badges-loader-row">
-          <label className="settings-admin-badge-label">
-            Charger depuis bucket (nom fichier)
-            <input
-              type="text"
-              className="settings-admin-badge-input"
-              value={bucketLookupInput}
-              onChange={(event) => setBucketLookupInput(event.target.value)}
-              placeholder="Ex: BR489.gif"
-              maxLength={80}
-              disabled={isMutating}
-            />
-          </label>
-          <button
-            type="button"
-            className="settings-action settings-action--tiny"
-            onClick={handleLoadFromBucket}
-            disabled={isMutating}
-          >
-            Chercher bucket
-          </button>
-        </div>
-
-        <div className="settings-admin-badge-source-switch">
-          <button
-            type="button"
-            className={`settings-admin-view-btn ${sourceMode === 'bucket' ? 'active' : ''}`}
-            onClick={() => setSourceMode('bucket')}
-            disabled={isMutating}
-          >
-            Source: bucket
-          </button>
-          <button
-            type="button"
-            className={`settings-admin-view-btn ${sourceMode === 'upload' ? 'active' : ''}`}
-            onClick={() => setSourceMode('upload')}
-            disabled={isMutating}
-          >
-            Source: upload image
-          </button>
-        </div>
-
-        {sourceMode === 'upload' ? (
-          <label className="settings-admin-badge-label">
-            Importer image badge
-            <input
-              type="file"
-              accept="image/gif,image/png,image/jpeg,image/webp,image/avif"
-              className="settings-admin-badge-input settings-admin-badge-file-input"
-              onChange={handleUploadSelection}
-              disabled={isMutating}
-            />
-          </label>
-        ) : null}
-
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt={filename || 'Badge preview'}
-            className="settings-admin-badge-preview"
-            loading="lazy"
-            decoding="async"
-          />
-        ) : null}
-
-        <div className="settings-admin-badges-form-grid">
-          <label className="settings-admin-badge-label">
-            Nom affiché
-            <input
-              type="text"
-              className="settings-admin-badge-input"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder="Ex: BR489"
-              maxLength={80}
-              disabled={isMutating}
-            />
-          </label>
-
-          <label className="settings-admin-badge-label">
-            Nom fichier
-            <input
-              type="text"
-              className="settings-admin-badge-input"
-              value={filename}
-              onChange={(event) => setFilename(normalizeFilenameInput(event.target.value))}
-              placeholder="Ex: BR489.gif"
-              maxLength={120}
-              disabled={isMutating || sourceMode === 'upload'}
-            />
-          </label>
-
-          <label className="settings-admin-badge-label">
-            Rareté
-            <select
-              className="settings-admin-badge-input"
-              value={rarity}
-              onChange={(event) => {
-                setRarity(event.target.value);
-                setIsRarityManual(true);
-              }}
-              disabled={isMutating}
-            >
-              {RARITY_OPTIONS.map((rarityValue) => (
-                <option key={rarityValue} value={rarityValue}>
-                  {BADGE_RARITY_LABELS[rarityValue] || rarityValue}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="settings-admin-badge-label">
-            Prix
-            <input
-              type="number"
-              className="settings-admin-badge-input"
-              value={price}
-              min={0}
-              step={10}
-              onChange={(event) => {
-                setPrice(toSafeInt(event.target.value, 0));
-                setIsPriceManual(true);
-              }}
-              disabled={isMutating}
-            />
-          </label>
-
-          <label className="settings-admin-badge-label">
-            Stock total
-            <input
-              type="number"
-              className="settings-admin-badge-input"
-              value={stockTotal}
-              min={1}
-              step={1}
-              onChange={(event) => setStockTotal(Math.max(1, toSafeInt(event.target.value, 1)))}
-              disabled={isMutating}
-            />
-          </label>
-
-          <label className="settings-admin-badge-label">
-            Visible en boutique
-            <select
-              className="settings-admin-badge-input"
-              value={isShopVisible ? 'yes' : 'no'}
-              onChange={(event) => setIsShopVisible(event.target.value === 'yes')}
-              disabled={isMutating || !supportsShopVisibility}
-            >
-              <option value="yes">Oui</option>
-              <option value="no">Non (badge special)</option>
-            </select>
-          </label>
-        </div>
-
-        {!supportsShopVisibility ? (
-          <p className="settings-item-subtitle">
-            Option visible boutique indisponible: applique la migration SQL surprise_codes_referral_system.sql.
+        <div className="settings-admin-badges-create-header">
+          <p className="settings-admin-badges-create-kicker">Création guidée</p>
+          <h4 className="settings-admin-badges-create-title">Ajouter un badge au catalogue</h4>
+          <p className="settings-item-subtitle settings-admin-badges-create-subtitle">
+            Le fonctionnement reste identique: choisis la source de l'image, renseigne les informations du badge, puis valide.
           </p>
-        ) : null}
+        </div>
 
-        <p className="settings-item-subtitle">
-          Suggestion auto: faible stock = plus rare et plus cher. Tu peux modifier rareté/prix manuellement.
-        </p>
+        <div className="settings-admin-badges-step">
+          <div className="settings-admin-badges-step-head">
+            <span className="settings-admin-badges-step-index" aria-hidden="true">1</span>
+            <div>
+              <p className="settings-admin-badges-step-title">Choisir la source de l'image</p>
+              <p className="settings-item-subtitle">Utilise un badge déjà présent dans le bucket ou importe un nouveau fichier.</p>
+            </div>
+          </div>
 
-        <div className="settings-admin-badges-create-actions">
-          <button
-            type="button"
-            className="settings-action"
-            onClick={handleCreateBadge}
-            disabled={isMutating || !name.trim() || !rarity}
-          >
-            {createBadgeMutation.isPending ? 'Création...' : 'Créer le badge'}
-          </button>
+          <div className="settings-admin-badge-source-switch">
+            <button
+              type="button"
+              className={`settings-admin-view-btn ${sourceMode === 'bucket' ? 'active' : ''}`}
+              onClick={() => setSourceMode('bucket')}
+              disabled={isMutating}
+            >
+              Utiliser le bucket
+            </button>
+            <button
+              type="button"
+              className={`settings-admin-view-btn ${sourceMode === 'upload' ? 'active' : ''}`}
+              onClick={() => setSourceMode('upload')}
+              disabled={isMutating}
+            >
+              Importer une image
+            </button>
+          </div>
+
+          {sourceMode === 'bucket' ? (
+            <div className="settings-admin-badges-loader-row">
+              <label className="settings-admin-badge-label">
+                Nom du fichier dans le bucket
+                <input
+                  type="text"
+                  className="settings-admin-badge-input"
+                  value={bucketLookupInput}
+                  onChange={(event) => setBucketLookupInput(event.target.value)}
+                  placeholder="Ex: BR489.gif"
+                  maxLength={80}
+                  disabled={isMutating}
+                />
+              </label>
+              <button
+                type="button"
+                className="settings-action settings-action--tiny"
+                onClick={handleLoadFromBucket}
+                disabled={isMutating}
+              >
+                Rechercher
+              </button>
+            </div>
+          ) : (
+            <label className="settings-admin-badge-label">
+              Fichier image à importer
+              <input
+                type="file"
+                accept="image/gif,image/png,image/jpeg,image/webp,image/avif"
+                className="settings-admin-badge-input settings-admin-badge-file-input"
+                onChange={handleUploadSelection}
+                disabled={isMutating}
+              />
+            </label>
+          )}
+        </div>
+
+        <div className="settings-admin-badges-step">
+          <div className="settings-admin-badges-step-head">
+            <span className="settings-admin-badges-step-index" aria-hidden="true">2</span>
+            <div>
+              <p className="settings-admin-badges-step-title">Compléter les informations du badge</p>
+              <p className="settings-item-subtitle">Les suggestions se mettent à jour automatiquement selon le stock.</p>
+            </div>
+          </div>
+
+          <div className="settings-admin-badges-create-layout">
+            <div className="settings-admin-badges-form-grid">
+              <label className="settings-admin-badge-label">
+                Nom affiché
+                <input
+                  type="text"
+                  className="settings-admin-badge-input"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                  placeholder="Ex: BR489"
+                  maxLength={80}
+                  disabled={isMutating}
+                />
+              </label>
+
+              <label className="settings-admin-badge-label">
+                Nom fichier
+                <input
+                  type="text"
+                  className="settings-admin-badge-input"
+                  value={filename}
+                  onChange={(event) => setFilename(normalizeFilenameInput(event.target.value))}
+                  placeholder="Ex: BR489.gif"
+                  maxLength={120}
+                  disabled={isMutating || sourceMode === 'upload'}
+                />
+              </label>
+
+              <label className="settings-admin-badge-label">
+                Rareté
+                <select
+                  className="settings-admin-badge-input"
+                  value={rarity}
+                  onChange={(event) => {
+                    setRarity(event.target.value);
+                    setIsRarityManual(true);
+                  }}
+                  disabled={isMutating}
+                >
+                  {RARITY_OPTIONS.map((rarityValue) => (
+                    <option key={rarityValue} value={rarityValue}>
+                      {BADGE_RARITY_LABELS[rarityValue] || rarityValue}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="settings-admin-badge-label">
+                Prix
+                <input
+                  type="number"
+                  className="settings-admin-badge-input"
+                  value={price}
+                  min={0}
+                  step={10}
+                  onChange={(event) => {
+                    setPrice(toSafeInt(event.target.value, 0));
+                    setIsPriceManual(true);
+                  }}
+                  disabled={isMutating}
+                />
+              </label>
+
+              <label className="settings-admin-badge-label">
+                Stock total
+                <input
+                  type="number"
+                  className="settings-admin-badge-input"
+                  value={stockTotal}
+                  min={1}
+                  step={1}
+                  onChange={(event) => setStockTotal(Math.max(1, toSafeInt(event.target.value, 1)))}
+                  disabled={isMutating}
+                />
+              </label>
+
+              <label className="settings-admin-badge-label">
+                Visible en boutique
+                <select
+                  className="settings-admin-badge-input"
+                  value={isShopVisible ? 'yes' : 'no'}
+                  onChange={(event) => setIsShopVisible(event.target.value === 'yes')}
+                  disabled={isMutating || !supportsShopVisibility}
+                >
+                  <option value="yes">Oui</option>
+                  <option value="no">Non (badge spécial)</option>
+                </select>
+              </label>
+            </div>
+
+            <aside className="settings-admin-badge-preview-panel" aria-live="polite">
+              <p className="settings-admin-badge-preview-title">Aperçu</p>
+              {previewUrl ? (
+                <img
+                  src={previewUrl}
+                  alt={filename || 'Badge preview'}
+                  className="settings-admin-badge-preview"
+                  loading="lazy"
+                  decoding="async"
+                />
+              ) : (
+                <div className="settings-admin-badge-preview-placeholder" aria-hidden="true">?
+                </div>
+              )}
+              <div className="settings-admin-badge-preview-meta">
+                <p className="settings-item-subtitle">Source active: {sourceMode === 'upload' ? 'import image' : 'bucket'}</p>
+                <p className="settings-item-subtitle">Rareté suggérée: {BADGE_RARITY_LABELS[stockSuggestion.rarity] || stockSuggestion.rarity}</p>
+                <p className="settings-item-subtitle">Prix suggéré: {Number(stockSuggestion.price || 0).toLocaleString('fr-FR')} 💸</p>
+                <p className="settings-item-subtitle">
+                  Mode manuel: rareté {isRarityManual ? 'actif' : 'auto'} | prix {isPriceManual ? 'actif' : 'auto'}
+                </p>
+              </div>
+            </aside>
+          </div>
+
+          {!supportsShopVisibility ? (
+            <p className="settings-item-subtitle">
+              Option visible boutique indisponible: applique la migration SQL surprise_codes_referral_system.sql.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="settings-admin-badges-step">
+          <div className="settings-admin-badges-step-head">
+            <span className="settings-admin-badges-step-index" aria-hidden="true">3</span>
+            <div>
+              <p className="settings-admin-badges-step-title">Vérifier puis créer</p>
+              <p className="settings-item-subtitle">Cette vérification aide les modérateurs à valider rapidement avant création.</p>
+            </div>
+          </div>
+
+          <div className="settings-admin-badge-checklist" role="list" aria-label="Vérification avant création">
+            <p className={`settings-admin-badge-checkitem ${hasDisplayName ? 'is-ready' : 'is-missing'}`} role="listitem">
+              {hasDisplayName ? 'Prêt' : 'À compléter'} - Nom affiché
+            </p>
+            <p className={`settings-admin-badge-checkitem ${hasAssetSource ? 'is-ready' : 'is-missing'}`} role="listitem">
+              {hasAssetSource ? 'Prêt' : 'À compléter'} - Source image
+            </p>
+            <p className={`settings-admin-badge-checkitem ${rarity ? 'is-ready' : 'is-missing'}`} role="listitem">
+              {rarity ? 'Prêt' : 'À compléter'} - Rareté
+            </p>
+          </div>
+
+          <div className="settings-admin-badges-create-actions">
+            <button
+              type="button"
+              className={`settings-action ${!canSubmitCreateBadge ? 'settings-action--is-disabled' : ''}`}
+              onClick={handleCreateBadge}
+              disabled={!canSubmitCreateBadge}
+              title={!canSubmitCreateBadge ? 'Complète les champs requis pour créer le badge.' : 'Créer le badge'}
+            >
+              {createBadgeMutation.isPending ? 'Création...' : 'Créer le badge'}
+            </button>
+          </div>
         </div>
       </div>
 
