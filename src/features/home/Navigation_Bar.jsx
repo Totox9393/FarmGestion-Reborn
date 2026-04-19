@@ -488,7 +488,14 @@ function Navigation_Bar() {
           >
             <div className="nav-avatar">
               {profile?.avatar_url ? (
-                <img src={profile.avatar_url} alt="avatar" />
+                <img
+                  src={profile.avatar_url}
+                  alt="avatar"
+                  onError={(event) => {
+                    event.currentTarget.onerror = null;
+                    event.currentTarget.src = defaultProfileUser;
+                  }}
+                />
               ) : (
                 <span>{(profile?.username || user.email || 'U')?.[0]?.toUpperCase() || 'U'}</span>
               )}

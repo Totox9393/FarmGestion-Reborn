@@ -20,6 +20,7 @@ import Settings_ReportsPanel from './Settings_ReportsPanel';
 import Settings_AdminBadgesPanel from './Settings_AdminBadgesPanel';
 import Settings_AdminSurpriseCodesPanel from './Settings_AdminSurpriseCodesPanel';
 import Settings_MaintenancePanel from './Settings_MaintenancePanel';
+import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import {
   applyLocalThemePreference,
   getLocalThemePreference,
@@ -688,7 +689,14 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
                   <div className="settings-user">
                     <div className="settings-user-avatar">
                       {profile?.avatar_url ? (
-                        <img src={profile.avatar_url} alt="avatar" />
+                        <img
+                          src={profile.avatar_url}
+                          alt="avatar"
+                          onError={(event) => {
+                            event.currentTarget.onerror = null;
+                            event.currentTarget.src = defaultProfileUser;
+                          }}
+                        />
                       ) : (
                         <svg viewBox="0 0 24 24" aria-hidden="true">
                           <path
@@ -1145,12 +1153,12 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
               <div className="settings-section">
                 <h3 className="settings-section-title">Importer</h3>
                 <div className="settings-list">
-                  <div className="settings-item">
+                  <div className="settings-item settings-item--disabled" aria-disabled="true">
                     <div>
                       <p className="settings-item-title">Importer le design d’une ferme</p>
                       <p className="settings-item-subtitle">Ajoutez un modèle de ferme depuis un fichier externe.</p>
                     </div>
-                    <button type="button" className="settings-action">Importer</button>
+                    <button type="button" className="settings-action" disabled>Importer</button>
                   </div>
                 </div>
               </div>
