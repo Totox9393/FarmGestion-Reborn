@@ -760,6 +760,66 @@
   background: rgba(33, 42, 59, 0.86);
 }
 
+.auth-theme.dark_theme .shop-badge-media,
+.auth-theme.galactic_theme .shop-badge-media {
+  border-color: rgba(141, 179, 255, 0.34);
+  background: linear-gradient(160deg, rgba(45, 63, 99, 0.62) 0%, rgba(28, 40, 66, 0.78) 100%);
+}
+
+.auth-theme.dark_theme .shop-badge-fallback,
+.auth-theme.galactic_theme .shop-badge-fallback {
+  background: rgba(90, 121, 186, 0.24);
+  color: rgba(228, 239, 255, 0.94);
+}
+
+.auth-theme.dark_theme .shop-badge-name,
+.auth-theme.galactic_theme .shop-badge-name {
+  color: rgba(230, 240, 255, 0.96);
+}
+
+.auth-theme.dark_theme .shop-badge-description,
+.auth-theme.galactic_theme .shop-badge-description {
+  color: rgba(187, 207, 236, 0.9);
+}
+
+.auth-theme.dark_theme .shop-badge-price,
+.auth-theme.galactic_theme .shop-badge-price {
+  color: rgba(189, 210, 242, 0.88);
+}
+
+.auth-theme.dark_theme .shop-badge-price strong,
+.auth-theme.galactic_theme .shop-badge-price strong {
+  color: rgba(141, 211, 255, 0.96);
+}
+
+.auth-theme.dark_theme .shop-buy-btn:not(.is-owned):not(.is-soldout),
+.auth-theme.galactic_theme .shop-buy-btn:not(.is-owned):not(.is-soldout) {
+  border-color: rgba(130, 191, 255, 0.4);
+  background: rgba(67, 102, 168, 0.34);
+  color: rgba(224, 238, 255, 0.95);
+}
+
+.auth-theme.dark_theme .shop-buy-btn:hover:not(:disabled):not(.is-owned):not(.is-soldout),
+.auth-theme.galactic_theme .shop-buy-btn:hover:not(:disabled):not(.is-owned):not(.is-soldout) {
+  border-color: rgba(153, 206, 255, 0.56);
+  background: rgba(79, 118, 192, 0.44);
+  box-shadow: 0 10px 20px rgba(16, 25, 42, 0.42);
+}
+
+.auth-theme.dark_theme .shop-buy-btn.is-owned,
+.auth-theme.galactic_theme .shop-buy-btn.is-owned {
+  border-color: rgba(151, 172, 208, 0.42);
+  background: rgba(54, 70, 101, 0.64);
+  color: rgba(190, 207, 233, 0.9);
+}
+
+.auth-theme.dark_theme .shop-buy-btn.is-soldout,
+.auth-theme.galactic_theme .shop-buy-btn.is-soldout {
+  border-color: rgba(225, 138, 138, 0.46);
+  background: rgba(120, 58, 70, 0.54);
+  color: rgba(255, 216, 216, 0.94);
+}
+
 .auth-theme.dark_theme .shop-rarity-pill,
 .auth-theme.galactic_theme .shop-rarity-pill {
   border-color: rgba(173, 206, 255, 0.42);

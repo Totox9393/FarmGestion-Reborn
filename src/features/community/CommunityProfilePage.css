@@ -630,6 +630,12 @@
   color: var(--community-profile-muted);
 }
 
+.community-profile-pinned__state-hint {
+  margin: 8px 0 0;
+  font-size: 0.9rem;
+  color: color-mix(in srgb, var(--community-profile-muted) 78%, #4a2ea6 22%);
+}
+
 .community-profile-pinned__state.is-error {
   color: #9f3a3a;
 }
@@ -952,6 +958,62 @@
 .auth-theme.dark_theme .community-profile-badge-card__name,
 .auth-theme.galactic_theme .community-profile-badge-card__name {
   color: #e8f0ff;
+}
+
+.auth-theme.dark_theme .community-profile-eyebrow {
+  color: rgba(198, 219, 255, 0.88);
+  text-shadow: 0 0 10px rgba(141, 179, 255, 0.2);
+}
+
+.auth-theme.galactic_theme .community-profile-eyebrow {
+  color: rgba(190, 220, 255, 0.94);
+  text-shadow: 0 0 12px rgba(141, 179, 255, 0.3);
+}
+
+.auth-theme.dark_theme .community-profile-badges__head span,
+.auth-theme.dark_theme .community-profile-friends__head span {
+  border-color: rgba(141, 179, 255, 0.42);
+  background: rgba(46, 61, 94, 0.82);
+  color: #deebff;
+}
+
+.auth-theme.galactic_theme .community-profile-badges__head span,
+.auth-theme.galactic_theme .community-profile-friends__head span {
+  border-color: rgba(166, 201, 255, 0.5);
+  background: rgba(58, 76, 114, 0.84);
+  color: #eef5ff;
+}
+
+.auth-theme.dark_theme .community-profile-badges__toggle {
+  border-color: rgba(141, 179, 255, 0.44);
+  background: rgba(46, 61, 94, 0.84);
+  color: #deebff;
+}
+
+.auth-theme.dark_theme .community-profile-badges__toggle:hover {
+  border-color: rgba(171, 203, 255, 0.6);
+  background: rgba(58, 76, 114, 0.9);
+}
+
+.auth-theme.dark_theme .community-profile-badges__toggle:focus-visible {
+  outline: 2px solid rgba(171, 203, 255, 0.42);
+  outline-offset: 2px;
+}
+
+.auth-theme.galactic_theme .community-profile-badges__toggle {
+  border-color: rgba(166, 201, 255, 0.52);
+  background: rgba(58, 76, 114, 0.86);
+  color: #eef5ff;
+}
+
+.auth-theme.galactic_theme .community-profile-badges__toggle:hover {
+  border-color: rgba(194, 220, 255, 0.72);
+  background: rgba(71, 93, 137, 0.92);
+}
+
+.auth-theme.galactic_theme .community-profile-badges__toggle:focus-visible {
+  outline: 2px solid rgba(194, 220, 255, 0.5);
+  outline-offset: 2px;
 }
 
 .auth-theme.dark_theme .community-pinned-card,

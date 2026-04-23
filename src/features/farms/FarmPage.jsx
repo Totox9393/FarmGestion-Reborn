@@ -49,6 +49,8 @@ const PANEL_TAB_CUSTOMIZATION = 'customization';
 const FARM_SITE_VALUES = ['1', '2', '3', '4', '5', '6'];
 const SITE_MANAGED_SITE_CAPACITY = 30;
 const SITE_MANAGED_BAR_COLORS = ['#e7b347', '#dc9157', '#8baa58', '#67a98c', '#7084b8', '#ba7b96'];
+const NOT_FOUND_SITE_COLORS = ['#f3cfd8', '#f2d7cb', '#d9e6cc', '#cde3e0', '#d7d8ec', '#e7d1e3'];
+const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 const DEFAULT_OWNER_DASHBOARD_STATS = {
   population: 0,
   inhabitedSites: 0,
@@ -295,6 +297,18 @@ const fetchUsername = async (userId) => {
   return data?.username ?? '';
 };
 
+const fetchFarmComparisonMeta = async (farmId) => {
+  if (!farmId) return null;
+
+  const { data, error } = await supabase
+    .from('farms_list')
+    .select('id, creation_date')
+    .eq('id', farmId)
+    .maybeSingle();
+  if (error) throw error;
+  return data ?? null;
+};
+
 const getTodayRangeIso = () => {
   const start = new Date();
   start.setHours(0, 0, 0, 0);
@@ -426,6 +440,26 @@ const fetchOwnerDashboardStats = async ({ farmId, ownerId }) => {
   };
 };
 
+const fetchFarmVisiblePopulation = async ({ farmId, ownerId }) => {
+  if (!farmId || !ownerId) return null;
+
+  const population = await countRowsSafely(
+    supabase
+      .from('betails')
+      .select('id', { count: 'exact', head: true })
+      .eq('farm_id', farmId)
+      .eq('owner_id', ownerId)
+      .eq('visible', true),
+  );
+
+  return Number.isFinite(population) ? population : null;
+};
+
+const formatFrenchDayCount = (value) => {
+  const dayCount = Math.max(1, Math.round(Math.abs(Number(value) || 0)));
+  return `${dayCount} jour${dayCount > 1 ? 's' : ''}`;
+};
+
 function FarmPage() {
   const { id: farmIdParam } = useParams();
   const navigate = useNavigate();
@@ -541,6 +575,12 @@ function FarmPage() {
   const farmLabel = farm?.name || (farm?.id ? `Ferme #${farm.id}` : 'Ferme');
   const ownerName = ownerNameQuery.data || '';
   const myFarmId = myFarmIdQuery.data ?? null;
+  const isVisitingAnotherFarm = Boolean(
+    !isOwner
+    && farm?.id
+    && myFarmId
+    && Number(myFarmId) !== Number(farm.id),
+  );
   useEffect(() => {
     document.title = `FG - Ferme ${farmLabel}`;
   }, [farmLabel]);
@@ -594,7 +634,7 @@ function FarmPage() {
   );
   const isBadgesLoading = farmBadgesQuery.isLoading || userBadgesInventoryQuery.isLoading || userBadgesEquipsQuery.isLoading;
   const isBadgesFetching = farmBadgesQuery.isFetching || userBadgesInventoryQuery.isFetching || userBadgesEquipsQuery.isFetching;
-  const badgesLoadError = userBadgesInventoryQuery.error || userBadgesEquipsQuery.error;
+  const badgesLoadError = farmBadgesQuery.error || userBadgesInventoryQuery.error || userBadgesEquipsQuery.error;
   const effectiveCenterPreviewSize = Math.max(centerPreviewSize || 0, 112);
   const centerSymbol = normalizeSingleCharacter(centerCustomSymbol, DEFAULT_CENTER_SYMBOL);
   const centerBackgroundColor = centerCustomBackground || DEFAULT_CENTER_BACKGROUND_COLOR;
@@ -643,14 +683,34 @@ function FarmPage() {
   const hasCenterPendingChange = Boolean(centerDraftStyle) && !stylesEqual(currentComparableCenterStyle, centerDraftStyle);
 
   const ownerDashboardQuery = useQuery({
-    queryKey: ['farm', 'owner-dashboard-stats', farm?.id || null, user?.id || null],
-    queryFn: () => fetchOwnerDashboardStats({ farmId: farm.id, ownerId: user.id }),
-    enabled: Boolean(isOwner && farm?.id && user?.id && panelTab === PANEL_TAB_OVERVIEW),
+    queryKey: ['farm', 'owner-dashboard-stats', farm?.id || null, farm?.proprietaire || null],
+    queryFn: () => fetchOwnerDashboardStats({ farmId: farm.id, ownerId: farm.proprietaire }),
+    enabled: Boolean(farm?.id && farm?.proprietaire && panelTab === PANEL_TAB_OVERVIEW),
     staleTime: 90_000,
     gcTime: 600_000,
     refetchOnWindowFocus: false,
     retry: 1,
     placeholderData: (previousData) => previousData,
+  });
+
+  const myFarmComparisonMetaQuery = useQuery({
+    queryKey: ['farm', 'comparison-meta', myFarmId || null],
+    queryFn: () => fetchFarmComparisonMeta(myFarmId),
+    enabled: Boolean(isVisitingAnotherFarm && panelTab === PANEL_TAB_OVERVIEW),
+    staleTime: 180_000,
+    gcTime: 900_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
+  });
+
+  const myFarmPopulationQuery = useQuery({
+    queryKey: ['farm', 'comparison-population', myFarmId || null, user?.id || null],
+    queryFn: () => fetchFarmVisiblePopulation({ farmId: myFarmId, ownerId: user.id }),
+    enabled: Boolean(isVisitingAnotherFarm && panelTab === PANEL_TAB_OVERVIEW && user?.id),
+    staleTime: 90_000,
+    gcTime: 600_000,
+    refetchOnWindowFocus: false,
+    retry: 1,
   });
 
   const ownerDashboardStats = ownerDashboardQuery.data || DEFAULT_OWNER_DASHBOARD_STATS;
@@ -676,6 +736,61 @@ function FarmPage() {
     }),
     [ownerDashboardStats.siteCountsBySite],
   );
+  const visitorComparisonNote = useMemo(() => {
+    if (!isVisitingAnotherFarm) return '';
+
+    const parts = [];
+    const visitedPopulation = ownerDashboardQuery.data?.population;
+    const myPopulation = myFarmPopulationQuery.data;
+    const canComparePopulation = Number.isFinite(visitedPopulation) && Number.isFinite(myPopulation);
+
+    if (canComparePopulation) {
+      const populationDelta = visitedPopulation - myPopulation;
+      const label = `${Math.abs(populationDelta)} bétail${Math.abs(populationDelta) > 1 ? 's' : ''}`;
+
+      if (populationDelta > 0) {
+        parts.push(`Cette ferme a ${label} de plus que la tienne`);
+      } else if (populationDelta < 0) {
+        parts.push(`Cette ferme a ${label} de moins que la tienne`);
+      } else {
+        parts.push('Cette ferme a une population similaire à la tienne');
+      }
+    }
+
+    const visitedCreatedAt = Date.parse(String(farm?.creation_date || ''));
+    const myCreatedAt = Date.parse(String(myFarmComparisonMetaQuery.data?.creation_date || ''));
+    const canCompareAge = Number.isFinite(visitedCreatedAt) && Number.isFinite(myCreatedAt);
+
+    if (canCompareAge) {
+      const ageDeltaDays = Math.round((myCreatedAt - visitedCreatedAt) / MILLISECONDS_PER_DAY);
+
+      if (ageDeltaDays > 0) {
+        parts.push(`elle est plus ancienne d'environ ${formatFrenchDayCount(ageDeltaDays)}`);
+      } else if (ageDeltaDays < 0) {
+        parts.push(`elle est plus récente d'environ ${formatFrenchDayCount(ageDeltaDays)}`);
+      } else {
+        parts.push('elle a été créée à la même période que la tienne');
+      }
+    }
+
+    if (!parts.length) {
+      const stillLoading = ownerDashboardQuery.isLoading || myFarmPopulationQuery.isLoading || myFarmComparisonMetaQuery.isLoading;
+      return stillLoading
+        ? 'Comparatif rapide avec ta ferme en cours...'
+        : 'Comparatif rapide indisponible pour le moment.';
+    }
+
+    return `Comparatif rapide : ${parts.join(', ')}.`;
+  }, [
+    farm?.creation_date,
+    isVisitingAnotherFarm,
+    myFarmComparisonMetaQuery.data?.creation_date,
+    myFarmComparisonMetaQuery.isLoading,
+    myFarmPopulationQuery.data,
+    myFarmPopulationQuery.isLoading,
+    ownerDashboardQuery.data?.population,
+    ownerDashboardQuery.isLoading,
+  ]);
 
   const updateSiteColorsMutation = useMutation({
     mutationFn: async ({ farmId: nextFarmId, ownerId, nextColors }) => {
@@ -885,6 +1000,13 @@ function FarmPage() {
     if (!isOwner || panelTab !== PANEL_TAB_OVERVIEW) {
       setIsBadgePickerOpen(false);
       setBadgePickerSlot(null);
+    }
+  }, [isOwner, panelTab]);
+
+  useEffect(() => {
+    if (isOwner) return;
+    if (panelTab !== PANEL_TAB_OVERVIEW) {
+      setPanelTab(PANEL_TAB_OVERVIEW);
     }
   }, [isOwner, panelTab]);
 
@@ -1397,7 +1519,7 @@ function FarmPage() {
         <h1>Page de ferme</h1>
         <p>Identifiant de ferme invalide.</p>
         <button type="button" className="farm-page-btn" onClick={() => navigate('/home')}>
-          Retour au tableau de bord
+          Retour à l'accueil
         </button>
       </div>
     );
@@ -1412,12 +1534,43 @@ function FarmPage() {
   }
 
   if (farmQuery.isError || !farm || accessDenied) {
+    const isFarmNotFound = !accessDenied;
+    const errorTitle = isFarmNotFound ? 'Ferme introuvable' : 'Page de ferme';
+    const errorMessage = isFarmNotFound
+      ? 'Vérifie le lien ou retourne à l\'accueil pour continuer.'
+      : 'Cette ferme est privée.';
+
     return (
-      <div className="farm-page farm-page--error">
-        <h1>Page de ferme</h1>
-        <p>{accessDenied ? 'Cette ferme est privée.' : 'Ferme introuvable.'}</p>
+      <div className={`farm-page farm-page--error ${isFarmNotFound ? 'is-not-found' : ''}`.trim()}>
+        <h1>{errorTitle}</h1>
+        {isFarmNotFound ? (
+          <div className="farm-page-not-found-visual" aria-hidden="true">
+            <div className="farm-page-not-found-hex">
+              <FarmDesignPreview
+                className="farm-page-not-found-preview"
+                farmLabel="Ferme inconnue"
+                siteColorsRaw={NOT_FOUND_SITE_COLORS}
+                centerStyleRaw={{
+                  type: 'emoji',
+                  emoji: '?',
+                  textColor: '#50339d',
+                  backgroundColor: 'rgba(255, 255, 255, 0.94)',
+                }}
+                maxSize={300}
+                minHeight={300}
+              />
+              <span className="farm-page-not-found-mark is-site-1">?</span>
+              <span className="farm-page-not-found-mark is-site-2">?</span>
+              <span className="farm-page-not-found-mark is-site-3">?</span>
+              <span className="farm-page-not-found-mark is-site-4">?</span>
+              <span className="farm-page-not-found-mark is-site-5">?</span>
+              <span className="farm-page-not-found-mark is-site-6">?</span>
+            </div>
+          </div>
+        ) : null}
+        <p className="farm-page-error-message">{errorMessage}</p>
         <button type="button" className="farm-page-btn" onClick={() => navigate('/home')}>
-          Retour au tableau de bord
+          Retour à l'accueil
         </button>
       </div>
     );
@@ -1433,7 +1586,7 @@ function FarmPage() {
             </button>
             ) : null}
           <button type="button" className="farm-page-btn ghost" onClick={() => navigate('/home')}>
-            Tableau de bord
+            Accueil
           </button>
           {isOwner ? (
             <button
@@ -1522,15 +1675,18 @@ function FarmPage() {
             onSiteClick={isOwner ? handleSiteClick : undefined}
             selectedSiteIndex={selectedSiteIndex}
             hoveredSiteIndex={hoveredSiteIndex}
-            onSiteHoverChange={(siteIndex) =>
-              setHoveredSiteState({
-                farmId: farm?.id ?? null,
-                siteIndex: Number.isInteger(siteIndex) ? siteIndex : null,
-              })
+            onSiteHoverChange={
+              isOwner
+                ? (siteIndex) =>
+                    setHoveredSiteState({
+                      farmId: farm?.id ?? null,
+                      siteIndex: Number.isInteger(siteIndex) ? siteIndex : null,
+                    })
+                : undefined
             }
-            onCenterClick={handleCenterClickFromHex}
-            centerAriaLabel="Ouvrir l'onglet customisation de la ferme"
-            getSiteAriaLabel={(siteIndex) => `Site ${siteIndex + 1}`}
+            onCenterClick={isOwner ? handleCenterClickFromHex : undefined}
+            centerAriaLabel={isOwner ? "Ouvrir l'onglet customisation de la ferme" : undefined}
+            getSiteAriaLabel={isOwner ? (siteIndex) => `Site ${siteIndex + 1}` : undefined}
             siteHoverHint={isOwner ? 'Cliquer pour personnaliser' : ''}
           />
         </div>
@@ -1582,6 +1738,7 @@ function FarmPage() {
               aria-selected={isCustomizationPanelActive}
               className={`farm-page-panel-tab ${isCustomizationPanelActive ? 'is-active' : ''}`}
               onClick={() => handlePanelTabChange(PANEL_TAB_CUSTOMIZATION)}
+              disabled={!isOwner}
             >
               Customisation
             </button>
@@ -1798,9 +1955,85 @@ function FarmPage() {
 
                   </div>
                 ) : (
-                  <p className="farm-page-overview-visitor-note">
-                    Cette ferme est actuellement <strong>{visibilityLabel.toLowerCase()}</strong>. Le propriétaire peut modifier cette option.
-                  </p>
+                  <div className="farm-page-owner-dashboard farm-page-owner-dashboard--visitor">
+                    <div className="farm-page-dashboard-top-cards" role="list" aria-label="Indicateurs publics de la ferme">
+                      <article className="farm-page-dashboard-stat-card" role="listitem">
+                        <p className="farm-page-dashboard-stat-title">
+                          <Users size={15} aria-hidden="true" />
+                          Population
+                        </p>
+                        <strong>{ownerDashboardStats.population}</strong>
+                        <span>Nombre total de bétails visibles</span>
+                      </article>
+
+                      <article className="farm-page-dashboard-stat-card" role="listitem">
+                        <p className="farm-page-dashboard-stat-title">
+                          <Building2 size={15} aria-hidden="true" />
+                          Sites habités
+                        </p>
+                        <strong>{ownerDashboardStats.inhabitedSites}</strong>
+                        <span>Sites contenant au moins un bétail</span>
+                      </article>
+                    </div>
+
+                    <section className="farm-page-dashboard-badges farm-page-badge-manager" aria-label="Badges équipés sur la ferme">
+                      <div className="farm-page-dashboard-badges-head">
+                        <p className="farm-page-dashboard-badges-title">Badges</p>
+                      </div>
+
+                      {badgesLoadError ? (
+                        <p className="farm-page-badge-state is-error">
+                          {badgesLoadError?.message || 'Impossible de charger les badges de la ferme.'}
+                        </p>
+                      ) : null}
+                      {isBadgesLoading ? <p className="farm-page-badge-state">Chargement des badges...</p> : null}
+
+                      <div className="farm-page-dashboard-badge-slots" role="list" aria-label="Slots badges de la ferme">
+                        {Array.from({ length: MAX_BADGE_SLOTS }, (_, index) => {
+                          const slot = index + 1;
+                          const badge = farmEquippedBySlot.get(slot);
+
+                          if (!badge) {
+                            return (
+                              <article
+                                key={`farm-slot-empty-visitor-${slot}`}
+                                className="farm-page-dashboard-badge-slot is-empty is-readonly"
+                                role="listitem"
+                              >
+                                <span className="farm-page-dashboard-badge-slot-label">Slot {slot}</span>
+                                <span className="farm-page-dashboard-badge-slot-hint">Vide</span>
+                              </article>
+                            );
+                          }
+
+                          return (
+                            <article
+                              key={`farm-slot-visitor-${badge.id}`}
+                              className={`farm-page-dashboard-badge-slot is-filled is-${badge.rarity}`}
+                              role="listitem"
+                            >
+                              <div
+                                className="farm-page-dashboard-badge-preview is-readonly"
+                                title={badge.name}
+                                aria-hidden="true"
+                              >
+                                {badge.imageUrl ? (
+                                  <img src={badge.imageUrl} alt={badge.filename} className="settings-badge-slot-image" loading="lazy" decoding="async" />
+                                ) : (
+                                  <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
+                                )}
+                              </div>
+                              <p className="farm-page-dashboard-badge-slot-label">Slot {slot}</p>
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+
+                    {visitorComparisonNote ? (
+                      <p className="farm-page-visitor-compare-note">{visitorComparisonNote}</p>
+                    ) : null}
+                  </div>
                 )}
               </div>
             ) : null}

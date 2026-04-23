@@ -6,36 +6,6 @@ import PasswordModal from './PasswordModal';
 import FarmCreationStepper from '../farms/FarmCreationStepper';
 import { useAuth } from './AuthContext';
 import { supabase } from './supabaseClient';
-import { readInitialSurpriseCode, redeemSurpriseCode } from './surpriseCode';
-
-const tryAutoRedeemSurpriseCode = async () => {
-  const code = readInitialSurpriseCode();
-  if (!code) return;
-
-  const result = await redeemSurpriseCode({
-    code,
-    source: 'auth_flow_oauth',
-  });
-
-  if (!result?.success || typeof window === 'undefined') return;
-
-  const awardedMoney = Number(result?.awarded_money || 0);
-  const awardedBadgeIds = Array.isArray(result?.awarded_badge_ids)
-    ? result.awarded_badge_ids.filter(Boolean)
-    : [result?.awarded_badge_id].filter(Boolean);
-  const rewards = [];
-  if (awardedMoney > 0) rewards.push(`+${awardedMoney} argent`);
-  if (awardedBadgeIds.length > 0) {
-    rewards.push(awardedBadgeIds.length > 1 ? `${awardedBadgeIds.length} badges` : '1 badge');
-  }
-  const rewardLabel = rewards.length ? rewards.join(' et ') : 'bonus applique';
-
-  window.dispatchEvent(
-    new CustomEvent('farmgestion-toast', {
-      detail: { type: 'success', message: `Code surprise applique: ${rewardLabel}.` },
-    }),
-  );
-};
 
 const AuthFlowManager = forwardRef((props, ref) => {
   const { user } = useAuth();
@@ -75,8 +45,6 @@ const AuthFlowManager = forwardRef((props, ref) => {
       const currentUser = session?.user;
       
       if (currentUser) {
-        await tryAutoRedeemSurpriseCode();
-
         const { data } = await supabase
           .from('users_profiles')
           .select('farm_id')

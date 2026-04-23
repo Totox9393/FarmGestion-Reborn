@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
@@ -20,7 +20,38 @@ import ShopPage from './features/boutique/ShopPage';
 import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
 import CommunityPage from './features/community/CommunityPage';
 import CommunityProfilePage from './features/community/CommunityProfilePage';
+import { useAuth } from './features/authentification/AuthContext';
+import { readInitialSurpriseCode, redeemSurpriseCode } from './features/authentification/surpriseCode';
 import './App.css';
+
+const SURPRISE_AUTO_REDEEM_PREFIX = 'farmgestion_surprise_auto_redeem_';
+
+const getAutoRedeemAttemptStorageKey = (userId, code) => {
+  const safeUserId = String(userId || '').trim();
+  const safeCode = String(code || '').trim();
+  if (!safeUserId || !safeCode) return '';
+  return `${SURPRISE_AUTO_REDEEM_PREFIX}${safeUserId}::${safeCode}`;
+};
+
+const hasAutoRedeemBeenAttempted = (userId, code) => {
+  const key = getAutoRedeemAttemptStorageKey(userId, code);
+  if (!key || typeof window === 'undefined') return false;
+  try {
+    return window.sessionStorage.getItem(key) === '1';
+  } catch {
+    return false;
+  }
+};
+
+const markAutoRedeemAsAttempted = (userId, code) => {
+  const key = getAutoRedeemAttemptStorageKey(userId, code);
+  if (!key || typeof window === 'undefined') return;
+  try {
+    window.sessionStorage.setItem(key, '1');
+  } catch {
+    // Ignore session storage issues.
+  }
+};
 
 const getStaticPageTitle = (pathname) => {
   if (pathname.startsWith('/betail-register')) return null;
@@ -50,7 +81,9 @@ const getStaticPageTitle = (pathname) => {
 
 function AppRoutes() {
   const location = useLocation();
+  const { user } = useAuth();
   const [toast, setToast] = useState(null);
+  const autoRedeemInFlightRef = useRef(new Set());
 
   useEffect(() => {
     const staticTitle = getStaticPageTitle(location.pathname);
@@ -238,6 +271,71 @@ function AppRoutes() {
       clearTimeout(hideTimer);
     };
   }, [toast?.message, toast?.type, toast?.visible]);
+
+  useEffect(() => {
+    const userId = String(user?.id || '').trim();
+    if (!userId) return;
+
+    const code = readInitialSurpriseCode();
+    if (!code) return;
+
+    if (hasAutoRedeemBeenAttempted(userId, code)) return;
+
+    const inFlightKey = `${userId}::${code}`;
+    if (autoRedeemInFlightRef.current.has(inFlightKey)) return;
+
+    markAutoRedeemAsAttempted(userId, code);
+    autoRedeemInFlightRef.current.add(inFlightKey);
+
+    (async () => {
+      try {
+        const result = await redeemSurpriseCode({
+          code,
+          source: 'app_auto_auth',
+        });
+
+        if (result?.error) {
+          setToast({
+            type: 'error',
+            message: 'Le code surprise n\'a pas pu etre applique pour le moment.',
+            visible: true,
+          });
+          return;
+        }
+
+        if (!result?.success) {
+          const reason = String(result?.reason || 'UNKNOWN').toUpperCase();
+          if (!reason.startsWith('ALREADY_REDEEMED_')) {
+            setToast({
+              type: 'warning',
+              message: `Code surprise non applique (${reason.toLowerCase()}).`,
+              visible: true,
+            });
+          }
+          return;
+        }
+
+        const awardedMoney = Number(result?.awarded_money || 0);
+        const awardedBadgeIds = Array.isArray(result?.awarded_badge_ids)
+          ? result.awarded_badge_ids.filter(Boolean)
+          : [result?.awarded_badge_id].filter(Boolean);
+        const rewards = [];
+        if (awardedMoney > 0) rewards.push(`+${awardedMoney} argent`);
+        if (awardedBadgeIds.length > 0) {
+          rewards.push(awardedBadgeIds.length > 1 ? `${awardedBadgeIds.length} badges` : '1 badge');
+        }
+        const rewardLabel = rewards.length ? rewards.join(' et ') : 'bonus applique';
+
+        setToast({
+          type: 'success',
+          message: `Code surprise applique: ${rewardLabel}.`,
+          visible: true,
+        });
+      } finally {
+        autoRedeemInFlightRef.current.delete(inFlightKey);
+      }
+    })();
+  }, [location.search, user?.id]);
 
   return (
     <>

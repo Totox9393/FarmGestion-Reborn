@@ -1038,16 +1038,21 @@ function CommunityProfilePage() {
               )}
             </section>
 
-            <section className="community-profile-pinned" aria-label="Betails epinglés">
+            <section className="community-profile-pinned" aria-label="Bétails épinglés">
               <div className="community-profile-pinned__head">
-                <h2><Pin size={16} /> Betails epinglés</h2>
+                <h2><Pin size={16} /> Bétails épinglés</h2>
               </div>
               {pinnedBetailsQuery.isLoading ? (
-                <p className="community-profile-pinned__state">Chargement des betails épinglés...</p>
+                <p className="community-profile-pinned__state">Chargement des bétails épinglés...</p>
               ) : pinnedBetailsQuery.isError ? (
-                <p className="community-profile-pinned__state is-error">Impossible de charger les betails épinglés.</p>
+                <p className="community-profile-pinned__state is-error">Impossible de charger les bétails épinglés.</p>
               ) : !pinnedBetails.length ? (
-                <p className="community-profile-pinned__state">Aucun betail épinglé pour le moment.</p>
+                <>
+                  <p className="community-profile-pinned__state">Aucun bétail épinglé pour le moment.</p>
+                  {isOwnProfile ? (
+                    <p className="community-profile-pinned__state-hint">ℹ️ Épingle jusqu'à 4 bétails dans "Mes bétails" pour les afficher ici.</p>
+                  ) : null}
+                </>
               ) : (
                 <div className="community-profile-pinned__grid">
                   {pinnedBetails.map((betail) => (

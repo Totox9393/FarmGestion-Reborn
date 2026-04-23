@@ -16,6 +16,12 @@
   min-width: 0;
 }
 
+.my-betails-pin-hint {
+  margin: 6px 0 0;
+  font-size: 0.86rem;
+  color: rgba(70, 52, 118, 0.78);
+}
+
 .my-betails-panel-column {
   position: sticky;
   top: calc(var(--nav-h, 58px) + 16px);

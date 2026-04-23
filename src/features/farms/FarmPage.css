@@ -21,6 +21,142 @@
   padding: 24px;
 }
 
+.farm-page--error {
+  gap: 12px;
+}
+
+.farm-page--error.is-not-found {
+  position: relative;
+  overflow: hidden;
+}
+
+.farm-page--error.is-not-found::before {
+  content: '';
+  position: absolute;
+  width: min(620px, 90vw);
+  height: min(620px, 90vw);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.36) 0%, rgba(255, 255, 255, 0) 72%);
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.farm-page--error.is-not-found > * {
+  position: relative;
+  z-index: 1;
+}
+
+.farm-page--error.is-not-found h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4.2vw, 3rem);
+  letter-spacing: 0.01em;
+  color: #2b1f58;
+}
+
+.farm-page-error-message {
+  margin: 2px 0 0;
+  font-size: 0.95rem;
+  color: rgba(49, 36, 98, 0.8);
+}
+
+.farm-page-not-found-visual {
+  display: grid;
+  place-items: center;
+  margin: 2px 0 4px;
+}
+
+.farm-page-not-found-hex {
+  position: relative;
+  width: min(300px, 78vw);
+  aspect-ratio: 1 / 1;
+}
+
+.farm-page-not-found-preview {
+  min-height: 100% !important;
+}
+
+.farm-page-not-found-preview .farm-design-preview__hexagon {
+  animation: none;
+}
+
+.farm-page-not-found-preview .farm-design-preview__media {
+  animation: none !important;
+}
+
+.farm-page-not-found-preview .farm-design-preview__emoji {
+  font-size: 2.5rem;
+  font-weight: 900;
+  animation: none !important;
+}
+
+.farm-page-not-found-mark {
+  position: absolute;
+  z-index: 3;
+  font-size: clamp(1rem, 2.4vw, 1.15rem);
+  font-weight: 900;
+  color: #4d3197;
+  text-shadow: 0 2px 10px rgba(255, 255, 255, 0.72);
+  pointer-events: none;
+  animation: farm-not-found-mark-bounce 1.5s ease-in-out infinite;
+}
+
+.farm-page-not-found-mark.is-site-1 {
+  left: 50%;
+  top: 19%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0s;
+}
+
+.farm-page-not-found-mark.is-site-2 {
+  left: 66%;
+  top: 33%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.16s;
+}
+
+.farm-page-not-found-mark.is-site-3 {
+  left: 66%;
+  top: 67%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.32s;
+}
+
+.farm-page-not-found-mark.is-site-4 {
+  left: 50%;
+  top: 81%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.48s;
+}
+
+.farm-page-not-found-mark.is-site-5 {
+  left: 34%;
+  top: 67%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.64s;
+}
+
+.farm-page-not-found-mark.is-site-6 {
+  left: 34%;
+  top: 33%;
+  transform: translate(-50%, -50%);
+  animation-delay: 0.8s;
+}
+
+@keyframes farm-not-found-mark-bounce {
+  0%,
+  100% {
+    transform: translate(-50%, -50%);
+    opacity: 0.78;
+  }
+
+  50% {
+    transform: translate(-50%, calc(-50% - 4px));
+    opacity: 1;
+  }
+}
+
 .farm-page-header {
   max-width: 1320px;
   margin: 0 auto 22px;
@@ -758,9 +894,18 @@
   align-content: center;
 }
 
+.farm-page-dashboard-badge-slot.is-empty.is-readonly {
+  cursor: default;
+}
+
 .farm-page-dashboard-badge-slot.is-empty:hover:not(:disabled) {
   border-color: rgba(86, 68, 184, 0.48);
   background: rgba(255, 255, 255, 0.95);
+}
+
+.farm-page-dashboard-badge-slot.is-empty.is-readonly:hover {
+  border-color: rgba(108, 84, 188, 0.28);
+  background: rgba(255, 255, 255, 0.84);
 }
 
 .farm-page-dashboard-badge-slot:disabled {
@@ -769,11 +914,8 @@
 }
 
 .farm-page-dashboard-badge-preview {
-  width: 42px;
-  height: 42px;
-  border-radius: 12px;
-  border: 1px solid rgba(108, 84, 188, 0.25);
-  background: rgba(255, 255, 255, 0.86);
+  border: 0;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -781,8 +923,30 @@
   cursor: pointer;
 }
 
-.farm-page-dashboard-badge-preview:hover:not(:disabled) {
-  border-color: rgba(86, 68, 184, 0.48);
+.farm-page-dashboard-badge-preview .settings-badge-slot-image,
+.farm-page-dashboard-badge-preview .settings-badge-slot-fallback {
+  width: 46px;
+  height: 46px;
+  border-radius: 10px;
+}
+
+.farm-page-dashboard-badge-preview .settings-badge-slot-image {
+  border: 0;
+  object-fit: cover;
+  box-shadow: 0 3px 10px rgba(32, 22, 76, 0.2);
+}
+
+.farm-page-dashboard-badge-preview .settings-badge-slot-fallback {
+  border: 1px dashed rgba(108, 84, 188, 0.36);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.farm-page-dashboard-badge-preview.is-readonly {
+  cursor: default;
+}
+
+.farm-page-dashboard-badge-preview:hover:not(:disabled):not(.is-readonly) {
+  transform: translateY(-1px);
 }
 
 .farm-page-dashboard-badge-preview:disabled {
@@ -801,6 +965,13 @@
   font-size: 0.68rem;
   font-weight: 700;
   color: rgba(73, 57, 145, 0.76);
+}
+
+.farm-page-visitor-compare-note {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: rgba(67, 51, 137, 0.82);
 }
 
 .farm-page-dashboard-badge-slot .settings-action {
@@ -2287,6 +2458,11 @@
 .auth-theme.galactic_theme .farm-page-dashboard-sites-title,
 .auth-theme.dark_theme .farm-page-dashboard-split-row p,
 .auth-theme.galactic_theme .farm-page-dashboard-split-row p,
+
+.auth-theme.dark_theme .farm-page-visitor-compare-note,
+.auth-theme.galactic_theme .farm-page-visitor-compare-note {
+  color: rgba(200, 222, 255, 0.84);
+}
 .auth-theme.dark_theme .farm-page-dashboard-site-row p,
 .auth-theme.galactic_theme .farm-page-dashboard-site-row p,
 .auth-theme.dark_theme .farm-page-dashboard-badge-slot-label,
@@ -2317,8 +2493,8 @@
 
 .auth-theme.dark_theme .farm-page-dashboard-badge-slot,
 .auth-theme.galactic_theme .farm-page-dashboard-badge-slot,
-.auth-theme.dark_theme .farm-page-dashboard-badge-preview,
-.auth-theme.galactic_theme .farm-page-dashboard-badge-preview {
+.auth-theme.dark_theme .farm-page-dashboard-badge-preview .settings-badge-slot-fallback,
+.auth-theme.galactic_theme .farm-page-dashboard-badge-preview .settings-badge-slot-fallback {
   border-color: rgba(160, 196, 255, 0.34);
   background: rgba(19, 31, 50, 0.88);
 }
@@ -2717,8 +2893,14 @@
   }
 
   .farm-page-dashboard-badge-preview {
-    width: 46px;
-    height: 46px;
+    min-width: 50px;
+    min-height: 50px;
+  }
+
+  .farm-page-dashboard-badge-preview .settings-badge-slot-image,
+  .farm-page-dashboard-badge-preview .settings-badge-slot-fallback {
+    width: 50px;
+    height: 50px;
   }
 
   .farm-page-dashboard-site-row p {

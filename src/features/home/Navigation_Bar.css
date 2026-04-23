@@ -1263,6 +1263,107 @@
   box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
 }
 
+.auth-theme.galactic_theme .nav-friends-panel {
+  background: #1e2a44;
+  border-color: rgba(141, 179, 255, 0.3);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.auth-theme.galactic_theme .nav-friends-badge {
+  border-color: #1e2a44;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+
+.auth-theme.galactic_theme .nav-friends-head h3,
+.auth-theme.galactic_theme .nav-friends-user {
+  color: #eaf2ff;
+}
+
+.auth-theme.galactic_theme .nav-friends-date,
+.auth-theme.galactic_theme .nav-friends-state {
+  color: #b8c9e9;
+}
+
+.auth-theme.galactic_theme .nav-friends-tab {
+  background: rgba(141, 179, 255, 0.16);
+  color: #eaf2ff;
+  border-color: rgba(141, 179, 255, 0.34);
+}
+
+.auth-theme.galactic_theme .nav-friends-tab.is-active {
+  background: rgba(141, 179, 255, 0.3);
+  border-color: rgba(176, 206, 255, 0.58);
+}
+
+.auth-theme.galactic_theme .nav-friends-item {
+  background: rgba(37, 49, 75, 0.92);
+  border-color: rgba(141, 179, 255, 0.3);
+}
+
+.auth-theme.galactic_theme .nav-friends-avatar {
+  border-color: rgba(141, 179, 255, 0.5);
+  background: rgba(141, 179, 255, 0.22);
+}
+
+.auth-theme.galactic_theme .nav-friends-list {
+  scrollbar-color: rgba(141, 179, 255, 0.66) rgba(141, 179, 255, 0.2);
+}
+
+.auth-theme.galactic_theme .nav-friends-list::-webkit-scrollbar-track {
+  background: rgba(141, 179, 255, 0.2);
+}
+
+.auth-theme.galactic_theme .nav-friends-list::-webkit-scrollbar-thumb {
+  background: rgba(141, 179, 255, 0.66);
+  background-clip: content-box;
+}
+
+.auth-theme.galactic_theme .nav-friends-action {
+  background: rgba(44, 58, 87, 0.95);
+  color: #eaf2ff;
+  border-color: rgba(141, 179, 255, 0.38);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--accept {
+  background: linear-gradient(135deg, rgba(53, 166, 122, 0.42), rgba(30, 104, 77, 0.64));
+  border-color: rgba(109, 226, 181, 0.56);
+  color: #d7ffee;
+  box-shadow: 0 7px 16px rgba(24, 103, 69, 0.38);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--accept:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(58, 184, 134, 0.54), rgba(34, 118, 88, 0.72));
+  border-color: rgba(138, 239, 201, 0.7);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--accept:focus,
+.auth-theme.galactic_theme .nav-friends-action--accept:focus-visible {
+  box-shadow: 0 0 0 3px rgba(116, 237, 196, 0.32), 0 9px 20px rgba(24, 103, 69, 0.42);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--reject {
+  background: linear-gradient(135deg, rgba(191, 83, 101, 0.36), rgba(124, 54, 70, 0.62));
+  border-color: rgba(255, 164, 181, 0.56);
+  color: #ffe2e8;
+  box-shadow: 0 7px 16px rgba(107, 37, 37, 0.35);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--reject:hover:not(:disabled) {
+  background: linear-gradient(135deg, rgba(209, 93, 114, 0.48), rgba(139, 60, 77, 0.72));
+  border-color: rgba(255, 186, 198, 0.68);
+}
+
+.auth-theme.galactic_theme .nav-friends-action--reject:focus,
+.auth-theme.galactic_theme .nav-friends-action--reject:focus-visible {
+  box-shadow: 0 0 0 3px rgba(255, 148, 169, 0.3), 0 9px 20px rgba(107, 37, 37, 0.4);
+}
+
+.auth-theme.galactic_theme .nav-friends-pending-tag {
+  background: rgba(44, 58, 87, 0.95);
+  color: #eaf2ff;
+  border-color: rgba(141, 179, 255, 0.38);
+}
+
 .auth-theme.galactic_theme .nav-user:hover {
   background: rgba(141, 179, 255, 0.2);
   border-color: rgba(141, 179, 255, 0.45);

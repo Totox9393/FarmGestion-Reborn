@@ -24,11 +24,14 @@ function HomeWelcomeHelpPurchaseSection({
   const renderPurchaseStage = () => {
     if (!activePhase) return null;
 
+    const stageSubtitle = activePhase?.description || schema[activePurchaseStep]?.text;
+
     const renderStageFrame = ({ stageClass, kicker, visual, note = null }) => (
       <div className={`home-help-stage ${stageClass}`} aria-live="polite">
         <div className="home-help-stage-card">
           <header className="home-help-stage-header">
             <p className="home-help-stage-kicker">{kicker}</p>
+            {stageSubtitle ? <p className="home-help-stage-subtitle">{stageSubtitle}</p> : null}
           </header>
 
           <div className="home-help-stage-visual" aria-hidden="true">
@@ -143,18 +146,14 @@ function HomeWelcomeHelpPurchaseSection({
               decoding="async"
             />
             <div className="home-help-purchase-drawer-meta">
-              <p><strong>Nom:</strong> {SELECTED_BETAIL_EXAMPLE.name}</p>
-              <p><strong>Matricule:</strong> {SELECTED_BETAIL_EXAMPLE.matricule}</p>
+              <p><strong>Nom :</strong> {SELECTED_BETAIL_EXAMPLE.name}</p>
+              <p><strong>Matricule :</strong> {SELECTED_BETAIL_EXAMPLE.matricule}</p>
               <p><strong>Âge:</strong> {SELECTED_BETAIL_EXAMPLE.age}</p>
             </div>
             <button type="button" className="home-help-purchase-buy is-pressing">
               <ShoppingCart size={14} />
               Acheter
             </button>
-            <p className="home-help-purchase-success">
-              <CheckCircle2 size={14} />
-              Achat validé
-            </p>
           </article>
         </div>
       ),
@@ -195,9 +194,6 @@ function HomeWelcomeHelpPurchaseSection({
           {isAnimationPaused ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
         </span>
         {renderPurchaseStage()}
-        <p className="home-help-creation-description">
-          {activePhase?.description || schema[activePurchaseStep]?.text}
-        </p>
       </div>
 
       <div className="home-help-creation-controls">

@@ -10,6 +10,7 @@ import {
   FileText,
   Gauge,
   Grip,
+  Home,
   ListChecks,
   Package,
   RefreshCcw,
@@ -1137,8 +1138,8 @@ function GCEPage() {
               Mes bétails
             </button>
             <button type="button" className="gce-nav-item" onClick={() => navigate('/home')}>
-              <Settings size={16} />
-              Tableau de bord
+              <Home size={16} />
+              Accueil
             </button>
           </div>
         </aside>

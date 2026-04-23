@@ -54,6 +54,29 @@ export const clearSurpriseCode = () => {
   }
 }
 
+const clearSurpriseParamsFromUrl = () => {
+  if (typeof window === 'undefined') return
+
+  try {
+    const url = new URL(window.location.href)
+    let hasChanges = false
+
+    for (const key of SURPRISE_CODE_QUERY_PARAMS) {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key)
+        hasChanges = true
+      }
+    }
+
+    if (!hasChanges) return
+
+    const nextUrl = `${url.pathname}${url.search}${url.hash}`
+    window.history.replaceState(window.history.state || {}, '', nextUrl)
+  } catch {
+    // Ignore history/url issues.
+  }
+}
+
 export const readInitialSurpriseCode = () => {
   if (typeof window === 'undefined') return ''
 
@@ -63,6 +86,7 @@ export const readInitialSurpriseCode = () => {
       const value = normalizeSurpriseCode(searchParams.get(key))
       if (value) {
         saveSurpriseCode(value)
+        clearSurpriseParamsFromUrl()
         return value
       }
     }

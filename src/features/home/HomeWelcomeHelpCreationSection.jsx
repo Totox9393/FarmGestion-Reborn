@@ -16,11 +16,14 @@ function HomeWelcomeHelpCreationSection({
   const renderCreationStage = () => {
     if (!activePhase) return null;
 
+    const stageSubtitle = activePhase?.description || schema[activeCreationStep]?.text;
+
     const renderStageFrame = ({ stageClass, kicker, visual, note = null, noteClassName = '' }) => (
       <div className={`home-help-stage ${stageClass}`} aria-live="polite">
         <div className="home-help-stage-card">
           <header className="home-help-stage-header">
             <p className="home-help-stage-kicker">{kicker}</p>
+            {stageSubtitle ? <p className="home-help-stage-subtitle">{stageSubtitle}</p> : null}
           </header>
 
           <div className="home-help-stage-visual" aria-hidden="true">
@@ -225,9 +228,6 @@ function HomeWelcomeHelpCreationSection({
           {isAnimationPaused ? <Pause size={14} aria-hidden="true" /> : <Play size={14} aria-hidden="true" />}
         </span>
         {renderCreationStage()}
-        <p className="home-help-creation-description">
-          {activePhase?.description || schema[activeCreationStep]?.text}
-        </p>
       </div>
 
       <div className="home-help-creation-controls">

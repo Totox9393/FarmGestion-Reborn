@@ -576,7 +576,7 @@ function MyBetailsPageQuery() {
   const selectedPurchasedAt = selectedDetails?.purchased_at || selectedBetail?.purchased_at
   const selectedComment = selectedDetails?.comments ?? selectedBetail?.comments ?? ''
   const selectedIsShippingScheduled = isBetailShippingScheduled(selectedBetail)
-  const selectedShippingLockReason = 'Bétail verrouillé: expédition déjà programmée.'
+  const selectedShippingLockReason = 'Bétail verrouillé : Expédition déjà programmée.'
   const selectedShippingScheduledDate = selectedBetail?.shipping_scheduled_for
     ? formatFrenchDate(selectedBetail.shipping_scheduled_for)
     : ''
@@ -1229,10 +1229,11 @@ function MyBetailsPageQuery() {
               <p className="betails-eyebrow">Inventaire</p>
               <h1 className="betails-title">Mes bétails</h1>
               <p className="betails-subtitle">{stats}</p>
+              <p className="my-betails-pin-hint">Les bétails épinglés remontent automatiquement sur ton profil.</p>
             </div>
             <div className="betails-actions my-betails-actions">
               <button type="button" className="betails-back" onClick={() => navigate('/home')}>
-                ← Retour au tableau de bord
+                ← Retour à l'accueil
               </button>
               <button
                 type="button"
@@ -1524,7 +1525,7 @@ function MyBetailsPageQuery() {
 
                       {selectedIsShippingScheduled ? (
                         <p className="my-betail-lock-hint" role="status" aria-live="polite">
-                          Ce bétail est verrouillé pendant l’expédition en cours.
+                          Bétail verrouillé : Expédition déjà programmée.
                         </p>
                       ) : null}
 

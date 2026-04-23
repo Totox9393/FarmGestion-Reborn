@@ -896,7 +896,7 @@ function FarmGestion_Home_Mere() {
         >
           <div className="home-hero__header">
             <div>
-              <p className="home-hero__eyebrow">Tableau de bord</p>
+              <p className="home-hero__eyebrow">FARMGESTION - Accueil</p>
               <h1 className="home-hero__title">Bienvenue, {profile.username || 'fermier·e'} !</h1>
             </div>
             <div className="home-hero__header-side">

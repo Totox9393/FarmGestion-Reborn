@@ -421,6 +421,13 @@
   color: var(--help-accent);
 }
 
+.home-help-stage-subtitle {
+  margin: 0;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--help-text-soft);
+}
+
 .home-help-stage-title {
   margin: 0;
   font-size: 0.92rem;
@@ -1926,6 +1933,23 @@
   box-shadow: 0 10px 20px rgba(8, 12, 20, 0.28);
 }
 
+.auth-theme.galactic_theme .home-hero__help-launch {
+  background: rgba(45, 62, 96, 0.88);
+  border-color: rgba(171, 200, 255, 0.52);
+  color: #eff6ff;
+}
+
+.auth-theme.galactic_theme .home-hero__help-launch:hover,
+.auth-theme.galactic_theme .home-hero__help-launch:focus-visible {
+  border-color: rgba(198, 220, 255, 0.72);
+  color: #ffffff;
+  box-shadow: 0 14px 24px rgba(8, 14, 26, 0.4);
+}
+
+.auth-theme.galactic_theme .home-hero__help-launch:focus-visible {
+  outline-color: rgba(176, 206, 255, 0.46);
+}
+
 .auth-theme.pastel_theme .home-hero__help-launch {
   background: rgba(255, 255, 255, 0.9);
   color: #7e3560;
@@ -2088,6 +2112,10 @@
     line-height: 1.18;
   }
 
+  .home-help-stage-subtitle {
+    font-size: 0.72rem;
+  }
+
   .home-help-stage-visual {
     align-items: stretch;
     justify-content: flex-start;
@@ -2219,6 +2247,10 @@
 
   .home-help-stage-kicker {
     font-size: 0.8rem;
+  }
+
+  .home-help-stage-subtitle {
+    font-size: 0.7rem;
   }
 
   .home-help-stage--farm-badges .home-help-farm-preview.is-static {

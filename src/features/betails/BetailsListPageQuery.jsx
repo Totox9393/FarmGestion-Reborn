@@ -665,7 +665,7 @@ function BetailsListPageQuery() {
             </div>
             <div className="betails-actions">
               <button type="button" className="betails-back" onClick={() => navigate('/home')}>
-                ← Retour au tableau de bord
+                ← Retour à l'accueil
               </button>
             </div>
           </header>
