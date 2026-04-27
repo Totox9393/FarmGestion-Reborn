@@ -22,6 +22,7 @@ import milo15 from '../../assets/img/milo_emotions/milo15.png';
 import milo16 from '../../assets/img/milo_emotions/milo16.png';
 import milo17 from '../../assets/img/milo_emotions/milo17.png';
 import milo18 from '../../assets/img/milo_emotions/milo18.png';
+import miloInterogation from '../../assets/milo_interogation.png';
 import HomeBlock3Count from './Home_Block3_Count';
 import HomeBlock4Farm from './Home_Block4_Farm';
 import AuthFlowManager from '../authentification/AuthFlowManager';
@@ -30,6 +31,7 @@ import { getShortVersionLabel } from '../utils/appVersion';
 
 function Home() {
   const versionBadgeLabel = getShortVersionLabel();
+  const homeRef = useRef(null);
   const sectionRefs = useRef([]);
   const [isDemon, setIsDemon] = React.useState(false);
   const [isFlash, setIsFlash] = React.useState(false);
@@ -58,12 +60,35 @@ function Home() {
     milo18,
   ];
 
+  const quickStartSteps = [
+    {
+      title: 'Créez votre ferme',
+      text: 'Choisissez son nom et son style visuel pour poser les bases de votre identité.',
+    },
+    {
+      title: 'Créez du bétail',
+      text: 'La clé de FarmGestion c\'est le bétail, créez des produits personnalisés et uniques.',
+    },
+    {
+      title: 'Agrémentez votre ferme',
+      text: 'Depuis le registre, achetez tous les bétails qui vous font envie pour enrichir votre ferme.',
+    },
+    {
+      title: 'Planifiez les expéditions',
+      text: 'Sur FarmGestion, vous devez expédier vos marchandises afin de gagner des 💸',
+    },
+  ];
+
   // Ces handlers délèguent à AuthFlowManager via ref
   const handleOpenLogin = () => {
     if (authFlowRef.current) authFlowRef.current.openLogin();
   };
   const handleOpenRegister = () => {
     if (authFlowRef.current) authFlowRef.current.openRegister();
+  };
+
+  const handleScrollToNextSection = () => {
+    sectionRefs.current[1]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   useEffect(() => {
@@ -75,7 +100,10 @@ function Home() {
           }
         });
       },
-      { threshold: 0.35 }
+      {
+        root: homeRef.current,
+        threshold: 0.2,
+      }
     );
 
     sectionRefs.current.forEach((section) => {
@@ -138,7 +166,7 @@ function Home() {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="home">
+    <div className="home" ref={homeRef}>
       <section
         className="home-section home-section-hero"
         ref={(el) => {
@@ -181,14 +209,55 @@ function Home() {
               Consulter le règlement
             </button>
           </div>
+
           <AuthFlowManager ref={authFlowRef} />
+        </div>
+
+        <button
+          type="button"
+          className="home-scroll-hint"
+          onClick={handleScrollToNextSection}
+          aria-label="Descendre vers la section suivante"
+        >
+          <span className="home-scroll-mouse" aria-hidden="true">
+            <span className="home-scroll-wheel" />
+          </span>
+          <span className="home-scroll-arrow" aria-hidden="true" />
+        </button>
+      </section>
+
+      <section
+        className="home-section home-section-quickstart"
+        ref={(el) => {
+          sectionRefs.current[1] = el;
+        }}
+      >
+        <div className="home-quickstart">
+          <div className="home-quickstart-header">
+            <img src={miloInterogation} alt="Milo interrogation" className="home-quickstart-milo" />
+            <p className="home-quickstart-eyebrow">Prise en main rapide</p>
+            <h2 className="home-quickstart-title">FarmGestion en 4 etapes</h2>
+            <p className="home-quickstart-subtitle">
+              Une boucle simple a comprendre, avec juste ce qu il faut pour bien demarrer.
+            </p>
+          </div>
+
+          <div className="home-quickstart-grid">
+            {quickStartSteps.map((step, index) => (
+              <article key={step.title} className="home-quickstart-card">
+                <span className="home-quickstart-number">{String(index + 1).padStart(2, '0')}</span>
+                <h3>{step.title}</h3>
+                <p>{step.text}</p>
+              </article>
+            ))}
+          </div>
         </div>
       </section>
 
       <section
         className="home-section home-section-secondary"
         ref={(el) => {
-          sectionRefs.current[1] = el;
+          sectionRefs.current[2] = el;
         }}
       >
         <div className="home-secondary">
@@ -226,7 +295,7 @@ function Home() {
       <section
         className="home-section home-section-count"
         ref={(el) => {
-          sectionRefs.current[2] = el;
+          sectionRefs.current[3] = el;
         }}
       >
         <HomeBlock3Count />
@@ -235,7 +304,7 @@ function Home() {
       <section
         className="home-section home-section-farm"
         ref={(el) => {
-          sectionRefs.current[3] = el;
+          sectionRefs.current[4] = el;
         }}
       >
         <HomeBlock4Farm />

@@ -18,7 +18,7 @@ dist-ssr
 .env.production
 .env*.local
 
-.md
+*.md
 .sql
 
 # Editor directories and files

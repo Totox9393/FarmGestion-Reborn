@@ -288,10 +288,12 @@
 
   .home-farm-visual {
     order: -1;
+    padding-bottom: 72px;
   }
 
   .farm-core-menu {
-    transform: translate(-6px, 88px) scale(0.96);
+    min-width: 158px;
+    transform: translate(-6px, 56px) scale(0.96);
   }
 
   .home-section-farm.is-visible .farm-core-menu {
@@ -302,10 +304,10 @@
 @keyframes farm-menu-pop-mobile {
   0% {
     opacity: 0;
-    transform: translate(-6px, 88px) scale(0.92);
+    transform: translate(-6px, 56px) scale(0.92);
   }
   100% {
     opacity: 1;
-    transform: translate(-6px, 88px) scale(1);
+    transform: translate(-6px, 56px) scale(1);
   }
 }
