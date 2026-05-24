@@ -14,6 +14,7 @@ import AuthenticatedLayout from './features/home/AuthenticatedLayout';
 import RulesPage from './features/other/RulesPage';
 import TestSurpriseDemoPage from './features/other/TestSurpriseDemoPage';
 import MaintenancePage from './features/other/MaintenancePage';
+import RevealIpPage from './features/other/RevealIpPage';
 import NotFoundPage from './features/other/NotFoundPage';
 import FarmPage from './features/farms/FarmPage';
 import ShopPage from './features/boutique/ShopPage';
@@ -342,6 +343,7 @@ function AppRoutes() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/maintenance" element={<MaintenancePage />} />
+        <Route path="/ip-fg-atelier-7x" element={<RevealIpPage />} />
         <Route
           path="/test"
           element={

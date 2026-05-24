@@ -1940,6 +1940,18 @@
   color: #c8d9ef;
 }
 
+.auth-theme.dark_theme .gce-tooltip-note,
+.auth-theme.galactic_theme .gce-tooltip-note {
+  background: rgba(13, 19, 29, 0.96);
+  border-color: rgba(155, 180, 214, 0.24);
+}
+
+.auth-theme.dark_theme .gce-tooltip-avatar,
+.auth-theme.galactic_theme .gce-tooltip-avatar {
+  background: #172133;
+  border-color: rgba(155, 180, 214, 0.24);
+}
+
 .auth-theme.dark_theme .gce-progress-track,
 .auth-theme.galactic_theme .gce-progress-track {
   background: rgba(132, 167, 231, 0.22);

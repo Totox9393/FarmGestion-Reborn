@@ -5,6 +5,8 @@ import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import './index.css'
 import App from './App.jsx'
 
+document.documentElement.dataset.build = 'mime-hotfix-20260427-1'
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

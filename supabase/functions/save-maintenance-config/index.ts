@@ -215,6 +215,113 @@ const isValidIpOrCidr = (value: string) => {
   return isValidIpv6WithOptionalCidr(normalized);
 };
 
+const getIpVersion = (value: string): 4 | 6 | null => {
+  const normalized = normalizeMaybeIp(value);
+  if (!normalized) return null;
+  if (IPV4_CIDR_REGEX.test(normalized)) return 4;
+  if (isValidIpv6WithOptionalCidr(normalized)) return 6;
+  return null;
+};
+
+const parseIpv4ToInt = (value: string): number | null => {
+  const normalized = normalizeMaybeIp(value);
+  const base = normalized.split("/")[0];
+  const parts = base.split(".");
+  if (parts.length !== 4) return null;
+  const nums = parts.map((part) => Number(part));
+  if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
+  return ((nums[0] << 24) >>> 0) + ((nums[1] << 16) >>> 0) + ((nums[2] << 8) >>> 0) + nums[3];
+};
+
+const parseIpv6ToHextets = (value: string): number[] | null => {
+  const normalized = normalizeMaybeIp(value);
+  const base = normalized.split("/")[0].toLowerCase();
+  if (!base || !base.includes(":")) return null;
+
+  const [leftRaw, rightRaw] = base.split("::");
+  if (base.split("::").length > 2) return null;
+
+  const parseSide = (side: string) => {
+    if (!side) return [] as number[];
+    const tokens = side.split(":").filter(Boolean);
+    const out: number[] = [];
+    for (const token of tokens) {
+      if (token.includes(".")) {
+        const v4 = parseIpv4ToInt(token);
+        if (v4 === null) return null;
+        out.push((v4 >>> 16) & 0xffff, v4 & 0xffff);
+        continue;
+      }
+      const n = Number.parseInt(token, 16);
+      if (!Number.isInteger(n) || n < 0 || n > 0xffff) return null;
+      out.push(n);
+    }
+    return out;
+  };
+
+  const left = parseSide(leftRaw || "");
+  if (!left) return null;
+  const right = parseSide(rightRaw || "");
+  if (!right) return null;
+
+  if (base.includes("::")) {
+    const missing = 8 - (left.length + right.length);
+    if (missing < 1) return null;
+    return [...left, ...new Array(missing).fill(0), ...right];
+  }
+
+  if (left.length !== 8) return null;
+  return left;
+};
+
+const parseIpv6ToBigInt = (value: string): bigint | null => {
+  const hextets = parseIpv6ToHextets(value);
+  if (!hextets || hextets.length !== 8) return null;
+  return hextets.reduce((acc, part) => (acc << 16n) + BigInt(part), 0n);
+};
+
+const isRequesterIpAllowedByEntry = (requesterIp: string, entryValue: string) => {
+  const requester = normalizeMaybeIp(requesterIp);
+  const entry = normalizeMaybeIp(entryValue);
+  if (!requester || !entry) return false;
+
+  const [entryBase, entryPrefixRaw] = entry.split("/");
+  const requesterVersion = getIpVersion(requester);
+  const entryVersion = getIpVersion(entryBase);
+  if (!requesterVersion || !entryVersion || requesterVersion !== entryVersion) return false;
+
+  if (entryPrefixRaw === undefined) {
+    return requester.toLowerCase() === entryBase.toLowerCase();
+  }
+
+  const prefix = Number(entryPrefixRaw);
+  if (!Number.isInteger(prefix)) return false;
+
+  if (requesterVersion === 4) {
+    if (prefix < 0 || prefix > 32) return false;
+    const requesterInt = parseIpv4ToInt(requester);
+    const entryInt = parseIpv4ToInt(entryBase);
+    if (requesterInt === null || entryInt === null) return false;
+    const mask = prefix === 0 ? 0 : ((0xffffffff << (32 - prefix)) >>> 0);
+    return (requesterInt & mask) === (entryInt & mask);
+  }
+
+  if (prefix < 0 || prefix > 128) return false;
+  const requesterBig = parseIpv6ToBigInt(requester);
+  const entryBig = parseIpv6ToBigInt(entryBase);
+  if (requesterBig === null || entryBig === null) return false;
+  const shift = BigInt(128 - prefix);
+  if (prefix === 0) return true;
+  return (requesterBig >> shift) === (entryBig >> shift);
+};
+
+const buildIpv6Prefix64 = (value: string) => {
+  const hextets = parseIpv6ToHextets(value);
+  if (!hextets || hextets.length !== 8) return "";
+  const left = hextets.slice(0, 4).map((part) => part.toString(16));
+  return `${left.join(":")}::/64`;
+};
+
 const extractRequesterIp = (req: Request) => {
   const headerCandidates = [
     req.headers.get("CF-Connecting-IP"),
@@ -568,10 +675,11 @@ serve(async (req: Request) => {
       const listId = await resolveAllowlistId();
       const items = await fetchAllowlistItems(listId);
       const requesterIp = extractRequesterIp(req);
-      const requesterIpLower = requesterIp.toLowerCase();
       const requesterAllowed = requesterIp
-        ? items.some((item) => String(item.value || "").trim().toLowerCase() === requesterIpLower)
+        ? items.some((item) => isRequesterIpAllowedByEntry(requesterIp, String(item.value || "")))
         : false;
+      const requesterVersion = requesterIp ? getIpVersion(requesterIp) : null;
+      const suggestedIpv6Prefix64 = requesterVersion === 6 ? buildIpv6Prefix64(requesterIp) : "";
 
       return jsonResponse(200, {
         success: true,
@@ -581,6 +689,8 @@ serve(async (req: Request) => {
           items,
           total: items.length,
           requester_ip: requesterIp || null,
+          requester_ip_version: requesterVersion,
+          requester_suggested_ipv6_prefix_64: suggestedIpv6Prefix64 || null,
           requester_allowed: requesterAllowed,
         },
       });
@@ -607,27 +717,46 @@ serve(async (req: Request) => {
     try {
       const listId = await resolveAllowlistId();
       const currentItems = await fetchAllowlistItems(listId);
-      const normalizedSource = sourceIp.toLowerCase();
-      const duplicate = currentItems.find((item) => String(item.value || "").trim().toLowerCase() === normalizedSource);
-      if (duplicate) {
+      const sourceVersion = getIpVersion(sourceIp);
+
+      const requestedValues = [sourceIp];
+      if (payload.action === "allowlist_add_my_ip" && sourceVersion === 6) {
+        const prefix64 = buildIpv6Prefix64(sourceIp);
+        if (prefix64) requestedValues.push(prefix64);
+      }
+
+      const uniqueRequested = Array.from(new Set(requestedValues.map((value) => normalizeMaybeIp(value)).filter(Boolean)));
+      const valuesToAdd = uniqueRequested.filter(
+        (value) => !currentItems.some((item) => isRequesterIpAllowedByEntry(value, String(item.value || ""))),
+      );
+
+      if (!valuesToAdd.length) {
         return jsonResponse(409, {
           success: false,
-          error: "IP already in allowlist.",
+          error: "IP deja couverte par la allowlist.",
         });
       }
 
-      await addAllowlistIp(listId, sourceIp, payload.comment || "");
+      for (const value of valuesToAdd) {
+        const comment = value.includes("/64")
+          ? (payload.comment || "auto_ipv6_prefix_64")
+          : (payload.comment || "");
+        await addAllowlistIp(listId, value, comment);
+      }
 
       let nextItems = await fetchAllowlistItems(listId);
       for (let attempt = 0; attempt < 4; attempt += 1) {
-        const hasIp = nextItems.some((item) => String(item.value || "").trim().toLowerCase() === normalizedSource);
-        if (hasIp) break;
+        const allPresent = valuesToAdd.every((value) =>
+          nextItems.some((item) => isRequesterIpAllowedByEntry(value, String(item.value || ""))),
+        );
+        if (allPresent) break;
         await pause(220);
         nextItems = await fetchAllowlistItems(listId);
       }
 
       return jsonResponse(200, {
         success: true,
+        added_values: valuesToAdd,
         allowlist: {
           list_id: listId,
           items: nextItems,

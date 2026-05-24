@@ -26,6 +26,7 @@ const ROTATION_RULES = {
 }
 
 const SHOP_CATEGORIES = ['1_common', '2_rare', '3_epic', '4_legendary']
+const MAX_ROTATION_BADGES = 15
 
 const emitToast = (type, message) => {
   if (typeof window === 'undefined') return
@@ -83,41 +84,61 @@ const formatCountdown = (totalSeconds) => {
   return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
 }
 
-const buildDailyRotationIds = (allAvailableBadges, dayKey) => {
-  if (!Array.isArray(allAvailableBadges) || !allAvailableBadges.length) return []
+const sortRotationBadges = (items) => {
+  return [...items].sort((a, b) => {
+    const rarityDiff = (BADGE_RARITY_ORDER[b?.rarity] || 0) - (BADGE_RARITY_ORDER[a?.rarity] || 0)
+    if (rarityDiff !== 0) return rarityDiff
+    if (a?.price !== b?.price) return (Number(a?.price) || 0) - (Number(b?.price) || 0)
+    const filenameDiff = String(a?.filename || '').localeCompare(String(b?.filename || ''), 'fr')
+    if (filenameDiff !== 0) return filenameDiff
+    return String(a?.id || '').localeCompare(String(b?.id || ''), 'fr')
+  })
+}
+
+const buildDailyRotationIds = (allCatalogBadges, dayKey) => {
+  const sortedCatalog = sortRotationBadges(
+    (allCatalogBadges || []).filter((badge) => typeof badge?.id === 'string' && badge.id.length > 0),
+  )
+  if (!sortedCatalog.length) return []
 
   const rng = createSeededRandom(getSeedFromDayKey(dayKey))
-  const selected = []
+  const selectedById = new Map()
 
   SHOP_CATEGORIES.forEach((category) => {
+    if (selectedById.size >= MAX_ROTATION_BADGES) return
+
     const rule = ROTATION_RULES[category]
     if (!rule) return
     if (rng() > rule.chance) return
 
-    const categoryBadges = allAvailableBadges.filter((badge) => badge.rarity === category)
+    const categoryBadges = sortedCatalog.filter(
+      (badge) => badge.rarity === category && !selectedById.has(badge.id),
+    )
     if (!categoryBadges.length) return
 
-    const count = Math.min(categoryBadges.length, randomInt(rng, rule.min, rule.max))
-    selected.push(...pickUniqueIds(rng, categoryBadges, count))
+    const count = Math.min(
+      categoryBadges.length,
+      randomInt(rng, rule.min, rule.max),
+      MAX_ROTATION_BADGES - selectedById.size,
+    )
+
+    pickUniqueIds(rng, categoryBadges, count).forEach((badge) => {
+      selectedById.set(badge.id, badge)
+    })
   })
 
-  const rows = selected.length ? selected : allAvailableBadges.slice(0, Math.min(10, allAvailableBadges.length))
-  return rows
-    .sort((a, b) => {
-      const rarityDiff = (BADGE_RARITY_ORDER[b.rarity] || 0) - (BADGE_RARITY_ORDER[a.rarity] || 0)
-      if (rarityDiff !== 0) return rarityDiff
-      if (a.price !== b.price) return a.price - b.price
-      return a.filename.localeCompare(b.filename, 'fr')
+  const remainingSlots = MAX_ROTATION_BADGES - selectedById.size
+  if (remainingSlots > 0) {
+    const remainingBadges = sortedCatalog.filter((badge) => !selectedById.has(badge.id))
+    pickUniqueIds(rng, remainingBadges, remainingSlots).forEach((badge) => {
+      selectedById.set(badge.id, badge)
     })
+  }
+
+  return sortRotationBadges(Array.from(selectedById.values()))
+    .slice(0, MAX_ROTATION_BADGES)
     .map((badge) => badge.id)
 }
-
-const parseRotationIds = (value) => {
-  if (!Array.isArray(value)) return []
-  return value.filter((item) => typeof item === 'string' && item.length > 0)
-}
-
-const getRotationStorageKey = (dayKey) => `farmgestion_badges_rotation_ids_${dayKey}`
 
 function ShopPage() {
   const { user } = useAuth()
@@ -264,30 +285,7 @@ function ShopPage() {
       return
     }
 
-    const storageKey = getRotationStorageKey(dayKey)
-    let nextIds = []
-
-    if (typeof window !== 'undefined') {
-      const raw = window.localStorage.getItem(storageKey)
-      if (raw) {
-        try {
-          nextIds = parseRotationIds(JSON.parse(raw))
-        } catch {
-          nextIds = []
-        }
-      }
-    }
-
-    if (!nextIds.length) {
-      const availableBadges = catalogBadges.filter((badge) => badge.stockLeft > 0)
-      nextIds = buildDailyRotationIds(availableBadges, dayKey)
-
-      if (typeof window !== 'undefined') {
-        window.localStorage.setItem(storageKey, JSON.stringify(nextIds))
-      }
-    }
-
-    setRotationBadgeIds(nextIds)
+    setRotationBadgeIds(buildDailyRotationIds(catalogBadges, dayKey))
   }, [catalogBadges, dayKey])
 
   const requestBuyBadge = (badge) => {

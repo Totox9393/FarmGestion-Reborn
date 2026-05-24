@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { RefreshCcw, X } from 'lucide-react';
+import { ChevronDown, RefreshCcw, X } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl, normalizeBadgeCatalogRow, sortBadgesByRarityThenName } from '../badges';
 
@@ -470,6 +470,31 @@ const uploadBadgeImageToBucket = async ({ file, rarity, preferredFilename }) => 
   throw new Error(`Upload bucket impossible: ${errorMessage}`);
 };
 
+const moveBadgeImageInBucket = async ({ filename, fromRarity, toRarity }) => {
+  const safeFilename = normalizeFilenameInput(filename);
+  const safeFromRarity = String(fromRarity || '').trim();
+  const safeToRarity = String(toRarity || '').trim();
+
+  if (!safeFilename) throw new Error('Nom de fichier badge manquant pour le déplacement bucket.');
+  if (!safeFromRarity || !safeToRarity) throw new Error('Rareté source ou destination manquante pour le déplacement bucket.');
+
+  const fromPath = `${safeFromRarity}/${safeFilename}`;
+  const toPath = `${safeToRarity}/${safeFilename}`;
+
+  if (fromPath === toPath) {
+    return { path: toPath, moved: false };
+  }
+
+  const storage = supabase.storage.from(BADGES_BUCKET);
+  const { error } = await storage.move(fromPath, toPath);
+  if (error) {
+    const message = String(error?.message || 'Déplacement bucket impossible.');
+    throw new Error(`Déplacement bucket impossible: ${message}`);
+  }
+
+  return { path: toPath, moved: true, fromPath, toPath };
+};
+
 function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
   const queryClient = useQueryClient();
   const [feedback, setFeedback] = useState({ type: '', message: '' });
@@ -489,6 +514,7 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
   const [isShopVisible, setIsShopVisible] = useState(true);
   const [stockIncreaseById, setStockIncreaseById] = useState({});
   const [confirmDeleteBadgeId, setConfirmDeleteBadgeId] = useState('');
+  const [expandedBadgeDetails, setExpandedBadgeDetails] = useState({});
 
   useEffect(() => {
     if (!isActive) return;
@@ -558,6 +584,8 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
 
       let finalFilename = normalizeFilenameInput(filename);
       let uploadedPath = '';
+      let movedBucketPath = '';
+      let movedBucketFromPath = '';
 
       try {
         if (sourceMode === 'upload') {
@@ -573,6 +601,14 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
           uploadedPath = uploaded.path;
         } else if (!finalFilename) {
           throw new Error('Charge un badge du bucket ou saisis un nom de fichier.');
+        } else if (bucketPreview?.filename && bucketPreview?.rarity) {
+          const moved = await moveBadgeImageInBucket({
+            filename: finalFilename,
+            fromRarity: bucketPreview.rarity,
+            toRarity: safeRarity,
+          });
+          movedBucketPath = moved.path || '';
+          movedBucketFromPath = moved.fromPath || '';
         }
 
         const safeDisplayName = safeName || stripFileExtension(finalFilename);
@@ -592,6 +628,9 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
       } catch (error) {
         if (uploadedPath) {
           await supabase.storage.from(BADGES_BUCKET).remove([uploadedPath]).catch(() => {});
+        }
+        if (movedBucketPath && movedBucketFromPath) {
+          await supabase.storage.from(BADGES_BUCKET).move(movedBucketPath, movedBucketFromPath).catch(() => {});
         }
         throw error;
       }
@@ -787,6 +826,17 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
     if (filename && rarity) return getBadgeImageUrl(filename, rarity);
     return '';
   }, [bucketPreview?.imageUrl, filename, rarity, sourceMode, uploadPreviewUrl]);
+  const bucketMoveSummary = useMemo(() => {
+    if (sourceMode !== 'bucket' || !bucketPreview?.filename || !bucketPreview?.rarity || !rarity) {
+      return '';
+    }
+
+    if (bucketPreview.rarity === rarity) {
+      return `Le badge restera dans le dossier ${BADGE_RARITY_LABELS[rarity] || rarity}.`;
+    }
+
+    return `Le badge sera déplacé du dossier ${BADGE_RARITY_LABELS[bucketPreview.rarity] || bucketPreview.rarity} vers ${BADGE_RARITY_LABELS[rarity] || rarity} au moment de la création.`;
+  }, [bucketPreview?.filename, bucketPreview?.rarity, rarity, sourceMode]);
   const stockSuggestion = useMemo(() => buildSuggestionsFromStock(stockTotal), [stockTotal]);
   const hasDisplayName = Boolean(name.trim());
   const hasAssetSource = sourceMode === 'upload' ? Boolean(uploadFile) : Boolean(filename.trim());
@@ -1084,6 +1134,9 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
                 <p className="settings-item-subtitle">
                   Mode manuel: rareté {isRarityManual ? 'actif' : 'auto'} | prix {isPriceManual ? 'actif' : 'auto'}
                 </p>
+                {bucketMoveSummary ? (
+                  <p className="settings-item-subtitle">{bucketMoveSummary}</p>
+                ) : null}
               </div>
             </aside>
           </div>
@@ -1157,6 +1210,11 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
         </button>
       </div>
 
+      <p className="settings-admin-badges-count" aria-live="polite">
+        {filteredBadges.length} badge{filteredBadges.length > 1 ? 's' : ''}
+        {searchValue.trim() ? ` affiché${filteredBadges.length > 1 ? 's' : ''} sur ${badgesQuery.data?.badges?.length || 0}` : ''}
+      </p>
+
       {badgesQuery.isLoading ? <p className="settings-loading">Chargement des badges...</p> : null}
       {badgesQuery.error ? (
         <p className="settings-admin-feedback is-error">{badgesQuery.error?.message || 'Chargement badges impossible.'}</p>
@@ -1168,6 +1226,7 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
           const canAddBadge = badge.stockLeft < badge.stockTotal;
           const realSoldCount = Number(soldCountsQuery.data?.[badge.id] ?? badge.soldCount ?? 0);
           const isDeleteConfirmOpen = confirmDeleteBadgeId === badge.id;
+          const isDetailsOpen = expandedBadgeDetails[badge.id] === true;
           return (
             <article key={badge.id} className={`settings-admin-badge-row is-${badge.rarity}`}>
               <button
@@ -1195,18 +1254,54 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
                 ) : (
                   <span className="settings-badge-slot-fallback settings-admin-badge-avatar" aria-hidden="true">?</span>
                 )}
-                <div>
-                  <p className="settings-item-title">{badge.name}</p>
-                  <p className="settings-item-subtitle">{badge.filename}</p>
-                  <p className="settings-item-subtitle">
-                    {badge.rarityLabel} | Prix: {Number(badge.price || 0).toLocaleString('fr-FR')} 💸
-                  </p>
-                  <p className="settings-item-subtitle">
-                    Stock: {badge.stockLeft}/{badge.stockTotal} (vendus: {realSoldCount}) {badge.isActive ? '' : '| Inactif'}
-                  </p>
-                  <p className="settings-item-subtitle">
-                    Boutique: {badge.isShopVisible === false ? 'non visible' : 'visible'}
-                  </p>
+                <div className="settings-admin-badge-content">
+                  <div className="settings-admin-badge-heading">
+                    <div>
+                      <p className="settings-item-title">{badge.name}</p>
+                      <p className="settings-item-subtitle">{badge.filename}</p>
+                    </div>
+                    {!badge.isActive ? <span className="settings-admin-badge-state">Inactif</span> : null}
+                  </div>
+
+                  <div className="settings-admin-badge-details-wrap">
+                    <button
+                      type="button"
+                      className={`settings-admin-badge-details-toggle ${isDetailsOpen ? 'is-open' : ''}`}
+                      onClick={() =>
+                        setExpandedBadgeDetails((current) => ({
+                          ...current,
+                          [badge.id]: !current[badge.id],
+                        }))
+                      }
+                      aria-expanded={isDetailsOpen}
+                      aria-controls={`settings-admin-badge-details-${badge.id}`}
+                    >
+                      <span>{isDetailsOpen ? 'Masquer les détails' : 'Voir les détails'}</span>
+                      <ChevronDown size={14} aria-hidden="true" />
+                    </button>
+
+                    {isDetailsOpen ? (
+                      <div
+                        id={`settings-admin-badge-details-${badge.id}`}
+                        className="settings-admin-badge-details-popover"
+                      >
+                        <div className="settings-admin-badge-detail-row">
+                          <span className="settings-item-subtitle">Rareté</span>
+                          <strong className="settings-admin-badge-detail-value">{badge.rarityLabel}</strong>
+                        </div>
+                        <div className="settings-admin-badge-detail-row">
+                          <span className="settings-item-subtitle">Prix</span>
+                          <strong className="settings-admin-badge-detail-value">
+                            {Number(badge.price || 0).toLocaleString('fr-FR')} 💸
+                          </strong>
+                        </div>
+                        <div className="settings-admin-badge-detail-row">
+                          <span className="settings-item-subtitle">Vendus</span>
+                          <strong className="settings-admin-badge-detail-value">{realSoldCount}</strong>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -1237,51 +1332,76 @@ function Settings_AdminBadgesPanel({ isActive, canAccessAdministration }) {
                   </div>
                 ) : (
                   <div className="settings-admin-badge-stock-panel">
-                    <p className="settings-admin-badge-stock-help">
-                      Quantite a appliquer
-                    </p>
-                    <div className="settings-admin-badge-stock-edit">
-                      <input
-                        type="number"
-                        className="settings-admin-badge-input"
-                        min={1}
-                        step={1}
-                        value={stockInput}
-                        onChange={(event) =>
-                          setStockIncreaseById((current) => ({
-                            ...current,
-                            [badge.id]: event.target.value,
-                          }))
-                        }
-                        disabled={isMutating}
-                      />
-                      <button
-                        type="button"
-                        className="settings-action settings-action--tiny"
-                        onClick={() => handleAddBadge(badge, canAddBadge)}
-                        disabled={isMutating || !canAddBadge}
-                        title={canAddBadge ? 'Ajoute des badges disponibles sans changer la capacite' : 'Stock deja plein'}
+                    <div className="settings-admin-badge-visibility-toggle">
+                      <div>
+                        <p className="settings-item-subtitle settings-admin-badge-toggle-title">Visible en boutique</p>
+                        <p className="settings-item-subtitle">
+                          {badge.isShopVisible === false ? 'Masqué dans la boutique' : 'Affiché dans la boutique'}
+                        </p>
+                      </div>
+                      <label className={`settings-switch ${isMutating ? 'is-busy' : ''}`} title="Rendre ce badge visible ou non dans la boutique">
+                        <input
+                          type="checkbox"
+                          checked={badge.isShopVisible !== false}
+                          onChange={() => toggleShopVisibilityMutation.mutate({ badgeId: badge.id, nextVisible: badge.isShopVisible === false })}
+                          disabled={isMutating || !supportsShopVisibility}
+                          aria-label={badge.isShopVisible === false ? 'Rendre visible en boutique' : 'Masquer de la boutique'}
+                        />
+                        <span className="settings-slider" />
+                      </label>
+                    </div>
+
+                    <div className="settings-admin-badge-stock-cluster">
+                      <p className="settings-item-subtitle settings-admin-badge-stock-help settings-admin-badge-stock-label">
+                        Stock
+                      </p>
+                      <div className="settings-admin-badge-stock-line-actions">
+                        <p className="settings-item-subtitle settings-admin-badge-stock-summary">
+                          <strong>{badge.stockLeft}/{badge.stockTotal}</strong>
+                        </p>
+                        <button
+                          type="button"
+                          className="settings-action settings-action--tiny"
+                          onClick={() => handleIncreaseStock(badge)}
+                          disabled={isMutating}
+                          title="Augmente la capacite maximale du stock"
+                        >
+                          Augmenter capacité
+                        </button>
+                      </div>
+
+                      <label
+                        className="settings-admin-badge-stock-help settings-admin-badge-stock-label"
+                        htmlFor={`settings-admin-stock-${badge.id}`}
                       >
-                        Ajouter badge
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-action settings-action--tiny"
-                        onClick={() => toggleShopVisibilityMutation.mutate({ badgeId: badge.id, nextVisible: badge.isShopVisible === false })}
-                        disabled={isMutating || !supportsShopVisibility}
-                        title="Rendre ce badge visible ou non dans la boutique"
-                      >
-                        {badge.isShopVisible === false ? 'Rendre visible boutique' : 'Masquer de la boutique'}
-                      </button>
-                      <button
-                        type="button"
-                        className="settings-action settings-action--tiny"
-                        onClick={() => handleIncreaseStock(badge)}
-                        disabled={isMutating}
-                        title="Augmente la capacite maximale du stock"
-                      >
-                        Augmenter capacite
-                      </button>
+                        Quantité
+                      </label>
+                      <div className="settings-admin-badge-stock-edit settings-admin-badge-stock-edit--compact">
+                        <input
+                          id={`settings-admin-stock-${badge.id}`}
+                          type="number"
+                          className="settings-admin-badge-input"
+                          min={1}
+                          step={1}
+                          value={stockInput}
+                          onChange={(event) =>
+                            setStockIncreaseById((current) => ({
+                              ...current,
+                              [badge.id]: event.target.value,
+                            }))
+                          }
+                          disabled={isMutating}
+                        />
+                        <button
+                          type="button"
+                          className="settings-action settings-action--tiny"
+                          onClick={() => handleAddBadge(badge, canAddBadge)}
+                          disabled={isMutating || !canAddBadge}
+                          title={canAddBadge ? 'Ajoute des badges disponibles sans changer la capacite' : 'Stock deja plein'}
+                        >
+                          Ajouter badge
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}

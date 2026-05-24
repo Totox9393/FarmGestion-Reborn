@@ -17,7 +17,7 @@
 }
 
 .settings-modal.is-pastel {
-  --settings-bg: #fff6fb;
+  --settings-bg: #ffeef7;
   --settings-panel: #fff1f9;
   --settings-border: rgba(248, 168, 208, 0.55);
   --settings-text: #4a2435;
@@ -29,7 +29,7 @@
 .settings-modal.is-galactic {
   --settings-bg: #1d2436;
   --settings-panel: #202a3d;
-  --settings-border: rgba(120, 155, 210, 0.45);
+  --settings-border: rgba(141, 179, 255, 0.34);
   --settings-text: #e6f0ff;
   --settings-muted: rgba(210, 225, 255, 0.7);
   --settings-accent: #8db3ff;
@@ -37,13 +37,13 @@
 }
 
 .settings-modal.is-multicolor {
-  --settings-bg: #fbf7ff;
+  --settings-bg: #f3ecff;
   --settings-panel: #f7f2ff;
   --settings-border: rgba(170, 130, 255, 0.45);
   --settings-text: #3a2652;
   --settings-muted: rgba(58, 38, 82, 0.65);
   --settings-accent: #7f6bff;
-  --settings-accent-soft: rgba(127, 107, 255, 0.18);
+  --settings-accent-soft: rgba(127, 107, 255, 0.16);
 }
 
 .settings-modal.is-light .settings-link {
@@ -79,8 +79,6 @@
 }
 
 .settings-modal.is-light .settings-link.active {
-  background: #e3e3e3;
-  border-color: transparent;
   color: #1f1f1f;
 }
 
@@ -91,18 +89,13 @@
 }
 
 .settings-modal.is-galactic .settings-link.active {
-  background: rgba(141, 179, 255, 0.26);
-  border-color: transparent;
-  color: #f2f7ff;
+  color: #ffffff;
 }
 
 .settings-modal.is-multicolor .settings-link.active {
-  background: rgba(127, 107, 255, 0.24);
-  border-color: transparent;
   color: #2d1a45;
 }
 
-.settings-modal.is-light .settings-link:focus,
 .settings-modal.is-light .settings-link:focus-visible,
 .settings-modal.is-light .settings-action:focus,
 .settings-modal.is-light .settings-action:focus-visible {
@@ -225,7 +218,6 @@
   background: rgba(255, 205, 235, 0.35);
   color: #3a2652;
 }
-
 .settings-modal.is-light .settings-user-avatar svg {
   color: #7a7a7a;
 }
@@ -1594,6 +1586,12 @@
   animation: settings-refresh-spin-once 560ms ease-in-out 1;
 }
 
+.settings-admin-badges-count {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--settings-muted);
+}
+
 @keyframes settings-refresh-spin-once {
   from {
     transform: rotate(0deg);
@@ -2353,17 +2351,38 @@
   align-items: stretch;
   gap: 12px;
   border: 1px solid var(--settings-border);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.03);
-  padding: 12px;
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.025)),
+    rgba(255, 255, 255, 0.03);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+  padding: 14px;
   padding-right: 44px;
-  min-height: 162px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.settings-admin-badge-row::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(160px 90px at -12% -18%, rgba(255, 196, 106, 0.13), transparent 72%),
+    radial-gradient(130px 90px at 115% 115%, rgba(247, 141, 197, 0.1), transparent 74%),
+    linear-gradient(125deg, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 62%);
+}
+
+.settings-admin-badge-row > * {
+  position: relative;
+  z-index: 1;
 }
 
 .settings-admin-badge-delete-icon-btn {
   position: absolute;
   top: 10px;
   right: 10px;
+  z-index: 2;
   width: 28px;
   height: 28px;
   border-radius: 999px;
@@ -2396,14 +2415,137 @@
 
 .settings-admin-badge-row-main {
   display: flex;
-  align-items: center;
-  gap: 10px;
+  align-items: flex-start;
+  gap: 12px;
   min-width: 0;
 }
 
 .settings-admin-badge-avatar {
-  border-radius: 10px;
+  border-radius: 14px;
   flex: 0 0 auto;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.14);
+}
+
+.settings-admin-badge-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.settings-admin-badge-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.settings-admin-badge-state {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #ffb3b3;
+  background: rgba(255, 85, 85, 0.14);
+  border: 1px solid rgba(255, 85, 85, 0.2);
+}
+
+.settings-admin-badge-meta-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.settings-admin-badge-details-wrap {
+  position: relative;
+}
+
+.settings-admin-badge-details-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--settings-muted);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.settings-admin-badge-details-toggle:hover {
+  color: var(--settings-text);
+}
+
+.settings-admin-badge-details-toggle svg {
+  margin-left: auto;
+  transition: transform 160ms ease;
+}
+
+.settings-admin-badge-details-toggle.is-open svg {
+  transform: rotate(180deg);
+}
+
+.settings-admin-badge-details-popover {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 4;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--settings-panel) 94%, black 6%);
+  box-shadow: 0 12px 26px rgba(0, 0, 0, 0.28);
+  padding: 9px 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.settings-admin-badge-detail-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.settings-admin-badge-detail-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--settings-text);
+}
+
+.settings-admin-badge-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--settings-text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.settings-admin-badge-stock-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-admin-badge-stock-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .settings-admin-badge-actions {
@@ -2443,9 +2585,56 @@
 .settings-admin-badge-stock-panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   flex: 1;
   min-width: 0;
+}
+
+.settings-admin-badge-stock-cluster {
+  display: grid;
+  grid-template-columns: minmax(62px, auto) minmax(0, 1fr);
+  column-gap: 10px;
+  row-gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.settings-admin-badge-stock-line-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.settings-admin-badge-stock-label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+}
+
+.settings-admin-badge-visibility-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.settings-admin-badge-visibility-toggle .settings-switch {
+  margin-left: auto;
+}
+
+.settings-admin-badge-toggle-title {
+  margin-bottom: 3px;
+  font-weight: 700;
+  color: var(--settings-text);
 }
 
 .settings-admin-badge-stock-help {
@@ -2453,6 +2642,7 @@
   font-size: 12px;
   color: var(--settings-muted);
   font-weight: 600;
+  white-space: nowrap;
 }
 
 .settings-action--danger {
@@ -2462,14 +2652,34 @@
 
 .settings-admin-badge-stock-edit {
   display: flex;
-  align-items: stretch;
+  align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.settings-admin-badge-stock-edit--compact {
+  justify-content: flex-start;
+  flex-wrap: nowrap;
+}
+
+.settings-admin-badge-stock-edit--compact .settings-action {
+  white-space: nowrap;
+}
+
 .settings-admin-badge-stock-edit .settings-admin-badge-input {
-  width: 86px;
+  width: 74px;
   flex: 0 0 auto;
+}
+
+.settings-admin-badge-stock-edit .settings-admin-badge-input[type='number'] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.settings-admin-badge-stock-edit .settings-admin-badge-input[type='number']::-webkit-outer-spin-button,
+.settings-admin-badge-stock-edit .settings-admin-badge-input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .settings-admin-badge-row.is-1_common {
@@ -3131,6 +3341,30 @@
     align-items: flex-start;
   }
 
+  .settings-admin-badge-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .settings-admin-badge-stock-cluster {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-admin-badge-stock-label {
+    min-height: 0;
+  }
+
+  .settings-admin-badge-details-popover {
+    left: 0;
+    right: 0;
+  }
+
+  .settings-admin-badge-detail-row {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 2px;
+  }
+
   .settings-admin-badge-actions {
     width: 100%;
     align-items: stretch;
@@ -3142,9 +3376,20 @@
     width: 100%;
   }
 
+  .settings-admin-badge-stock-edit--compact {
+    align-items: center;
+    justify-content: flex-start;
+    flex-wrap: nowrap;
+  }
+
   .settings-admin-badge-stock-edit .settings-admin-badge-input {
-    width: 100%;
-    flex: 1 1 100%;
+    width: 74px;
+    flex: 0 0 auto;
+  }
+
+  .settings-admin-badge-stock-edit--compact .settings-admin-badge-input {
+    width: 74px;
+    flex: 0 0 auto;
   }
 
   .settings-admin-badges-list {
@@ -3237,3 +3482,5 @@
     max-width: 128px;
   }
 }
+
+

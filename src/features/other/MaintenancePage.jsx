@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { Icon } from '@iconify/react';
 import './MaintenancePage.css';
 import logoIco from '../../assets/logo_ico.png';
+import miloMaintenance2 from '../../assets/milo_maintenance2.png';
 import { supabase } from '../authentification/supabaseClient';
 import { resolveWaitingSoundUrl } from './waitingSoundOptions';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
@@ -156,6 +158,8 @@ function MaintenancePage() {
     ? waitingStatusLabels[statusTick % waitingStatusLabels.length]
     : maintenanceStatusLabels[statusTick % maintenanceStatusLabels.length];
 
+  const discordHref = 'https://discord.farmgestion.fr';
+
   return (
     <main className={`maintenance-page ${isWaitingVariant ? 'is-waiting' : ''}`} role="main" aria-labelledby="maintenance-title">
       <div className="maintenance-page__mist maintenance-page__mist--a" aria-hidden="true" />
@@ -164,41 +168,86 @@ function MaintenancePage() {
       <div className="maintenance-page__grain" aria-hidden="true" />
 
       <div className="maintenance-page__scene">
-        <img className="maintenance-logo" src={logoIco} alt="FarmGestion" width="78" height="78" />
-        <p className="maintenance-eyebrow">{isWaitingVariant ? 'FARMGESTION ARRIVE PROCHAINEMENT' : 'MAINTENANCE EN COURS'}</p>
+        {isWaitingVariant ? (
+          <>
+            <img className="maintenance-logo" src={logoIco} alt="FarmGestion" width="78" height="78" />
+            <p className="maintenance-eyebrow">FARMGESTION ARRIVE PROCHAINEMENT</p>
 
-        <h1 id="maintenance-title">{config.title}</h1>
-        <p className="maintenance-subtitle">{config.message}</p>
+            <h1 id="maintenance-title">{config.title}</h1>
+            <p className="maintenance-subtitle">{config.message}</p>
 
-        <div className="maintenance-signal-loader" aria-hidden="true">
-          <span className="maintenance-ring maintenance-ring--a" />
-          <span className="maintenance-ring maintenance-ring--b" />
-          <span className="maintenance-ring maintenance-ring--c" />
-          <span className="maintenance-signal-core" />
-        </div>
+            <div className="maintenance-signal-loader" aria-hidden="true">
+              <span className="maintenance-ring maintenance-ring--a" />
+              <span className="maintenance-ring maintenance-ring--b" />
+              <span className="maintenance-ring maintenance-ring--c" />
+              <span className="maintenance-signal-core" />
+            </div>
 
-        <div className="maintenance-progress" aria-hidden="true">
-          <span className="maintenance-progress__bar" />
-        </div>
+            <div className="maintenance-progress" aria-hidden="true">
+              <span className="maintenance-progress__bar" />
+            </div>
 
-        <p className="maintenance-status-message">{statusLabel}</p>
+            <p className="maintenance-status-message">{statusLabel}</p>
 
-        <div className="maintenance-meta">
-          <p>
-            <strong>État :</strong> {isWaitingVariant ? 'Indisponible' : 'Maintenance en cours'}
-          </p>
-          {config.etaText ? (
-            <p>
-              <strong>Retour estimé :</strong> {config.etaText}
-            </p>
-          ) : null}
-          <p>
-            <strong>Mise à jour :</strong> {dateLabel}
-          </p>
-        </div>
+            <div className="maintenance-meta">
+              <p>
+                <strong>État :</strong> Indisponible
+              </p>
+              {config.etaText ? (
+                <p>
+                  <strong>Retour estimé :</strong> {config.etaText}
+                </p>
+              ) : null}
+              <p>
+                <strong>Mise à jour :</strong> {dateLabel}
+              </p>
+            </div>
+          </>
+        ) : (
+          <section className="maintenance-hero" aria-label="Maintenance FarmGestion">
+            <div className="maintenance-hero__content">
+              <img className="maintenance-logo maintenance-logo--small" src={logoIco} alt="FarmGestion" width="72" height="72" />
+              <p className="maintenance-eyebrow maintenance-eyebrow--maintenance">{config.title}</p>
 
-        {resolvedMusicUrl ? (
-          <div className="maintenance-audio-wrap">
+              <h1 id="maintenance-title">MAINTENANCE EN COURS</h1>
+              <p className="maintenance-subtitle maintenance-subtitle--maintenance">{config.message}</p>
+
+              <a className="maintenance-discord-link" href={discordHref} target="_blank" rel="noreferrer">
+                <span className="maintenance-discord-link__icon" aria-hidden="true">
+                  <Icon icon="logos:discord-icon" />
+                </span>
+                <span>discord.farmgestion.fr</span>
+              </a>
+
+              <div className="maintenance-hero__meta">
+                <p>
+                  <strong>État :</strong> Maintenance en cours
+                </p>
+                {config.etaText ? (
+                  <p>
+                    <strong>Retour estimé :</strong> {config.etaText}
+                  </p>
+                ) : null}
+                <p>
+                  <strong>Mise à jour :</strong> {dateLabel}
+                </p>
+              </div>
+            </div>
+
+            <div className="maintenance-hero__art" aria-hidden="true">
+              <div className="maintenance-bubble maintenance-bubble--outer">
+                <div className="maintenance-bubble maintenance-bubble--mid">
+                  <div className="maintenance-bubble maintenance-bubble--inner">
+                    <img src={miloMaintenance2} alt="" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!isWaitingVariant && resolvedMusicUrl ? (
+          <div className="maintenance-audio-wrap maintenance-audio-wrap--floating">
             <button
               type="button"
               className="maintenance-audio-btn maintenance-audio-btn--discrete"

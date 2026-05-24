@@ -5,6 +5,22 @@ update public.betails
 set visible = true
 where visible is null;
 
+update public.user_settings us
+set setting_value = coalesce((
+  select jsonb_agg(filtered.betail_id_text order by filtered.position)
+  from (
+    select
+      elem.value as betail_id_text,
+      elem.ordinality as position
+    from jsonb_array_elements_text(coalesce(us.setting_value, '[]'::jsonb)) with ordinality as elem(value, ordinality)
+    join public.betails b
+      on b.id::text = elem.value
+    where b.owner_id = us.user_id
+      and coalesce(b.visible, true) = true
+  ) filtered
+), '[]'::jsonb)
+where us.setting_name = 'pinned_betails';
+
 create index if not exists shipping_status_scheduled_for_idx
   on public.shipping (status, scheduled_for);
 
@@ -17,6 +33,7 @@ as $$
 declare
   v_now timestamptz := now();
   v_hidden_count integer := 0;
+  v_unpinned_count integer := 0;
   v_delivered_count integer := 0;
   v_credited_profiles_count integer := 0;
   v_credited_total_gain integer := 0;
@@ -54,7 +71,32 @@ begin
         )
     where b.id in (select ds.betail_id from due_shipping ds)
       and coalesce(b.visible, true) = true
-    returning b.id
+    returning b.id, b.owner_id
+  ),
+  cleaned_pinned_settings as (
+    update public.user_settings us
+    set setting_value = coalesce((
+      select jsonb_agg(filtered.betail_id_text order by filtered.position)
+      from (
+        select
+          elem.value as betail_id_text,
+          elem.ordinality as position
+        from jsonb_array_elements_text(coalesce(us.setting_value, '[]'::jsonb)) with ordinality as elem(value, ordinality)
+        where not exists (
+          select 1
+          from hidden_betails hb
+          where hb.owner_id = us.user_id
+            and hb.id::text = elem.value
+        )
+      ) filtered
+    ), '[]'::jsonb)
+    where us.setting_name = 'pinned_betails'
+      and exists (
+        select 1
+        from hidden_betails hb
+        where hb.owner_id = us.user_id
+      )
+    returning us.user_id
   ),
   credited_profiles as (
     update public.users_profiles up
@@ -82,15 +124,17 @@ begin
   )
   select
     (select count(*) from hidden_betails),
+    (select count(*) from cleaned_pinned_settings),
     (select count(*) from delivered_shipping),
     (select count(*) from credited_profiles),
     (select coalesce(sum(total_gain), 0)::integer from credited_profiles)
-  into v_hidden_count, v_delivered_count, v_credited_profiles_count, v_credited_total_gain;
+  into v_hidden_count, v_unpinned_count, v_delivered_count, v_credited_profiles_count, v_credited_total_gain;
 
   return jsonb_build_object(
     'success', true,
     'processed_at', v_now,
     'betails_hidden', v_hidden_count,
+    'pinned_settings_cleaned', v_unpinned_count,
     'shipping_delivered', v_delivered_count,
     'profiles_credited', v_credited_profiles_count,
     'credited_total_gain', v_credited_total_gain

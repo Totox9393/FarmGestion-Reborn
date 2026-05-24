@@ -7,6 +7,11 @@
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # Fallback all other routes to the SPA entry point.
+  # Missing static assets must return 404 instead of the SPA HTML.
+  RewriteCond %{REQUEST_URI} ^/assets/ [OR]
+  RewriteCond %{REQUEST_URI} \.(?:js|mjs|css|map|json|ico|png|jpe?g|webp|gif|svg|mp3|ogg|wav|woff2?|ttf|eot|txt|xml|webmanifest)$ [NC]
+  RewriteRule ^ - [L]
+
+  # Fallback app routes to the SPA entry point.
   RewriteRule . /index.html [L]
 </IfModule>

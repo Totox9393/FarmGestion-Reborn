@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../authentification/supabaseClient';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
@@ -45,6 +45,157 @@ const normalizeConfigFromRow = (row) => ({
   music_url: toSafeText(row?.music_url),
 });
 
+const extractTraceValue = (raw, key) => {
+  const lines = String(raw || '').split(/\r?\n/);
+  const match = lines.find((line) => line.toLowerCase().startsWith(`${String(key || '').toLowerCase()}=`));
+  if (!match) return '';
+  const [, value] = match.split('=');
+  return String(value || '').trim();
+};
+
+const normalizeMaybeIp = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  const first = raw.split(',')[0]?.trim() || '';
+  return first;
+};
+
+const getIpVersion = (value) => {
+  const ip = normalizeMaybeIp(value);
+  if (!ip) return null;
+  if (ip.includes(':')) return 6;
+  if (ip.includes('.')) return 4;
+  return null;
+};
+
+const parseIpv4ToInt = (value) => {
+  const ip = normalizeMaybeIp(value);
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+
+  let acc = 0;
+  for (const part of parts) {
+    if (!/^\d+$/.test(part)) return null;
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+    acc = (acc << 8) + n;
+  }
+  return acc >>> 0;
+};
+
+const parseIpv6ToHextets = (value) => {
+  const base = normalizeMaybeIp(value).toLowerCase();
+  if (!base || !base.includes(':')) return null;
+
+  const splitDouble = base.split('::');
+  if (splitDouble.length > 2) return null;
+  const [leftRaw, rightRaw] = splitDouble;
+
+  const parseSide = (side) => {
+    if (!side) return [];
+    const parts = side.split(':');
+    const out = [];
+    for (const part of parts) {
+      if (!part) return null;
+      if (!/^[0-9a-f]{1,4}$/i.test(part)) return null;
+      out.push(parseInt(part, 16));
+    }
+    return out;
+  };
+
+  const left = parseSide(leftRaw || '');
+  if (!left) return null;
+  const right = parseSide(rightRaw || '');
+  if (!right) return null;
+
+  if (base.includes('::')) {
+    const missing = 8 - (left.length + right.length);
+    if (missing < 1) return null;
+    return [...left, ...new Array(missing).fill(0), ...right];
+  }
+
+  if (left.length !== 8) return null;
+  return left;
+};
+
+const parseIpv6ToBigInt = (value) => {
+  const hextets = parseIpv6ToHextets(value);
+  if (!hextets || hextets.length !== 8) return null;
+  return hextets.reduce((acc, part) => (acc << 16n) + BigInt(part), 0n);
+};
+
+const isIpCoveredByEntry = (ip, entryValue) => {
+  const requester = normalizeMaybeIp(ip);
+  const entry = normalizeMaybeIp(entryValue);
+  if (!requester || !entry) return false;
+
+  const [entryBase, entryPrefixRaw] = entry.split('/');
+  const requesterVersion = getIpVersion(requester);
+  const entryVersion = getIpVersion(entryBase);
+  if (!requesterVersion || !entryVersion || requesterVersion !== entryVersion) return false;
+
+  if (entryPrefixRaw === undefined) {
+    return requester.toLowerCase() === entryBase.toLowerCase();
+  }
+
+  const prefix = Number(entryPrefixRaw);
+  if (!Number.isInteger(prefix)) return false;
+
+  if (requesterVersion === 4) {
+    if (prefix < 0 || prefix > 32) return false;
+    const requesterInt = parseIpv4ToInt(requester);
+    const entryInt = parseIpv4ToInt(entryBase);
+    if (requesterInt === null || entryInt === null) return false;
+    const mask = prefix === 0 ? 0 : ((0xffffffff << (32 - prefix)) >>> 0);
+    return (requesterInt & mask) === (entryInt & mask);
+  }
+
+  if (prefix < 0 || prefix > 128) return false;
+  const requesterBig = parseIpv6ToBigInt(requester);
+  const entryBig = parseIpv6ToBigInt(entryBase);
+  if (requesterBig === null || entryBig === null) return false;
+  if (prefix === 0) return true;
+  const shift = BigInt(128 - prefix);
+  return (requesterBig >> shift) === (entryBig >> shift);
+};
+
+const readBrowserCloudflareIp = async () => {
+  const host = String(window.location.hostname || '').toLowerCase();
+  const isLocalHost = host === 'localhost' || host === '127.0.0.1' || host === '::1';
+  if (isLocalHost) {
+    return {
+      ip: '',
+      version: '',
+      error: 'Controle Cloudflare indisponible en localhost. Ouvre ce panel sur le domaine public.',
+    };
+  }
+
+  try {
+    const response = await fetch('/cdn-cgi/trace', {
+      cache: 'no-store',
+      headers: { Accept: 'text/plain' },
+    });
+    if (!response.ok) {
+      throw new Error('Trace HTTP non disponible');
+    }
+
+    const raw = await response.text();
+    const ip = extractTraceValue(raw, 'ip');
+    const version = ip.includes(':') ? 'IPv6' : ip ? 'IPv4' : '';
+    return {
+      ip,
+      version,
+      error: ip ? '' : 'IP Cloudflare introuvable dans /cdn-cgi/trace.',
+    };
+  } catch {
+    return {
+      ip: '',
+      version: '',
+      error: 'Impossible de verifier l\'IP Cloudflare navigateur (/cdn-cgi/trace).',
+    };
+  }
+};
+
 const invokeMaintenanceFunction = async (payload) => {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError) {
@@ -86,6 +237,12 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
   const [feedback, setFeedback] = useState({ type: '', message: '' });
   const [allowlistInput, setAllowlistInput] = useState('');
   const [allowlistComment, setAllowlistComment] = useState('');
+  const [browserProbe, setBrowserProbe] = useState({
+    loading: false,
+    ip: '',
+    version: '',
+    error: '',
+  });
   const previousCloudflareStatusRef = useRef(null);
   const previewAudioRef = useRef(null);
   const [isPreviewPlaying, setIsPreviewPlaying] = useState(false);
@@ -306,6 +463,25 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
   const allowlistTotal = Number(allowlistQuery.data?.total || allowlistItems.length || 0);
   const selectedSoundUrl = resolveWaitingSoundUrl(draft.music_url);
 
+  const browserAllowed = useMemo(() => {
+    if (!browserProbe.ip) return false;
+    return allowlistItems.some((item) => isIpCoveredByEntry(browserProbe.ip, String(item?.value || '')));
+  }, [allowlistItems, browserProbe.ip]);
+
+  const precheckAllowed = browserProbe.ip ? browserAllowed : requesterAllowed;
+  const precheckLoading = allowlistQuery.isLoading || browserProbe.loading;
+
+  const refreshBrowserProbe = useCallback(async () => {
+    setBrowserProbe((prev) => ({ ...prev, loading: true, error: '' }));
+    const next = await readBrowserCloudflareIp();
+    setBrowserProbe({
+      loading: false,
+      ip: String(next?.ip || ''),
+      version: String(next?.version || ''),
+      error: String(next?.error || ''),
+    });
+  }, []);
+
   const handleAddAllowlistIp = () => {
     const candidate = String(allowlistInput || '').trim();
     if (!candidate) {
@@ -328,6 +504,11 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
     }
     void playAudioSafely(maintenanceOffAudio);
   }, [cloudflareEnabled, configQuery.isSuccess, maintenanceOffAudio, maintenanceOnAudio]);
+
+  useEffect(() => {
+    if (!isActive || !isAdmin) return;
+    void refreshBrowserProbe();
+  }, [isActive, isAdmin, refreshBrowserProbe]);
 
   const handlePreviewSound = async () => {
     if (!selectedSoundUrl) {
@@ -577,17 +758,33 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
           <div className="settings-maintenance-status-head">
             <div>
               <p className="settings-item-title">IPs autorisées (bypass maintenance)</p>
-              <p className="settings-item-subtitle">Liste Cloudflare autorisée à ignorer la redirection maintenance.</p>
+              <p className="settings-item-subtitle">Verification prioritaire via IP Cloudflare navigateur (IPv4 ou IPv6), avec fallback Supabase.</p>
             </div>
-            <span className={`settings-maintenance-pill ${requesterAllowed ? 'is-on' : 'is-off'}`}>
-              <span className={`settings-maintenance-dot ${requesterAllowed ? 'is-on' : 'is-off'}`} aria-hidden="true" />
-              {requesterAllowed ? 'TON IP EST AUTORISÉE' : 'TON IP N\'EST PAS AUTORISÉE'}
+            <span className={`settings-maintenance-pill ${precheckLoading ? 'is-off' : precheckAllowed ? 'is-on' : 'is-off'}`}>
+              <span className={`settings-maintenance-dot ${precheckLoading ? 'is-off' : precheckAllowed ? 'is-on' : 'is-off'}`} aria-hidden="true" />
+              {precheckLoading
+                ? 'VERIFICATION EN COURS...'
+                : precheckAllowed
+                  ? 'ACCES APPAREIL OK'
+                  : 'ACCES APPAREIL NON AUTORISE'}
             </span>
           </div>
 
           <div className="settings-maintenance-meta">
             <p className="settings-item-subtitle">Total IPs autorisées: {allowlistTotal}</p>
-            {requesterIp ? <p className="settings-item-subtitle mono">IP détectée: {requesterIp}</p> : null}
+            {browserProbe.ip ? (
+              <p className="settings-item-subtitle mono">
+                IP navigateur (Cloudflare): {browserProbe.ip}{browserProbe.version ? ` (${browserProbe.version})` : ''}
+              </p>
+            ) : null}
+            {!browserProbe.ip && browserProbe.error ? <p className="settings-item-subtitle">{browserProbe.error}</p> : null}
+            {browserProbe.ip ? (
+              <p className="settings-item-subtitle">
+                Resultat matching liste (navigateur): {browserAllowed ? 'Autorise' : 'Non autorise'}
+              </p>
+            ) : null}
+            {requesterIp ? <p className="settings-item-subtitle mono">IP vue par Supabase: {requesterIp}</p> : null}
+            <p className="settings-item-subtitle">Note: l'IP Supabase peut differer de l'IP Cloudflare du navigateur selon le chemin reseau.</p>
             {allowlistQuery.data?.list_id ? <p className="settings-item-subtitle mono">List ID: {allowlistQuery.data.list_id}</p> : null}
           </div>
 
@@ -612,7 +809,10 @@ function Settings_MaintenancePanel({ isActive, isAdmin }) {
               <button
                 type="button"
                 className="settings-action"
-                onClick={() => allowlistQuery.refetch()}
+                onClick={() => {
+                  void allowlistQuery.refetch();
+                  void refreshBrowserProbe();
+                }}
                 disabled={allowlistQuery.isLoading || isAllowlistBusy}
               >
                 Rafraîchir la liste
