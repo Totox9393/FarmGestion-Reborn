@@ -31,10 +31,6 @@ const formatFrenchDate = (value) => {
 
 const getThumbnailUrl = (url) => {
   if (!url) return ''
-  if (url.includes('/storage/v1/object/public/betails/')) {
-    const divider = url.includes('?') ? '&' : '?'
-    return `${url}${divider}width=160&height=160&quality=70`
-  }
   return url
 }
 

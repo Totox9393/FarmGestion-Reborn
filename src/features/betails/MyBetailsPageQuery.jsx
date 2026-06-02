@@ -40,6 +40,7 @@ import './MyBetailsPage.css'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const DETAILS_PANEL_TRANSITION_MS = 260
 
 const formatFrenchDate = (value) => {
   if (!value) return 'Date inconnue'
@@ -50,10 +51,6 @@ const formatFrenchDate = (value) => {
 
 const getThumbnailUrl = (url) => {
   if (!url) return ''
-  if (url.includes('/storage/v1/object/public/betails/')) {
-    const divider = url.includes('?') ? '&' : '?'
-    return `${url}${divider}width=160&height=160&quality=70`
-  }
   return url
 }
 
@@ -272,10 +269,12 @@ function MyBetailsPageQuery() {
   const [premiumAnimationPhase, setPremiumAnimationPhase] = useState('idle')
   const [premiumConfirmState, setPremiumConfirmState] = useState(null)
   const [isShippingPanelOpen, setIsShippingPanelOpen] = useState(false)
+  const [isDetailsPanelOpen, setIsDetailsPanelOpen] = useState(false)
   const [shippingTarget, setShippingTarget] = useState(null)
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false)
   const [badgeModalSlot, setBadgeModalSlot] = useState(null)
   const premiumAnimationTimeoutRef = useRef(null)
+  const detailsPanelTimeoutRef = useRef(null)
   const shippingPanelTimeoutRef = useRef(null)
   const panelRef = useRef(null)
   const queryClient = useQueryClient()
@@ -654,6 +653,22 @@ function MyBetailsPageQuery() {
     shippingPanelTimeoutRef.current = null
   }, [])
 
+  const clearDetailsPanelTimeout = useCallback(() => {
+    if (!detailsPanelTimeoutRef.current) return
+    window.clearTimeout(detailsPanelTimeoutRef.current)
+    detailsPanelTimeoutRef.current = null
+  }, [])
+
+  const handleCloseDetailsPanel = useCallback(() => {
+    setIsDetailsPanelOpen(false)
+    clearDetailsPanelTimeout()
+    if (!selectedBetailId) return
+    detailsPanelTimeoutRef.current = window.setTimeout(() => {
+      setSelectedBetailId(null)
+      detailsPanelTimeoutRef.current = null
+    }, DETAILS_PANEL_TRANSITION_MS)
+  }, [clearDetailsPanelTimeout, selectedBetailId])
+
   const playPremiumSuccessSound = useCallback(() => {
     try {
       const audio = createSafeAudio(premiumSuccessSound, { volume: 0.85 })
@@ -687,14 +702,33 @@ function MyBetailsPageQuery() {
           return
         }
         clearShippingPanelTimeout()
-        setSelectedBetailId(null)
+        handleCloseDetailsPanel()
         setIsShippingPanelOpen(false)
         setShippingTarget(null)
       }
     }
     window.addEventListener('keydown', handleEscape)
     return () => window.removeEventListener('keydown', handleEscape)
-  }, [selectedBetailId, isShippingPanelOpen, isBadgeModalOpen, clearShippingPanelTimeout, handleCloseBadgeModal])
+  }, [
+    selectedBetailId,
+    isShippingPanelOpen,
+    isBadgeModalOpen,
+    clearShippingPanelTimeout,
+    handleCloseBadgeModal,
+    handleCloseDetailsPanel,
+  ])
+
+  useEffect(() => {
+    if (!selectedBetailId) {
+      setIsDetailsPanelOpen(false)
+      return
+    }
+    clearDetailsPanelTimeout()
+    const frameId = window.requestAnimationFrame(() => {
+      setIsDetailsPanelOpen(true)
+    })
+    return () => window.cancelAnimationFrame(frameId)
+  }, [selectedBetailId, clearDetailsPanelTimeout])
 
   useEffect(() => {
     if (!selectedBetailId || isInitialLoading) return
@@ -724,9 +758,10 @@ function MyBetailsPageQuery() {
   useEffect(
     () => () => {
       clearPremiumAnimationTimeout()
+      clearDetailsPanelTimeout()
       clearShippingPanelTimeout()
     },
-    [clearPremiumAnimationTimeout, clearShippingPanelTimeout],
+    [clearPremiumAnimationTimeout, clearDetailsPanelTimeout, clearShippingPanelTimeout],
   )
 
   useEffect(() => {
@@ -735,10 +770,15 @@ function MyBetailsPageQuery() {
 
   const handleSelectBetail = (betailId) => {
     clearShippingPanelTimeout()
+    clearDetailsPanelTimeout()
     handleCloseBadgeModal()
     setIsShippingPanelOpen(false)
     setShippingTarget(null)
-    setSelectedBetailId((prev) => (prev === betailId ? null : betailId))
+    if (selectedBetailId === betailId) {
+      handleCloseDetailsPanel()
+      return
+    }
+    setSelectedBetailId(betailId)
   }
 
   const handleOpenShippingPanel = () => {
@@ -1349,7 +1389,7 @@ function MyBetailsPageQuery() {
           <aside className="betails-column-panel my-betails-panel-column my-details-panel-column" aria-hidden={!selectedBetail}>
           <section
             ref={panelRef}
-            className={`betail-details-panel betails-panel my-betail-panel ${selectedBetail ? 'is-open' : ''}`}
+            className={`betail-details-panel betails-panel my-betail-panel ${isDetailsPanelOpen ? 'is-open' : ''}`}
             aria-live="polite"
           >
             {selectedBetail ? (
@@ -1387,7 +1427,7 @@ function MyBetailsPageQuery() {
                     <button
                       type="button"
                       className="betail-details-close"
-                      onClick={() => setSelectedBetailId(null)}
+                      onClick={handleCloseDetailsPanel}
                       aria-label="Fermer les détails"
                     >
                       ✕

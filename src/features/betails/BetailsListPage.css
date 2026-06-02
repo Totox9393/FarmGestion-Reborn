@@ -93,6 +93,11 @@
   margin: 0 auto;
 }
 
+/* Register-only guard: avoid global .betail-card rules leaking from other pages. */
+.betails-page:not(.my-betails-page) .betails-grid > .betail-card {
+  min-width: 0;
+}
+
 .betails-layout {
   position: relative;
 }
