@@ -10,6 +10,7 @@ import {
   redeemSurpriseCode,
   saveSurpriseCode,
 } from './surpriseCode';
+import { syncNewsletterPreferenceToTotoxFr } from '../utils/newsletterSync';
 
 const NEWSLETTER_SETTING_NAME = 'receive_newsletter';
 
@@ -133,8 +134,16 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
         return;
       }
 
-      if (!newsletter) {
-        const { error: newsletterError } = await supabase
+      let newsletterError = null;
+      if (newsletter) {
+        const { error: deleteError } = await supabase
+          .from('user_settings')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('setting_name', NEWSLETTER_SETTING_NAME);
+        newsletterError = deleteError;
+      } else {
+        const { error: upsertError } = await supabase
           .from('user_settings')
           .upsert(
             {
@@ -144,10 +153,18 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
             },
             { onConflict: 'user_id,setting_name' },
           );
+        newsletterError = upsertError;
+      }
 
-        if (newsletterError) {
-          console.error('Impossible de sauvegarder la préférence newsletter lors de l\'inscription', newsletterError);
-        }
+      if (newsletterError) {
+        console.error('Impossible de sauvegarder la préférence newsletter lors de l\'inscription', newsletterError);
+      } else {
+        syncNewsletterPreferenceToTotoxFr({
+          email,
+          userId: user.id,
+          enabled: newsletter,
+          source: 'register',
+        });
       }
 
       if (normalizedSurpriseCode) {

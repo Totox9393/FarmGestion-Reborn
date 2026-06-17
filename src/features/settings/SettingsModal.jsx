@@ -28,6 +28,7 @@ import {
   saveUserThemePreference,
 } from './themePreferences';
 import { getFullVersionLabel } from '../utils/appVersion';
+import { syncNewsletterPreferenceToTotoxFr } from '../utils/newsletterSync';
 import './SettingsModal.css';
 
 const SECTIONS = {
@@ -483,6 +484,13 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
     if (error) {
       console.error('Impossible de mettre à jour la préférence newsletter', error);
       setNewsletterEnabled(!nextValue);
+    } else {
+      syncNewsletterPreferenceToTotoxFr({
+        email: user.email,
+        userId: user.id,
+        enabled: nextValue,
+        source: 'settings',
+      });
     }
     setSavingNewsletter(false);
   };
