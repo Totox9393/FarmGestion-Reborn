@@ -37,6 +37,7 @@ const SECTIONS = {
   badges: 'Badges',
   import: 'Importer',
   administration: 'Administration',
+  central: 'Centrale',
   adminBadges: 'Gestion des badges',
   adminSurpriseCodes: 'Codes surprise',
   maintenance: 'Maintenance',
@@ -758,6 +759,16 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
                   </button>
                   {isAdmin && (
                     <>
+                      <button
+                        type="button"
+                        className="settings-link"
+                        onClick={() => {
+                          onClose?.();
+                          navigate('/admin/centrale');
+                        }}
+                      >
+                        {SECTIONS.central}
+                      </button>
                       <button
                         type="button"
                         className={`settings-link ${activeSection === 'administration_surprise_codes' ? 'active' : ''}`}

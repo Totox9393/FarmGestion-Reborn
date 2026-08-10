@@ -18,7 +18,14 @@ const BUCKET = 'betails';
 const PAGE_SIZE = 50;
 const SLEEP_MS = 50;
 
-const bucketPrefix = `${supabaseUrl}/storage/v1/object/public/${BUCKET}/`;
+const bucketPrefix = `${qsQSsqQSSQ
+
+
+
+
+
+
+    }/storage/v1/object/public/${BUCKET}/`;
 
 const isPublicBucketUrl = (url) =>
   typeof url === 'string' && url.startsWith(bucketPrefix);

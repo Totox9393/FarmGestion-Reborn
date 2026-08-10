@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import Home from './features/home/Home';
 import BetailMaker from './features/betails/BetailMaker';
@@ -21,11 +21,13 @@ import ShopPage from './features/boutique/ShopPage';
 import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
 import CommunityPage from './features/community/CommunityPage';
 import CommunityProfilePage from './features/community/CommunityProfilePage';
+import Settings_CentralePage from './features/settings/Settings_CentralePage';
 import { useAuth } from './features/authentification/AuthContext';
 import { readInitialSurpriseCode, redeemSurpriseCode } from './features/authentification/surpriseCode';
 import './App.css';
 
 const SURPRISE_AUTO_REDEEM_PREFIX = 'farmgestion_surprise_auto_redeem_';
+const LAST_AUTH_ROUTE_STORAGE_KEY = 'fg_last_auth_route';
 
 const getAutoRedeemAttemptStorageKey = (userId, code) => {
   const safeUserId = String(userId || '').trim();
@@ -82,9 +84,45 @@ const getStaticPageTitle = (pathname) => {
 
 function AppRoutes() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user } = useAuth();
   const [toast, setToast] = useState(null);
   const autoRedeemInFlightRef = useRef(new Set());
+
+  useEffect(() => {
+    if (!user?.id) return;
+    const currentPath = `${location.pathname || '/'}${location.search || ''}${location.hash || ''}`;
+    if (!currentPath || currentPath === '/') return;
+    try {
+      window.sessionStorage.setItem(LAST_AUTH_ROUTE_STORAGE_KEY, currentPath);
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [user?.id, location.pathname, location.search, location.hash]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    if (location.pathname !== '/') return;
+
+    try {
+      const forceCreation = window.sessionStorage.getItem('fg_forceFarmCreation');
+      if (forceCreation) return;
+    } catch {
+      // Ignore storage read failures.
+    }
+
+    let targetPath = '/home';
+    try {
+      const savedPath = String(window.sessionStorage.getItem(LAST_AUTH_ROUTE_STORAGE_KEY) || '').trim();
+      if (savedPath && savedPath !== '/') {
+        targetPath = savedPath;
+      }
+    } catch {
+      // Ignore storage read failures.
+    }
+
+    navigate(targetPath, { replace: true });
+  }, [user?.id, location.pathname, navigate]);
 
   useEffect(() => {
     const staticTitle = getStaticPageTitle(location.pathname);
@@ -349,6 +387,16 @@ function AppRoutes() {
           element={
             <PrivateRoute requireOnboarding={false} requireAdmin>
               <TestSurpriseDemoPage />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/admin/centrale"
+          element={
+            <PrivateRoute requireOnboarding={false} requireAdmin>
+              <AuthenticatedLayout>
+                <Settings_CentralePage />
+              </AuthenticatedLayout>
             </PrivateRoute>
           }
         />

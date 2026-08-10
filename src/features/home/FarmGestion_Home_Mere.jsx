@@ -8,6 +8,7 @@ import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
+import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
 
 // Import images des bétails
@@ -136,6 +137,7 @@ function FarmGestion_Home_Mere() {
   const [topBetailsData, setTopBetailsData] = useState([]);
   const [likedBetailIds, setLikedBetailIds] = useState([]);
   const [pendingLikeIds, setPendingLikeIds] = useState([]);
+  const [showLatestCreator, setShowLatestCreator] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [visibleBetails, setVisibleBetails] = useState(4);
@@ -269,6 +271,18 @@ function FarmGestion_Home_Mere() {
     return `${supabaseUrl}${clean}`;
   };
 
+  const normalizeProfileAvatar = (url) => {
+    const raw = String(url || '').trim();
+    if (!raw) return defaultProfileUser;
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    if (!supabaseUrl) return raw;
+    if (raw.startsWith('/storage/v1/object/public/')) return `${supabaseUrl}${raw}`;
+    if (raw.startsWith('storage/v1/object/public/')) return `${supabaseUrl}/${raw}`;
+    if (raw.startsWith('/')) return `${supabaseUrl}${raw}`;
+    if (raw.includes('/')) return `${supabaseUrl}/storage/v1/object/public/${raw}`;
+    return `${supabaseUrl}/storage/v1/object/public/avatars/${raw}`;
+  };
+
   const currentMonthLabel = useMemo(
     () =>
       new Intl.DateTimeFormat('fr-FR', {
@@ -323,7 +337,7 @@ function FarmGestion_Home_Mere() {
     const [latestResponse, topResponse] = await Promise.all([
       supabase
         .from('betails')
-        .select('id, name, matricule, avatar_url, like_count, created_at, author_id')
+        .select('id, name, matricule, avatar_url, like_count, created_at, author_id, visible, owner_id, farm_id, purchased_at')
         .eq('visible', true)
         .order('created_at', { ascending: false })
         .limit(8),
@@ -377,7 +391,7 @@ function FarmGestion_Home_Mere() {
 
     const { data: authorsData, error: authorsError } = await supabase
       .from('users_profiles')
-      .select('id, username')
+      .select('id, username, avatar_url')
       .in('id', authorIds);
 
     if (authorsError) {
@@ -392,7 +406,10 @@ function FarmGestion_Home_Mere() {
     }
 
     const nextMap = (authorsData || []).reduce((acc, author) => {
-      acc[author.id] = author.username;
+      acc[author.id] = {
+        username: author.username,
+        avatarUrl: author.avatar_url || '',
+      };
       return acc;
     }, {});
     setAuthorMap(nextMap);
@@ -488,7 +505,7 @@ function FarmGestion_Home_Mere() {
       id: betail.id || `db-${index}`,
       name: betail.name,
       matricule: betail.matricule,
-      author: authorMap[betail.author_id] || 'Auteur inconnu',
+      author: authorMap[betail.author_id]?.username || 'Auteur inconnu',
       img: normalizeAvatar(betail.avatar_url),
       likes: betail.like_count ?? 0,
       likedByMe: Boolean(betail.liked_by_me) || likedIdsSet.has(String(betail.id || '')),
@@ -793,12 +810,40 @@ function FarmGestion_Home_Mere() {
       id: betail.id,
       name: betail.name,
       matricule: betail.matricule,
-      author: authorMap[betail.author_id] || 'Auteur inconnu',
+      author: authorMap[betail.author_id]?.username || 'Auteur inconnu',
       img: normalizeAvatar(betail.avatar_url),
       likes: betail.like_count ?? 0,
     })),
     [topBetailsData, authorMap]
   );
+
+  const latestCreatedBetail = useMemo(() => {
+    const latest = latestBetails[0];
+    if (!latest) return null;
+    const author = authorMap[latest.author_id] || {};
+    const isPublicRegisterBetail = latest.visible === true && !latest.owner_id && !latest.farm_id && !latest.purchased_at;
+    return {
+      authorId: latest.author_id || '',
+      authorName: author.username || 'Auteur inconnu',
+      authorHandle: author.username || '',
+      authorAvatar: normalizeProfileAvatar(author.avatarUrl),
+      betailId: latest.id || '',
+      betailName: latest.name || 'Sans nom',
+      betailAvatar: normalizeAvatar(latest.avatar_url),
+      isPublicRegisterBetail,
+    };
+  }, [latestBetails, authorMap]);
+
+  const handleOpenLatestCreatorProfile = useCallback(() => {
+    const handle = String(latestCreatedBetail?.authorHandle || '').trim();
+    if (!handle) return;
+    navigate(`/community/profile/${encodeURIComponent(handle)}`);
+  }, [latestCreatedBetail?.authorHandle, navigate]);
+
+  const handleOpenLatestCreatorBetail = useCallback(() => {
+    if (!latestCreatedBetail?.isPublicRegisterBetail || !latestCreatedBetail?.betailId) return;
+    navigate(`/betail-register/${latestCreatedBetail.betailId}`);
+  }, [latestCreatedBetail, navigate]);
 
   const roleInfo = useMemo(() => {
     const role = (profile?.role || 'STANDARD').toUpperCase();
@@ -867,6 +912,14 @@ function FarmGestion_Home_Mere() {
       window.removeEventListener('resize', updateWidgetOverflow);
     };
   }, [updateWidgetOverflow, profile?.username, user?.email, farm?.name]);
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      setShowLatestCreator((prev) => !prev);
+    }, 6000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
 
   if (loading)
     return (
@@ -1067,32 +1120,10 @@ function FarmGestion_Home_Mere() {
         </div>
 
         <div className="home-podium">
-          <h3 className="home-podium-title">Podium des bétails les plus likés</h3>
-          <div className="home-podium-stand">
-            {[1, 0, 2].map((podiumIndex) => {
-              const betail = topBetails[podiumIndex];
-              if (!betail) return null;
-              const rank = podiumIndex + 1;
-              return (
-                <div key={betail.id} className={`podium-slot podium-${rank}`}>
-                  {rank === 1 && (
-                    <div className="podium-crown" aria-hidden="true">
-                      <Crown size={22} />
-                    </div>
-                  )}
-                  <div className="podium-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                    <img src={betail.img} alt={betail.name} onError={handleImgError} />
-                  </div>
-                  <div className="podium-rank">{rank}</div>
-                  <div className="podium-info">
-                    <p className="podium-name">{betail.name}</p>
-                    <p className="podium-meta">{betail.matricule}</p>
-                    <p className="podium-likes"><Heart size={14} /> {betail.likes ?? 0}</p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <h3 className="home-podium-title">
+            {showLatestCreator ? 'Dernier créateur de bétail' : 'Podium des bétails les plus likés'}
+          </h3>
+
           <div className="home-podium-decor" aria-hidden="true">
             <img className="gupna gupna-a" src={gupna1} alt="" />
             <img className="gupna gupna-c" src={gupna3} alt="" />
@@ -1100,6 +1131,105 @@ function FarmGestion_Home_Mere() {
             <img className="gupna gupna-f" src={gupna6} alt="" />
             <img className="gupna gupna-h" src={gupna8} alt="" />
             <img className="gupna gupna-i" src={gupna9} alt="" />
+          </div>
+
+          <div className="home-podium-switcher">
+            <div className={`home-podium-panel home-podium-panel--podium ${showLatestCreator ? 'is-hidden' : 'is-visible'}`}>
+              <div className="home-podium-stand">
+                {[1, 0, 2].map((podiumIndex) => {
+                  const betail = topBetails[podiumIndex];
+                  if (!betail) return null;
+                  const rank = podiumIndex + 1;
+                  return (
+                    <div key={betail.id} className={`podium-slot podium-${rank}`}>
+                      {rank === 1 && (
+                        <div className="podium-crown" aria-hidden="true">
+                          <Crown size={22} />
+                        </div>
+                      )}
+                      <div className="podium-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                        <img src={betail.img} alt={betail.name} onError={handleImgError} />
+                      </div>
+                      <div className="podium-rank">{rank}</div>
+                      <div className="podium-info">
+                        <p className="podium-name">{betail.name}</p>
+                        <p className="podium-meta">{betail.matricule}</p>
+                        <p className="podium-likes"><Heart size={14} /> {betail.likes ?? 0}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div
+              className={`home-podium-panel home-podium-panel--latest ${showLatestCreator ? 'is-visible' : 'is-hidden'}`}
+              role="status"
+              aria-live="polite"
+            >
+              <div className="home-latest-creator">
+                {latestCreatedBetail ? (
+                  <>
+                    <div className="home-latest-creator-row">
+                      <div className="home-latest-creator-item">
+                        <span className="home-latest-creator-label">Mère</span>
+                        <button
+                          type="button"
+                          className="home-latest-creator-hit"
+                          onClick={handleOpenLatestCreatorProfile}
+                          disabled={!latestCreatedBetail.authorHandle}
+                          aria-label={`Ouvrir le profil de ${latestCreatedBetail.authorName}`}
+                        >
+                          <span className="home-latest-creator-avatar">
+                            <img
+                              src={latestCreatedBetail.authorAvatar}
+                              alt={`Avatar de ${latestCreatedBetail.authorName}`}
+                              onError={(event) => {
+                                event.currentTarget.onerror = null;
+                                event.currentTarget.src = defaultProfileUser;
+                              }}
+                            />
+                          </span>
+                          <p className="home-latest-creator-user">{latestCreatedBetail.authorName}</p>
+                        </button>
+                      </div>
+
+                      <span className="home-latest-creator-plus" aria-hidden="true">→</span>
+
+                      <div className="home-latest-creator-item">
+                        <span className="home-latest-creator-label">Dernière création</span>
+                        <span
+                          className={`home-latest-creator-tooltip-wrap ${latestCreatedBetail.isPublicRegisterBetail ? '' : 'is-disabled'}`}
+                          data-tooltip="Zut ! Ce bétail a déjà été acheté par quelqu'un d'autre"
+                        >
+                          <button
+                            type="button"
+                            className="home-latest-creator-hit"
+                            onClick={handleOpenLatestCreatorBetail}
+                            disabled={!latestCreatedBetail.isPublicRegisterBetail}
+                            aria-label={latestCreatedBetail.isPublicRegisterBetail
+                              ? `Ouvrir ${latestCreatedBetail.betailName} dans le registre`
+                              : `${latestCreatedBetail.betailName} n'est plus disponible dans le registre public`
+                            }
+                          >
+                            <span className="home-latest-creator-avatar home-latest-creator-avatar--betail">
+                              <img
+                                src={latestCreatedBetail.betailAvatar}
+                                alt={latestCreatedBetail.betailName}
+                                onError={handleImgError}
+                              />
+                            </span>
+                            <p className="home-latest-creator-betail">{latestCreatedBetail.betailName}</p>
+                          </button>
+                        </span>
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <p className="home-latest-creator-empty">Aucune création récente disponible.</p>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>
