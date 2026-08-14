@@ -20,6 +20,7 @@ import Settings_ReportsPanel from './Settings_ReportsPanel';
 import Settings_AdminBadgesPanel from './Settings_AdminBadgesPanel';
 import Settings_AdminSurpriseCodesPanel from './Settings_AdminSurpriseCodesPanel';
 import Settings_MaintenancePanel from './Settings_MaintenancePanel';
+import Settings_AdminAuctionsPanel from './Settings_AdminAuctionsPanel';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import {
   applyLocalThemePreference,
@@ -39,6 +40,7 @@ const SECTIONS = {
   administration: 'Administration',
   central: 'Centrale',
   adminBadges: 'Gestion des badges',
+  adminAuctions: 'Encheres',
   adminSurpriseCodes: 'Codes surprise',
   maintenance: 'Maintenance',
   expeditions: 'Expéditions',
@@ -320,6 +322,7 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
     if (isAdmin) return;
     if (
       activeSection === 'administration_surprise_codes'
+      || activeSection === 'administration_auctions'
       || activeSection === 'administration_maintenance'
       || activeSection === 'administration_expeditions'
       || activeSection === 'administration_invisible_betails'
@@ -771,6 +774,13 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
                       </button>
                       <button
                         type="button"
+                        className={`settings-link ${activeSection === 'administration_auctions' ? 'active' : ''}`}
+                        onClick={() => setActiveSection('administration_auctions')}
+                      >
+                        {SECTIONS.adminAuctions}
+                      </button>
+                      <button
+                        type="button"
                         className={`settings-link ${activeSection === 'administration_surprise_codes' ? 'active' : ''}`}
                         onClick={() => setActiveSection('administration_surprise_codes')}
                       >
@@ -1198,6 +1208,14 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
             {isAdmin && activeSection === 'administration_surprise_codes' && (
               <Settings_AdminSurpriseCodesPanel
                 isActive={activeSection === 'administration_surprise_codes'}
+                isAdmin={isAdmin}
+                currentUserId={user?.id || null}
+              />
+            )}
+
+            {isAdmin && activeSection === 'administration_auctions' && (
+              <Settings_AdminAuctionsPanel
+                isActive={activeSection === 'administration_auctions'}
                 isAdmin={isAdmin}
                 currentUserId={user?.id || null}
               />

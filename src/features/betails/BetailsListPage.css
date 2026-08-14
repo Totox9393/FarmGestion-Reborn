@@ -17,6 +17,20 @@
   margin-right: auto;
 }
 
+.betails-heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.betails-heading-image {
+  width: 82px;
+  height: 82px;
+  flex: 0 0 auto;
+  object-fit: cover;
+  object-position: center 22%;
+}
+
 .betails-eyebrow {
   margin: 0;
   text-transform: uppercase;
@@ -27,7 +41,7 @@
 }
 
 .betails-title {
-  margin: 4px 0 6px;
+  margin: 0 0 6px;
   font-size: 2rem;
   color: #1f1f1f;
 }
@@ -1220,5 +1234,14 @@
 
   .betails-title {
     font-size: 1.6rem;
+  }
+
+  .betails-heading {
+    gap: 12px;
+  }
+
+  .betails-heading-image {
+    width: 68px;
+    height: 68px;
   }
 }

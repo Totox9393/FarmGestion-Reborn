@@ -1658,6 +1658,10 @@
   color: rgba(84, 131, 228, 0.94);
 }
 
+.my-betail-icon.is-auction-locked {
+  color: rgba(214, 113, 32, 0.95);
+}
+
 .my-betails-page .betail-avatar.is-premium {
   border-color: rgba(244, 180, 0, 0.85);
   box-shadow: 0 8px 20px rgba(244, 180, 0, 0.32);
@@ -1778,6 +1782,48 @@
 .my-betails-page .betail-card.is-shipping-scheduled .betail-matricule,
 .my-betails-page .betail-card.is-shipping-scheduled .betail-race {
   color: rgba(33, 58, 108, 0.94);
+}
+
+.my-betails-page .betail-card.is-auction-locked .betail-card-surface {
+  border-color: rgba(229, 132, 52, 0.5);
+  background: linear-gradient(180deg, rgba(255, 245, 233, 0.95), rgba(255, 237, 218, 0.91));
+  box-shadow: 0 11px 24px rgba(196, 108, 37, 0.15);
+}
+
+.my-betails-page .betail-card.is-auction-locked .betail-avatar {
+  box-shadow: 0 0 0 2px rgba(222, 126, 50, 0.24);
+}
+
+.my-betails-page .betail-card.is-auction-locked .betail-name,
+.my-betails-page .betail-card.is-auction-locked .betail-matricule,
+.my-betails-page .betail-card.is-auction-locked .betail-race {
+  color: rgba(112, 53, 18, 0.95);
+}
+
+.auth-theme.dark_theme .my-betails-page .betail-card.is-auction-locked .betail-card-surface {
+  background: linear-gradient(180deg, rgba(70, 45, 20, 0.9), rgba(54, 36, 16, 0.92));
+  border-color: rgba(243, 165, 92, 0.62);
+  box-shadow: 0 10px 24px rgba(56, 29, 8, 0.45);
+}
+
+.auth-theme.galactic_theme .my-betails-page .betail-card.is-auction-locked .betail-card-surface {
+  background: linear-gradient(180deg, rgba(84, 49, 24, 0.88), rgba(66, 40, 21, 0.92));
+  border-color: rgba(255, 184, 118, 0.68);
+  box-shadow: 0 12px 26px rgba(58, 31, 11, 0.44), inset 0 0 0 1px rgba(255, 201, 146, 0.2);
+}
+
+.auth-theme.dark_theme .my-betails-page .betail-card.is-auction-locked .betail-name,
+.auth-theme.dark_theme .my-betails-page .betail-card.is-auction-locked .betail-matricule,
+.auth-theme.dark_theme .my-betails-page .betail-card.is-auction-locked .betail-race,
+.auth-theme.galactic_theme .my-betails-page .betail-card.is-auction-locked .betail-name,
+.auth-theme.galactic_theme .my-betails-page .betail-card.is-auction-locked .betail-matricule,
+.auth-theme.galactic_theme .my-betails-page .betail-card.is-auction-locked .betail-race {
+  color: rgba(255, 224, 192, 0.92);
+}
+
+.auth-theme.dark_theme .my-betails-page .my-betail-icon.is-auction-locked,
+.auth-theme.galactic_theme .my-betails-page .my-betail-icon.is-auction-locked {
+  color: rgba(255, 181, 112, 0.98);
 }
 
 .my-betail-section {

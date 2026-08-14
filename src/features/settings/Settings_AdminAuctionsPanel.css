@@ -1,0 +1,191 @@
+.settings-admin-auctions__grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.settings-admin-auctions__winner-alert {
+  border-color: rgba(224, 157, 45, 0.48);
+  background: linear-gradient(135deg, rgba(255, 215, 112, 0.16), var(--settings-panel));
+}
+
+.settings-admin-auctions__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.86rem;
+  color: var(--settings-muted);
+}
+
+.settings-admin-auctions__field input {
+  width: 100%;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--settings-border);
+  background: var(--settings-panel);
+  color: var(--settings-text);
+  padding: 0 10px;
+  font-size: 0.95rem;
+}
+
+.settings-admin-auctions__field input:focus,
+.settings-admin-auctions__field input:focus-visible {
+  outline: none;
+  border-color: var(--settings-accent);
+  box-shadow: 0 0 0 3px var(--settings-accent-soft);
+}
+
+.settings-admin-auctions__field--switch {
+  justify-content: space-between;
+}
+
+.settings-admin-auctions__save,
+.settings-admin-auctions__launch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+
+.settings-admin-auctions__active-meta {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--settings-text);
+}
+
+.settings-admin-auctions__live-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(130px, 1fr) minmax(120px, auto) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--settings-accent);
+  border-radius: 13px;
+  background: var(--settings-accent-soft);
+  color: var(--settings-text);
+  overflow: hidden;
+  position: relative;
+}
+
+.settings-admin-auctions__live-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.18) 48%, transparent 66%);
+  transform: translateX(-110%);
+  animation: admin-auction-live-sheen 3.4s ease-in-out infinite;
+}
+
+.settings-admin-auctions__live-dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #2fc87c;
+  box-shadow: 0 0 0 0 rgba(47, 200, 124, 0.5);
+  animation: admin-auction-live-pulse 1.6s ease-out infinite;
+}
+
+.settings-admin-auctions__live-card > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.settings-admin-auctions__live-label,
+.settings-admin-auctions__countdown span {
+  color: var(--settings-muted);
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.settings-admin-auctions__countdown strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 1.05rem;
+  color: var(--settings-accent);
+}
+
+.settings-admin-auctions__slots {
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--settings-panel);
+  font-size: 0.76rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+@keyframes admin-auction-live-pulse {
+  70% { box-shadow: 0 0 0 8px rgba(47, 200, 124, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(47, 200, 124, 0); }
+}
+
+@keyframes admin-auction-live-sheen {
+  0%, 35% { transform: translateX(-110%); }
+  75%, 100% { transform: translateX(110%); }
+}
+
+.settings-admin-auctions__actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.settings-admin-auctions__force-open,
+.settings-admin-auctions__force-close,
+.settings-admin-auctions__cancel {
+  min-height: 38px;
+}
+
+.settings-admin-auctions__force-open {
+  border-color: rgba(76, 157, 255, 0.48);
+  background: rgba(76, 157, 255, 0.12);
+}
+
+.settings-admin-auctions__force-close {
+  border-color: rgba(240, 120, 68, 0.48);
+  background: rgba(240, 120, 68, 0.12);
+}
+
+.settings-admin-auctions__cancel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-color: rgba(205, 60, 83, 0.5);
+  background: rgba(205, 60, 83, 0.12);
+  color: #b52e49;
+}
+
+@media (max-width: 620px) {
+  .settings-admin-auctions__live-card {
+    grid-template-columns: auto 1fr;
+  }
+
+  .settings-admin-auctions__countdown,
+  .settings-admin-auctions__slots {
+    grid-column: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-admin-auctions__live-card::after,
+  .settings-admin-auctions__live-dot {
+    animation: none;
+  }
+}
+
+.settings-admin-auctions__feedback {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.settings-admin-auctions__feedback.is-success {
+  color: #1a8a4e;
+}
+
+.settings-admin-auctions__feedback.is-error {
+  color: #b43c57;
+}

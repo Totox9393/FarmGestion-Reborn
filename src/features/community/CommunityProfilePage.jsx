@@ -827,9 +827,8 @@ function CommunityProfilePage() {
                 <AvatarMedia avatarUrl={profile?.avatar_url} />
               </div>
               <div>
-                <p className="community-profile-eyebrow">Profil communauté</p>
                 <h1>{profile.username || 'Utilisateur'}</h1>
-                <p className="community-profile-role">{profile.role_ingame || 'Membre non-vérifié'}</p>
+                <p className="community-profile-role">Inscrit le : {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Date inconnue'}</p>
               </div>
               {!isOwnProfile ? (
                 <div className="community-profile-friend-actions">

@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck, Upload } from 'lucide-react';
 import './BetailMaker.css';
 import './AdminBetailMaker.css';
-import miloImage from '../../assets/milo_CLASSIQUE.png';
+import miloImage from '../../assets/betail_sample.png';
 import digitSound1 from '../../assets/sounds/COUNT_DOWN_10.wav';
 import digitSound2 from '../../assets/sounds/COUNT_DOWN_10.wav';
 import digitSound3 from '../../assets/sounds/COUNT_DOWN_10.wav';
@@ -116,6 +116,7 @@ function BetailMaker() {
   const defaultPhotoZoom = 1.15;
   const defaultPhotoOffset = { x: 0, y: 12 };
   const animationTimersRef = useRef({ intervals: [], timeouts: [] });
+  const qualityRevealTimersRef = useRef([]);
   const lastAgeRef = useRef(age);
   const digitSounds = [digitSound1, digitSound2, digitSound3, digitSound4, digitSound5];
   const digitAudiosRef = useRef([]);
@@ -194,7 +195,19 @@ function BetailMaker() {
     setCurrentStep(5);
   };
 
+  const clearQualityRevealTimers = () => {
+    qualityRevealTimersRef.current.forEach((timeoutId) => window.clearTimeout(timeoutId));
+    qualityRevealTimersRef.current = [];
+  };
+
+  const dismissQualityReveal = () => {
+    clearQualityRevealTimers();
+    setQualityRevealEffect('');
+    setIsQualityRevealActive(false);
+  };
+
   const handleQualityComplete = (result) => {
+    clearQualityRevealTimers();
     setQualityResult(result);
     setQualityLocked(true);
     setQualityInProgress(false);
@@ -205,13 +218,15 @@ function BetailMaker() {
       const audio = createSafeAudio(result === 'premium' ? qualityPremiumSound : qualityStandardSound, { volume: 0.4 });
       void playAudioSafely(audio);
     } catch {}
-    // Masquer l'étiquette après 1,5s, puis déflouter et reset après 1,6s
-    setTimeout(() => {
+
+    const hideTimeoutId = window.setTimeout(() => {
       setQualityRevealEffect('');
     }, 1500);
-    setTimeout(() => {
+    const unblurTimeoutId = window.setTimeout(() => {
       setIsQualityRevealActive(false);
     }, 1600);
+
+    qualityRevealTimersRef.current.push(hideTimeoutId, unblurTimeoutId);
   };
 
   const handleQualityStart = () => {
@@ -220,6 +235,11 @@ function BetailMaker() {
 
   const handleNextQuality = () => {
     setCurrentStep(6);
+  };
+
+  const handleSkipQualityRevealOnInteraction = () => {
+    if (!isQualityRevealActive) return;
+    dismissQualityReveal();
   };
 
   const handlePhotoFileChange = (e) => {
@@ -492,6 +512,7 @@ function BetailMaker() {
 
   const handleRestart = () => {
     clearAnimationTimers();
+    clearQualityRevealTimers();
     setCurrentStep(0);
     setPrenom('');
     setAge(BETAIL_AGE_MIN);
@@ -524,6 +545,12 @@ function BetailMaker() {
     setIsQualityRevealActive(false);
     setCreationReward(null);
   };
+
+  useEffect(() => {
+    return () => {
+      clearQualityRevealTimers();
+    };
+  }, []);
 
   const getActiveImageSource = () => {
     if (photoSource === 'url') {
@@ -940,10 +967,19 @@ function BetailMaker() {
             )}
 
 
-            <div className="photo-actions">
+            <button
+              className="next-button"
+              onClick={handleNextPhoto}
+              disabled={!photoFilePreview && !photoUrl.trim()}
+            >
+              Suivant
+              <span className="arrow">→</span>
+            </button>
+
+            <div className="photo-actions photo-actions--secondary">
               {photoFilePreview === defaultProfileImage ? (
-                <label className="photo-action" style={{ cursor: 'pointer' }}>
-                  Choisir une photo parmi la galerie
+                <label className="photo-action photo-action--gallery" style={{ cursor: 'pointer' }}>
+                  Choisir une photo dans la galerie
                   <input
                     type="file"
                     accept="image/*"
@@ -953,25 +989,25 @@ function BetailMaker() {
                   />
                 </label>
               ) : (
-                <button className="photo-action" type="button" onClick={handleUseDefaultPhoto}>
+                <button
+                  className="photo-action photo-action--default"
+                  type="button"
+                  onClick={handleUseDefaultPhoto}
+                >
                   Utiliser la photo par défaut
                 </button>
               )}
               {(photoFilePreview || photoUrl) && photoFilePreview !== defaultProfileImage && (
-                <button className="photo-action ghost" type="button" onClick={handleRemovePhoto}>
-                  Supprimer la photo
+                <button
+                  className="photo-action photo-action--remove"
+                  type="button"
+                  onClick={handleRemovePhoto}
+                >
+                  <X size={15} aria-hidden="true" />
+                  Supprimer cette photo
                 </button>
               )}
             </div>
-
-            <button
-              className="next-button"
-              onClick={handleNextPhoto}
-              disabled={!photoFilePreview && !photoUrl.trim()}
-            >
-              Suivant
-              <span className="arrow">→</span>
-            </button>
           </div>
         );
 
@@ -1038,7 +1074,10 @@ function BetailMaker() {
 
       case 5:
         return (
-          <div className="step-content fade-in">
+          <div
+            className="step-content fade-in"
+            onClickCapture={isQualityRevealActive ? handleSkipQualityRevealOnInteraction : undefined}
+          >
             <h2 className="step-title">Évaluer la qualité</h2>
             <p className="quality-subtitle">
               Choisis un mini-jeu : le résultat déterminera si le bétail est Premium ou Standard.
@@ -1104,15 +1143,6 @@ function BetailMaker() {
                 Suivant
                 <span className="arrow">→</span>
               </button>
-            )}
-
-            {/* Effet visuel de révélation */}
-            {qualityRevealEffect && qualityResult && (
-              <div className={`quality-reveal-card ${qualityRevealEffect} ${qualityResult}`} aria-hidden="true">
-                <span className="quality-reveal-label">
-                  {qualityResult === 'premium' ? '✨ Premium' : 'Standard'}
-                </span>
-              </div>
             )}
 
             {qualityResult === 'premium' && (
@@ -1359,7 +1389,14 @@ function BetailMaker() {
       {qualityRevealEffect && qualityResult && (
         <div className={`quality-reveal-card ${qualityRevealEffect} ${qualityResult} ${qualityResult === 'standard' ? 'shake' : ''}`} aria-hidden="true">
           <span className="quality-reveal-label">
-            {qualityResult === 'premium' ? '✨ Premium' : 'Standard'}
+            <span className="quality-reveal-label__title">
+              {qualityResult === 'premium' ? 'Qualité Premium' : 'Qualité Standard'}
+            </span>
+            <span className="quality-reveal-label__subtitle">
+              {qualityResult === 'premium'
+                ? 'Betail de qualité supérieure'
+                : 'Bétail standard'}
+            </span>
           </span>
         </div>
       )}

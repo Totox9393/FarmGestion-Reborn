@@ -1,7 +1,7 @@
 ﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Archive, CalendarClock, Heart, Pin, Star } from 'lucide-react'
+import { Archive, CalendarClock, Gavel, Heart, Pin, Star } from 'lucide-react'
 import {
   useAuthorsMap,
   useBetailDetails,
@@ -32,6 +32,7 @@ import premiumSuccessSound from '../../assets/sounds/GOCHISOU_7.WAV'
 import pinInSound from '../../assets/sounds/pinin_005.ogg'
 import pinOutSound from '../../assets/sounds/pinout_006.ogg'
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
+import betailSample2Image from '../../assets/betail_sample2.png'
 import MyBetailsShippingPanel from './MyBetailsShippingPanel'
 import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits'
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio'
@@ -83,6 +84,10 @@ const isMissingColumnError = (error) => {
 const isBetailShippingScheduled = (betail) => {
   const status = String(betail?.shipping_status || '').toLowerCase()
   return status === 'scheduled' || Boolean(betail?.is_shipping_scheduled)
+}
+
+const isBetailAuctionLocked = (betail) => {
+  return Boolean(betail?.auction_locked) || Boolean(betail?.auction_session_id)
 }
 
 const isNotAuthenticatedError = (error) => {
@@ -163,6 +168,7 @@ function OverflowAutoScrollText({ text }) {
 
 function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLike, isSelected, onSelect }) {
   const isShippingScheduled = isBetailShippingScheduled(betail)
+  const isAuctionLocked = isBetailAuctionLocked(betail)
   const shippingDateLabel = betail?.shipping_scheduled_for
     ? formatFrenchDate(betail.shipping_scheduled_for)
     : ''
@@ -178,7 +184,7 @@ function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLi
 
   return (
     <article
-      className={`betail-card ${isSelected ? 'is-selected' : ''} ${betail.archived ? 'is-archived' : ''} ${betail.pinned ? 'is-pinned' : ''} ${isShippingScheduled ? 'is-shipping-scheduled' : ''}`}
+      className={`betail-card ${isSelected ? 'is-selected' : ''} ${betail.archived ? 'is-archived' : ''} ${betail.pinned ? 'is-pinned' : ''} ${isShippingScheduled ? 'is-shipping-scheduled' : ''} ${isAuctionLocked ? 'is-auction-locked' : ''}`}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       role="button"
@@ -248,6 +254,12 @@ function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLi
               <span className="my-betail-tooltip" role="tooltip">
                 {shippingDateLabel ? `Expédition prévue: ${shippingDateLabel}` : 'Expédition déjà programmée'}
               </span>
+            </span>
+          )}
+          {isAuctionLocked && (
+            <span className="my-betail-icon-wrap" tabIndex={0}>
+              <Gavel size={15} className="my-betail-icon is-auction-locked" />
+              <span className="my-betail-tooltip" role="tooltip">Enchère en cours</span>
             </span>
           )}
         </div>
@@ -575,7 +587,11 @@ function MyBetailsPageQuery() {
   const selectedPurchasedAt = selectedDetails?.purchased_at || selectedBetail?.purchased_at
   const selectedComment = selectedDetails?.comments ?? selectedBetail?.comments ?? ''
   const selectedIsShippingScheduled = isBetailShippingScheduled(selectedBetail)
+  const selectedIsAuctionLocked = isBetailAuctionLocked(selectedBetail)
   const selectedShippingLockReason = 'Bétail verrouillé : Expédition déjà programmée.'
+  const selectedAuctionLockReason = 'Bétail verrouillé : enchère en cours.'
+  const selectedActionLocked = selectedIsShippingScheduled || selectedIsAuctionLocked
+  const selectedEditLockReason = selectedIsShippingScheduled ? selectedShippingLockReason : selectedAuctionLockReason
   const selectedShippingScheduledDate = selectedBetail?.shipping_scheduled_for
     ? formatFrenchDate(selectedBetail.shipping_scheduled_for)
     : ''
@@ -617,7 +633,7 @@ function MyBetailsPageQuery() {
   const availableInventoryBadges = useMemo(() => {
     return (userInventoryBadges || []).filter((badge) => !userEquippedBadgeIdSet.has(badge.id))
   }, [userInventoryBadges, userEquippedBadgeIdSet])
-  const canEquipSelectedBetail = Boolean(selectedBetail?.id) && !selectedIsShippingScheduled
+  const canEquipSelectedBetail = Boolean(selectedBetail?.id) && !selectedActionLocked
   const isPremiumAnimationVisible = premiumAnimationPhase !== 'idle'
   const isPremiumAnimationSuccess = premiumAnimationPhase === 'success'
 
@@ -783,6 +799,10 @@ function MyBetailsPageQuery() {
 
   const handleOpenShippingPanel = () => {
     if (!selectedBetail) return
+    if (selectedIsAuctionLocked) {
+      toast('error', selectedAuctionLockReason)
+      return
+    }
     if (selectedIsShippingScheduled) {
       toast('error', 'Ce bétail a déjà une expédition programmée.')
       return
@@ -823,8 +843,8 @@ function MyBetailsPageQuery() {
 
   const handleOpenBadgeEquipModal = useCallback((slot) => {
     if (!selectedBetail?.id) return
-    if (selectedIsShippingScheduled) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked) {
+      toast('error', selectedEditLockReason)
       return
     }
     if (selectedEquippedBadges.length >= MAX_BADGE_SLOTS) {
@@ -833,7 +853,7 @@ function MyBetailsPageQuery() {
     }
     setBadgeModalSlot(Number.isFinite(Number(slot)) ? Number(slot) : null)
     setIsBadgeModalOpen(true)
-  }, [selectedBetail?.id, selectedIsShippingScheduled, selectedShippingLockReason, selectedEquippedBadges.length])
+  }, [selectedBetail?.id, selectedActionLocked, selectedEditLockReason, selectedEquippedBadges.length])
 
   const handleEquipBadgeOnSelectedBetail = useCallback(async (badgeId) => {
     if (!selectedBetail?.id || !badgeId || equipBadgeMutation.isPending) return
@@ -879,8 +899,8 @@ function MyBetailsPageQuery() {
 
   const handleUnequipBadgeFromSelectedBetail = useCallback(async (badgeId) => {
     if (!selectedBetail?.id || !badgeId || unequipBadgeMutation.isPending) return
-    if (selectedIsShippingScheduled) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked) {
+      toast('error', selectedEditLockReason)
       return
     }
 
@@ -904,7 +924,7 @@ function MyBetailsPageQuery() {
         toast('error', 'Erreur pendant desequipement du badge.')
       }
     }
-  }, [selectedBetail?.id, selectedIsShippingScheduled, selectedShippingLockReason, unequipBadgeMutation])
+  }, [selectedBetail?.id, selectedActionLocked, selectedEditLockReason, unequipBadgeMutation])
 
   const handlePreviewShippingGrowth = useCallback(async (betailId) => {
     if (!betailId) {
@@ -1069,8 +1089,8 @@ function MyBetailsPageQuery() {
 
   const handleSaveComment = () => {
     if (!selectedBetail || !user?.id) return
-    if (selectedIsShippingScheduled) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked) {
+      toast('error', selectedEditLockReason)
       return
     }
     const normalizedCommentDraft = sanitizeBetailComment(commentDraft)
@@ -1094,8 +1114,8 @@ function MyBetailsPageQuery() {
 
   const runToggle = ({ mutation, nextValue, successMessage, fallbackMessage, allowWhenShipping = false }) => {
     if (!selectedBetail || !user?.id || mutation.isPending) return
-    if (selectedIsShippingScheduled && !allowWhenShipping) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked && !allowWhenShipping) {
+      toast('error', selectedEditLockReason)
       return
     }
     mutation.mutate(
@@ -1137,8 +1157,8 @@ function MyBetailsPageQuery() {
 
   const runPremiumUpgrade = () => {
     if (!selectedBetail || !user?.id || premiumUpgradeMutation.isPending || selectedBetail.premium) return
-    if (selectedIsShippingScheduled) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked) {
+      toast('error', selectedEditLockReason)
       return
     }
 
@@ -1201,8 +1221,8 @@ function MyBetailsPageQuery() {
 
   const startPremiumPreview = () => {
     if (!selectedBetail || !user?.id || selectedBetail.premium) return
-    if (selectedIsShippingScheduled) {
-      toast('error', selectedShippingLockReason)
+    if (selectedActionLocked) {
+      toast('error', selectedEditLockReason)
       return
     }
 
@@ -1265,11 +1285,18 @@ function MyBetailsPageQuery() {
       <div className={layoutClassName}>
         <main className="betails-column-main betails-main my-betails-main">
           <header className="betails-header">
-            <div>
-              <p className="betails-eyebrow">Inventaire</p>
-              <h1 className="betails-title">Mes bétails</h1>
-              <p className="betails-subtitle">{stats}</p>
-              <p className="my-betails-pin-hint">Les bétails épinglés remontent automatiquement sur ton profil.</p>
+            <div className="betails-heading">
+              <img
+                className="betails-heading-image"
+                src={betailSample2Image}
+                alt=""
+                aria-hidden="true"
+              />
+              <div>
+                <h1 className="betails-title">Mes bétails</h1>
+                <p className="betails-subtitle">{stats}</p>
+                <p className="my-betails-pin-hint">Les bétails épinglés remontent automatiquement sur ton profil.</p>
+              </div>
             </div>
             <div className="betails-actions my-betails-actions">
               <button type="button" className="betails-back" onClick={() => navigate('/home')}>
@@ -1555,17 +1582,17 @@ function MyBetailsPageQuery() {
                               setCommentDraft(sanitizeBetailComment(selectedComment || ''))
                               setEditingComment(true)
                             }}
-                            disabled={isSaving || selectedIsShippingScheduled}
-                            title={selectedIsShippingScheduled ? selectedShippingLockReason : 'Modifier le commentaire'}
+                            disabled={isSaving || selectedActionLocked}
+                            title={selectedActionLocked ? selectedEditLockReason : 'Modifier le commentaire'}
                           >
                             Modifier
                           </button>
                         ) : null}
                       </div>
 
-                      {selectedIsShippingScheduled ? (
+                      {selectedActionLocked ? (
                         <p className="my-betail-lock-hint" role="status" aria-live="polite">
-                          Bétail verrouillé : Expédition déjà programmée.
+                          {selectedEditLockReason}
                         </p>
                       ) : null}
 
@@ -1582,14 +1609,14 @@ function MyBetailsPageQuery() {
                             value={commentDraft}
                             onChange={(event) => setCommentDraft(sanitizeBetailComment(event.target.value))}
                             maxLength={MAX_BETAIL_COMMENT_LENGTH}
-                            disabled={selectedIsShippingScheduled}
+                            disabled={selectedActionLocked}
                           />
                           <div className="my-betail-inline-actions">
                             <button
                               type="button"
                               className="my-betail-btn"
                               onClick={handleSaveComment}
-                              disabled={isSaving || selectedIsShippingScheduled}
+                              disabled={isSaving || selectedActionLocked}
                             >
                               Enregistrer
                             </button>
@@ -1621,8 +1648,8 @@ function MyBetailsPageQuery() {
                             type="button"
                             className="my-betail-btn"
                             onClick={startPremiumPreview}
-                            disabled={isSaving || selectedIsShippingScheduled}
-                            title={selectedIsShippingScheduled ? selectedShippingLockReason : 'Prévisualiser le coût premium'}
+                            disabled={isSaving || selectedActionLocked}
+                            title={selectedActionLocked ? selectedEditLockReason : 'Prévisualiser le coût premium'}
                           >
                             <Star size={14} />
                             Amélioration premium
@@ -1652,7 +1679,7 @@ function MyBetailsPageQuery() {
                                 type="button"
                                 className="my-betail-btn"
                                 onClick={runPremiumUpgrade}
-                                disabled={isSaving || premiumConfirmState.loading || !premiumConfirmState.canAfford || selectedIsShippingScheduled}
+                                  disabled={isSaving || premiumConfirmState.loading || !premiumConfirmState.canAfford || selectedActionLocked}
                               >
                                 Confirmer la transmutation
                               </button>
@@ -1712,7 +1739,7 @@ function MyBetailsPageQuery() {
                                 type="button"
                                 className="my-betail-badge-remove"
                                 onClick={() => handleUnequipBadgeFromSelectedBetail(badge.id)}
-                                disabled={unequipBadgeMutation.isPending || selectedIsShippingScheduled}
+                                disabled={unequipBadgeMutation.isPending || selectedActionLocked}
                               >
                                 Retirer
                               </button>
@@ -1736,9 +1763,9 @@ function MyBetailsPageQuery() {
                         )
                       })}
                     </div>
-                    {selectedIsShippingScheduled ? (
+                    {selectedActionLocked ? (
                       <p className="my-betail-ship-status" role="status" aria-live="polite">
-                        {selectedShippingLockReason}
+                        {selectedEditLockReason}
                       </p>
                     ) : null}
                     <button
@@ -1761,20 +1788,29 @@ function MyBetailsPageQuery() {
                       type="button"
                       className="my-betail-btn my-betail-ship-btn"
                       onClick={handleOpenShippingPanel}
-                      disabled={selectedIsShippingScheduled}
+                      disabled={selectedActionLocked}
                       title={
-                        selectedIsShippingScheduled
-                          ? 'Ce bétail est déjà prévu en expédition.'
+                        selectedActionLocked
+                          ? selectedEditLockReason
                           : 'Ouvrir le panneau d’expédition'
                       }
                     >
-                      {selectedIsShippingScheduled ? 'Expédition déjà prévue' : 'Expédier le bétail'}
+                      {selectedIsShippingScheduled
+                          ? 'Ce bétail est déjà prévu en expédition.'
+                          : selectedIsAuctionLocked
+                            ? 'Bétail verrouillé en enchère'
+                            : 'Expédier le bétail'}
                     </button>
                     {selectedIsShippingScheduled ? (
                       <p className="my-betail-ship-status" role="status" aria-live="polite">
                         {selectedShippingScheduledDate
                           ? `Créneau déjà fixé: ${selectedShippingScheduledDate}.`
                           : 'Créneau déjà fixé pour ce bétail.'}
+                      </p>
+                    ) : null}
+                    {selectedIsAuctionLocked ? (
+                      <p className="my-betail-ship-status" role="status" aria-live="polite">
+                        {selectedAuctionLockReason}
                       </p>
                     ) : null}
                   </section>
@@ -1890,5 +1926,4 @@ function MyBetailsPageQuery() {
 }
 
 export default MyBetailsPageQuery
-
 

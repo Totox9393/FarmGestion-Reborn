@@ -15,6 +15,7 @@ import { supabase } from '../authentification/supabaseClient'
 import ReportBetailModal from '../signalement/ReportBetailModal'
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio'
 import './BetailsListPage.css'
+import betailSampleImage from '../../assets/betail_sample.png'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
 
@@ -654,10 +655,17 @@ function BetailsListPageQuery() {
       <div className={`betails-layout ${selectedBetail ? 'has-panel' : ''}`}>
         <main className="betails-column-main betails-main">
           <header className="betails-header">
-            <div>
-              <p className="betails-eyebrow">Registre</p>
-              <h1 className="betails-title">Bétails disponibles</h1>
-              <p className="betails-subtitle">{stats}</p>
+            <div className="betails-heading">
+              <img
+                className="betails-heading-image"
+                src={betailSampleImage}
+                alt=""
+                aria-hidden="true"
+              />
+              <div>
+                <h1 className="betails-title">Bétails disponibles</h1>
+                <p className="betails-subtitle">{stats}</p>
+              </div>
             </div>
             <div className="betails-actions">
               <button type="button" className="betails-back" onClick={() => navigate('/home')}>
@@ -902,4 +910,3 @@ function BetailsListPageQuery() {
 }
 
 export default BetailsListPageQuery
-

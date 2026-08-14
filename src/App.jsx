@@ -22,6 +22,7 @@ import GCEPage from './features/betails/expedition/GCEPage/GCEPage';
 import CommunityPage from './features/community/CommunityPage';
 import CommunityProfilePage from './features/community/CommunityProfilePage';
 import Settings_CentralePage from './features/settings/Settings_CentralePage';
+import AuctionsPage from './features/betails/AuctionsPage';
 import { useAuth } from './features/authentification/AuthContext';
 import { readInitialSurpriseCode, redeemSurpriseCode } from './features/authentification/surpriseCode';
 import './App.css';
@@ -68,6 +69,8 @@ const getStaticPageTitle = (pathname) => {
       return 'FarmGestion - Accueil';
     case '/betail-maker':
       return 'FG - Création de bétail';
+    case '/encheres':
+      return 'FG - Encheres';
     case '/community':
     case '/farms-actives':
       return 'FG - Communauté';
@@ -468,6 +471,16 @@ function AppRoutes() {
             <PrivateRoute>
               <AuthenticatedLayout>
                 <ShopPage />
+              </AuthenticatedLayout>
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/encheres"
+          element={
+            <PrivateRoute>
+              <AuthenticatedLayout>
+                <AuctionsPage />
               </AuthenticatedLayout>
             </PrivateRoute>
           }

@@ -1,25 +1,28 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
+import { Icon } from '@iconify/react';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { Heart, Crown, CalendarDays, PlusCircle, ShoppingCart, Tractor, ListChecks, ArrowRight, ShoppingBag, LifeBuoy } from 'lucide-react';
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
+import { getFullVersionLabel } from '../utils/appVersion';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
+import HomeAuctionBanner from './HomeAuctionBanner';
 import './FarmGestionHome.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
 
 // Import images des bétails
-import betail1 from '../../assets/img/betails/bétails1.jpeg';
-import betail2 from '../../assets/img/betails/bétails2.jpg';
-import betail3 from '../../assets/img/betails/bétails3.png';
-import betail5 from '../../assets/img/betails/bétails5.jpg';
-import betail7 from '../../assets/img/betails/bétails7.jpg';
-import betail9 from '../../assets/img/betails/bétails9.jpg';
-import betail11 from '../../assets/img/betails/bétails11.jpg';
-import betail13 from '../../assets/img/betails/bétails13.jpg';
+import betail1 from '../../assets/img/betails/betail1.jpeg';
+import betail2 from '../../assets/img/betails/betail2.jpg';
+import betail3 from '../../assets/img/betails/betail3.png';
+import betail5 from '../../assets/img/betails/betail5.jpg';
+import betail7 from '../../assets/img/betails/betail7.jpg';
+import betail9 from '../../assets/img/betails/betail9.jpg';
+import betail11 from '../../assets/img/betails/betail11.jpg';
+import betail13 from '../../assets/img/betails/betail13.jpg';
 import gupna1 from '../../assets/img/gupna/gupna1.png';
 import gupna3 from '../../assets/img/gupna/gupna3.png';
 import gupna4 from '../../assets/img/gupna/gupna4.png';
@@ -291,6 +294,8 @@ function FarmGestion_Home_Mere() {
       }).format(new Date()),
     []
   );
+  const currentYear = useMemo(() => new Date().getFullYear(), []);
+  const versionLabel = getFullVersionLabel();
 
   const handleImgError = (e) => {
     e.currentTarget.onerror = null;
@@ -467,17 +472,44 @@ function FarmGestion_Home_Mere() {
       try {
         if (!user?.id) return null;
 
-        const { data, error } = await supabase
+        const { data: candidates, error } = await supabase
           .from('betails')
           .select('id,name,matricule,avatar_url,purchased_at')
           .eq('owner_id', user.id)
           .not('purchased_at', 'is', null)
           .order('purchased_at', { ascending: false, nullsFirst: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(50);
 
         if (error) return null;
-        return data ?? null;
+        if (!candidates?.length) return null;
+
+        const candidateIds = candidates.map((item) => item.id).filter(Boolean);
+        const { data: wonAuctionSlots, error: auctionSlotsError } = await supabase
+          .from('auction_slots_reborn')
+          .select('betail_id,updated_at')
+          .eq('winner_user_id', user.id)
+          .eq('status', 'sold')
+          .in('betail_id', candidateIds)
+          .order('updated_at', { ascending: false });
+
+        if (auctionSlotsError) return candidates[0] ?? null;
+
+        const latestAuctionWinByBetail = new Map();
+        (wonAuctionSlots || []).forEach((slot) => {
+          const betailId = String(slot?.betail_id || '');
+          const wonAt = new Date(slot?.updated_at || 0).getTime();
+          if (!betailId || !Number.isFinite(wonAt)) return;
+          const previous = latestAuctionWinByBetail.get(betailId) || 0;
+          if (wonAt > previous) latestAuctionWinByBetail.set(betailId, wonAt);
+        });
+
+        const AUCTION_TRANSFER_TIME_TOLERANCE_MS = 10_000;
+        return candidates.find((item) => {
+          const purchasedAt = new Date(item?.purchased_at || 0).getTime();
+          const auctionWonAt = latestAuctionWinByBetail.get(String(item?.id || ''));
+          if (!auctionWonAt || !Number.isFinite(purchasedAt)) return true;
+          return Math.abs(purchasedAt - auctionWonAt) > AUCTION_TRANSFER_TIME_TOLERANCE_MS;
+        }) ?? null;
       } catch {
         return null;
       }
@@ -644,7 +676,7 @@ function FarmGestion_Home_Mere() {
         {
           key: 'register',
           title: 'Ouvrir le registre',
-          subtitle: 'Importe ou achète de nouveaux bétails.',
+          subtitle: 'Achète de nouveaux bétails pour ta ferme.',
           onClick: openBetailRegister,
           variant: 'secondary',
           icon: ShoppingCart,
@@ -942,6 +974,7 @@ function FarmGestion_Home_Mere() {
   return (
     <>
       <div className="home-shell">
+      <HomeAuctionBanner />
       <div className="home-hero">
         <div
           className="home-hero__title-block"
@@ -949,7 +982,6 @@ function FarmGestion_Home_Mere() {
         >
           <div className="home-hero__header">
             <div>
-              <p className="home-hero__eyebrow">FARMGESTION - Accueil</p>
               <h1 className="home-hero__title">Bienvenue, {profile.username || 'fermier·e'} !</h1>
             </div>
             <div className="home-hero__header-side">
@@ -972,7 +1004,7 @@ function FarmGestion_Home_Mere() {
               </button>
             </div>
           </div>
-          <p className="home-hero__subtitle">Prêt à gérer ta ferme et tes bétails en quelques clics.</p>
+          <p className="home-hero__subtitle">Prêt à gérer ta ferme et tes bétails en quelques clics ?</p>
           <div className="home-hero__layout">
             <div className="home-hero__content">
               <div className="home-hero__quick-access" role="group" aria-label="Actions rapides">
@@ -1406,28 +1438,30 @@ function FarmGestion_Home_Mere() {
       </div>
 
       <div className="home-footer">
-        <div className="home-footer__left">
-          <p className="home-footer__title">Besoin d’aide ?</p>
-          <p className="home-footer__text">Le guide interactif est disponible. Le support arrive bientôt, ton feedback nous aide à améliorer l'expérience.</p>
-        </div>
-        <div className="home-footer__actions">
-          <button
-            type="button"
-            className="home-btn ghost"
-            onClick={openWelcomeHelp}
-            aria-haspopup="dialog"
-            aria-expanded={isWelcomeHelpOpen}
-            aria-label="Ouvrir le guide d'aide"
-          >
-            Ouvrir le guide
-          </button>
-          <button type="button" className="home-btn is-muted" disabled>
-            Signaler un problème
-          </button>
-          <button type="button" className="home-btn is-muted" disabled>
-            Contact
-          </button>
-        </div>
+        <a
+          className="home-footer__link"
+          href="https://discord.farmgestion.fr"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Ouvrir le Discord FarmGestion"
+        >
+          <Icon icon="logos:discord-icon" width={18} height={18} aria-hidden="true" />
+          <span>Discord FarmGestion</span>
+        </a>
+
+        <p className="home-footer__brand">FarmGestion FR © {currentYear} • {versionLabel}</p>
+
+        <button
+          type="button"
+          className="home-footer__link home-footer__link--button"
+          onClick={openWelcomeHelp}
+          aria-haspopup="dialog"
+          aria-expanded={isWelcomeHelpOpen}
+          aria-label="Ouvrir le guide interactif"
+        >
+          <LifeBuoy size={16} aria-hidden="true" />
+          <span>Guide interactif</span>
+        </button>
       </div>
       </div>
 

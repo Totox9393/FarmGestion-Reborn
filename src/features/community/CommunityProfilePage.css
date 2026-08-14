@@ -664,6 +664,8 @@
   display: block;
   min-height: 196px;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  isolation: isolate;
   border-radius: 18px;
   overflow: hidden;
 }
@@ -683,24 +685,38 @@
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  will-change: transform, opacity;
   transition: transform 0.45s ease;
 }
 
 .community-pinned-card__face--back {
-  transform: rotateY(180deg);
+  transform: rotateY(180deg) translateZ(1px);
+  -webkit-transform: rotateY(180deg) translateZ(1px);
   align-items: stretch;
+  opacity: 0;
+  visibility: hidden;
 }
 
 .community-pinned-card__face--front {
-  transform: rotateY(0deg);
+  transform: rotateY(0deg) translateZ(1px);
+  -webkit-transform: rotateY(0deg) translateZ(1px);
+  opacity: 1;
+  visibility: visible;
 }
 
 .community-pinned-card.is-flipped .community-pinned-card__face--front {
   transform: rotateY(-180deg);
+  -webkit-transform: rotateY(-180deg);
+  opacity: 0;
+  visibility: hidden;
 }
 
 .community-pinned-card.is-flipped .community-pinned-card__face--back {
   transform: rotateY(0deg);
+  -webkit-transform: rotateY(0deg);
+  opacity: 1;
+  visibility: visible;
 }
 
 .community-pinned-like {

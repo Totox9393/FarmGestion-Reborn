@@ -2,7 +2,7 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, ShoppingBag, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon } from 'lucide-react';
+import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, ShoppingBag, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon, Gavel } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
@@ -392,7 +392,7 @@ function Navigation_Bar() {
             {({ open }) => (
               <>
                 <Popover.Button
-                  className={`nav-link nav-link--dropdown ${location.pathname === '/betail-maker' ? 'active' : ''}`}
+                  className={`nav-link nav-link--dropdown ${location.pathname === '/betail-maker' || location.pathname === '/encheres' ? 'active' : ''}`}
                   onClick={dismissMenuHint}
                 >
                   <span>Bétails</span>
@@ -423,6 +423,7 @@ function Navigation_Bar() {
                     <button className="nav-dropdown-item" onClick={() => go('/betail-maker')}><BabyIcon size={16} /> Créer un bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/betail-register')}><ShoppingCart size={16} /> Registre du bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/mes-betails')}><ListChecks size={16} /> Mes bétails</button>
+                    <button className="nav-dropdown-item" onClick={() => go('/encheres')}><Gavel size={16} /> Enchères</button>
                   </Popover.Panel>
                 </Transition>
               </>

@@ -46,6 +46,8 @@ const MY_BETAILS_FIELDS_BASE = [
   'comments',
   'owner_id',
   'farm_id',
+  'auction_locked',
+  'auction_session_id',
 ]
 
 const MY_BETAILS_FIELDS_MINIMAL = [
@@ -62,6 +64,8 @@ const MY_BETAILS_FIELDS_MINIMAL = [
   'comments',
   'owner_id',
   'farm_id',
+  'auction_locked',
+  'auction_session_id',
 ]
 
 const USER_SETTING_PINNED_BETAILS = 'pinned_betails'
@@ -79,6 +83,8 @@ const normalizeMyBetail = (item) => {
     ...item,
     pinned: Boolean(item?.pinned),
     archived: Boolean(item?.archived),
+    auction_locked: Boolean(item?.auction_locked),
+    auction_session_id: item?.auction_session_id || null,
     shipping_status: item?.shipping_status || null,
     shipping_scheduled_for: item?.shipping_scheduled_for || null,
     shipping_estimated_gain: Number.isFinite(shippingEstimatedGain) ? shippingEstimatedGain : null,
