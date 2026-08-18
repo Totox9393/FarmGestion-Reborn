@@ -14,6 +14,7 @@ import { useAuth } from '../authentification/AuthContext'
 import { supabase } from '../authentification/supabaseClient'
 import ReportBetailModal from '../signalement/ReportBetailModal'
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio'
+import useMobileScrollLock from '../utils/useMobileScrollLock'
 import './BetailsListPage.css'
 import betailSampleImage from '../../assets/betail_sample.png'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
@@ -387,6 +388,7 @@ function BetailsListPageQuery() {
     const normalized = String(routeBetailIdParam).trim()
     return UUID_REGEX.test(normalized) ? normalized : null
   }, [hasRouteBetailIdParam, routeBetailIdParam])
+  useMobileScrollLock(Boolean(selectedBetailId || isReportModalOpen))
   const hasInvalidRouteBetailId = hasRouteBetailIdParam && !selectedBetailId
 
   const {

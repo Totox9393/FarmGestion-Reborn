@@ -24,6 +24,7 @@ import CommunityProfilePage from './features/community/CommunityProfilePage';
 import Settings_CentralePage from './features/settings/Settings_CentralePage';
 import AuctionsPage from './features/betails/AuctionsPage';
 import { useAuth } from './features/authentification/AuthContext';
+import { ChatDockProvider } from './features/chat/ChatDockProvider';
 import { readInitialSurpriseCode, redeemSurpriseCode } from './features/authentification/surpriseCode';
 import './App.css';
 
@@ -548,7 +549,9 @@ function App() {
   return (
     <AuthProvider>
       <Router>
-        <AppRoutes />
+        <ChatDockProvider>
+          <AppRoutes />
+        </ChatDockProvider>
       </Router>
     </AuthProvider>
   );

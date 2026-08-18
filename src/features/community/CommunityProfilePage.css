@@ -1,6 +1,10 @@
 .community-profile-page {
   --community-profile-text: #241c40;
   --community-profile-muted: rgba(39, 29, 72, 0.74);
+  --community-profile-icon-action-color: #3b2d84;
+  --community-profile-icon-message-color: #5949bd;
+  --community-profile-icon-warn-color: #7b5310;
+  --community-profile-icon-danger-color: #872f2f;
   --community-profile-surface: rgba(255, 255, 255, 0.9);
   --community-profile-border: rgba(83, 66, 149, 0.2);
   --community-profile-chip-border: rgba(99, 86, 213, 0.28);
@@ -294,6 +298,13 @@
   justify-content: flex-end;
 }
 
+.community-profile-friend-actions--icon-row {
+  align-self: start;
+  gap: 6px;
+  position: relative;
+  z-index: 2;
+}
+
 .community-profile-friend-hint {
   font-size: 0.82rem;
   color: var(--community-profile-muted);
@@ -321,6 +332,82 @@
   gap: 8px;
   font-weight: 700;
   cursor: pointer;
+}
+
+.community-profile-friend-btn--icon {
+  --friend-action-color: var(--community-profile-icon-action-color);
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: var(--community-profile-muted);
+  padding: 7px 8px;
+  gap: 0;
+  font-weight: 700;
+  overflow: visible;
+  width: 36px;
+  max-width: 36px;
+  flex: 0 0 36px;
+  box-shadow: none;
+  transition: color 0.2s ease;
+}
+
+.community-profile-friend-btn--icon span {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: min(210px, calc(100vw - 32px));
+  margin: 0;
+  padding: 6px 9px;
+  border: 1px solid rgba(83, 66, 149, 0.18);
+  border-radius: 8px;
+  background: var(--community-profile-surface);
+  box-shadow: 0 8px 20px rgba(31, 24, 70, 0.16);
+  color: var(--friend-action-color);
+  font-size: 0.78rem;
+  line-height: 1.2;
+  pointer-events: none;
+  opacity: 0;
+  white-space: nowrap;
+  visibility: hidden;
+  transform: translateY(-3px);
+  transition: opacity 0.16s ease, transform 0.16s ease, visibility 0s linear 0.16s;
+}
+
+.community-profile-friend-btn--icon:hover:not(:disabled),
+.community-profile-friend-btn--icon:focus-visible:not(:disabled) {
+  color: var(--friend-action-color);
+}
+
+.community-profile-friend-btn--icon:hover:not(:disabled) span,
+.community-profile-friend-btn--icon:focus-visible:not(:disabled) span {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+  transition-delay: 0s;
+}
+
+.community-profile-friend-btn--icon-message {
+  --friend-action-color: var(--community-profile-icon-message-color);
+}
+
+.community-profile-friend-btn--icon-warn {
+  --friend-action-color: var(--community-profile-icon-warn-color);
+}
+
+.community-profile-friend-btn--icon-danger {
+  --friend-action-color: var(--community-profile-icon-danger-color);
+}
+
+.community-profile-message-btn {
+  border-color: rgba(92, 75, 190, 0.4);
+  color: #fff;
+  background: linear-gradient(135deg, #7465dd, #5949bd);
+}
+
+.community-profile-message-btn:hover:not(:disabled) {
+  filter: brightness(1.06);
 }
 
 .community-profile-friend-btn:disabled,
@@ -892,6 +979,10 @@
 .auth-theme.galactic_theme .community-profile-page {
   --community-profile-text: #e8f0ff;
   --community-profile-muted: rgba(213, 229, 255, 0.86);
+  --community-profile-icon-action-color: #d8e7ff;
+  --community-profile-icon-message-color: #b8ccff;
+  --community-profile-icon-warn-color: #ffd498;
+  --community-profile-icon-danger-color: #ffc2c2;
   --community-profile-surface: rgba(20, 29, 48, 0.84);
   --community-profile-border: rgba(141, 179, 255, 0.32);
   --community-profile-chip-border: rgba(141, 179, 255, 0.4);
@@ -939,6 +1030,27 @@
   border-color: rgba(141, 179, 255, 0.35);
   background: rgba(54, 74, 120, 0.34);
   color: #d8e7ff;
+}
+
+.auth-theme.dark_theme .community-profile-friend-btn--icon,
+.auth-theme.galactic_theme .community-profile-friend-btn--icon,
+.auth-theme.pastel_theme .community-profile-friend-btn--icon,
+.auth-theme.multicolor_theme .community-profile-friend-btn--icon {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.auth-theme.dark_theme .community-profile-friend-btn--icon:hover:not(:disabled),
+.auth-theme.dark_theme .community-profile-friend-btn--icon:focus-visible:not(:disabled),
+.auth-theme.galactic_theme .community-profile-friend-btn--icon:hover:not(:disabled),
+.auth-theme.galactic_theme .community-profile-friend-btn--icon:focus-visible:not(:disabled),
+.auth-theme.pastel_theme .community-profile-friend-btn--icon:hover:not(:disabled),
+.auth-theme.pastel_theme .community-profile-friend-btn--icon:focus-visible:not(:disabled),
+.auth-theme.multicolor_theme .community-profile-friend-btn--icon:hover:not(:disabled),
+.auth-theme.multicolor_theme .community-profile-friend-btn--icon:focus-visible:not(:disabled) {
+  border: 0;
+  background: transparent;
 }
 
 .auth-theme.dark_theme .community-profile-friend-btn--blocked,
@@ -1134,12 +1246,20 @@
 }
 
 .auth-theme.pastel_theme .community-profile-page {
+  --community-profile-icon-action-color: #70335a;
+  --community-profile-icon-message-color: #7a3ccf;
+  --community-profile-icon-warn-color: #9e6115;
+  --community-profile-icon-danger-color: #b83f6a;
   --pinned-scrollbar-thumb: rgba(245, 138, 198, 0.58);
   --pinned-scrollbar-track: rgba(245, 138, 198, 0.18);
   background: radial-gradient(circle at top, rgba(255, 240, 248, 0.95) 0%, rgba(255, 230, 242, 0.92) 45%, rgba(255, 220, 236, 0.92) 100%);
 }
 
 .auth-theme.multicolor_theme .community-profile-page {
+  --community-profile-icon-action-color: #3f3386;
+  --community-profile-icon-message-color: #6652dd;
+  --community-profile-icon-warn-color: #8a6216;
+  --community-profile-icon-danger-color: #aa415d;
   --pinned-scrollbar-thumb: rgba(127, 107, 255, 0.58);
   --pinned-scrollbar-track: rgba(127, 107, 255, 0.2);
   background: radial-gradient(circle at top, rgba(252, 246, 255, 0.96) 0%, rgba(244, 238, 255, 0.95) 45%, rgba(238, 232, 252, 0.95) 100%);
@@ -1196,6 +1316,13 @@
     justify-self: start;
     justify-content: flex-start;
     width: 100%;
+  }
+
+  .community-profile-friend-actions--icon-row {
+    grid-column: auto;
+    justify-self: end;
+    justify-content: flex-end;
+    width: auto;
   }
 
   .community-profile-friend-actions .community-profile-add-friend,

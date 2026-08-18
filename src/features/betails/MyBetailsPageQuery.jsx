@@ -36,6 +36,7 @@ import betailSample2Image from '../../assets/betail_sample2.png'
 import MyBetailsShippingPanel from './MyBetailsShippingPanel'
 import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits'
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio'
+import useMobileScrollLock from '../utils/useMobileScrollLock'
 import './BetailsListPage.css'
 import './MyBetailsPage.css'
 
@@ -285,6 +286,7 @@ function MyBetailsPageQuery() {
   const [shippingTarget, setShippingTarget] = useState(null)
   const [isBadgeModalOpen, setIsBadgeModalOpen] = useState(false)
   const [badgeModalSlot, setBadgeModalSlot] = useState(null)
+  useMobileScrollLock(Boolean(selectedBetailId || isShippingPanelOpen || isBadgeModalOpen))
   const premiumAnimationTimeoutRef = useRef(null)
   const detailsPanelTimeoutRef = useRef(null)
   const shippingPanelTimeoutRef = useRef(null)
@@ -1926,4 +1928,3 @@ function MyBetailsPageQuery() {
 }
 
 export default MyBetailsPageQuery
-

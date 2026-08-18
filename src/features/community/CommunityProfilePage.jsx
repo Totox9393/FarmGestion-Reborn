@@ -22,6 +22,7 @@ import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import blockedProfileFailSound from '../../assets/sounds/JIN_EVENT_FAIL.WAV';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio';
+import { useChatDock } from '../chat/chatDockContext';
 import './CommunityProfilePage.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -256,6 +257,7 @@ function CommunityProfilePage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { openChat, isOpening: isOpeningChat } = useChatDock();
   const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), []);
   const blockedSoundPlayedRef = useRef(false);
   const confirmResetTimerRef = useRef(null);
@@ -420,6 +422,9 @@ function CommunityProfilePage() {
     mutationFn: () => blockRelation(user.id, profile.id),
     onSuccess: () => {
       refreshRelations();
+      window.dispatchEvent(new CustomEvent('farmgestion-user-blocked', {
+        detail: { userId: profile.id },
+      }));
       dispatchToast('Utilisateur bloqué.', 'success');
     },
     onError: () => dispatchToast('Impossible de bloquer cet utilisateur.', 'error'),
@@ -491,6 +496,15 @@ function CommunityProfilePage() {
     if (!relation?.id) return;
     if (!window.confirm('Supprimer cet ami ?')) return;
     removeFriendMutation.mutate();
+  };
+
+  const handleOpenChat = async () => {
+    if (!isFriend || !profile?.id) return;
+    try {
+      await openChat({ id: profile.id, name: profile.username, image: profile.avatar_url });
+    } catch (error) {
+      dispatchToast(error?.message || 'Impossible d’ouvrir la conversation.', 'error');
+    }
   };
 
   const handleBlockUser = () => {
@@ -831,7 +845,7 @@ function CommunityProfilePage() {
                 <p className="community-profile-role">Inscrit le : {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Date inconnue'}</p>
               </div>
               {!isOwnProfile ? (
-                <div className="community-profile-friend-actions">
+                <div className={`community-profile-friend-actions${isFriend ? ' community-profile-friend-actions--icon-row' : ''}`}>
                   {relationQuery.isLoading || allowFriendRequestsQuery.isLoading ? (
                     <span className="community-profile-friend-hint">Chargement relation...</span>
                   ) : isIncomingPending ? (
@@ -866,19 +880,33 @@ function CommunityProfilePage() {
                     <>
                       <button
                         type="button"
-                        className="community-profile-friend-btn community-profile-friend-btn--warn"
-                        disabled={isFriendActionBusy}
-                        onClick={handleRemoveFriend}
+                        className="community-profile-friend-btn community-profile-friend-btn--icon community-profile-friend-btn--icon-message"
+                        disabled={isFriendActionBusy || isOpeningChat}
+                        onClick={handleOpenChat}
+                        aria-label={isOpeningChat ? 'Ouverture...' : 'Envoyer un message'}
                       >
-                        <UserMinus size={16} /> Supprimer ami
+                        <MessageSquare size={18} />
+                        <span>{isOpeningChat ? 'Ouverture...' : 'Envoyer un message'}</span>
                       </button>
                       <button
                         type="button"
-                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        className="community-profile-friend-btn community-profile-friend-btn--icon community-profile-friend-btn--icon-warn"
+                        disabled={isFriendActionBusy}
+                        onClick={handleRemoveFriend}
+                        aria-label="Supprimer ami"
+                      >
+                        <UserMinus size={18} />
+                        <span>Supprimer ami</span>
+                      </button>
+                      <button
+                        type="button"
+                        className="community-profile-friend-btn community-profile-friend-btn--icon community-profile-friend-btn--icon-danger"
                         disabled={isFriendActionBusy}
                         onClick={handleBlockUser}
+                        aria-label={confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
                       >
-                        <ShieldBan size={16} /> {confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
+                        <ShieldBan size={18} />
+                        <span>{confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}</span>
                       </button>
                     </>
                   ) : isBlockedByCurrentUser ? (

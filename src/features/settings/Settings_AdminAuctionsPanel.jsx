@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ban, Gavel, Timer, Sparkles } from 'lucide-react';
+import { Activity, Ban, CalendarClock, Gavel, Settings2, Sparkles, Timer } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import './Settings_AdminAuctionsPanel.css';
 
 const AUCTION_CONFIG_QUERY_KEY = ['settings', 'admin', 'auctions-config'];
 const ACTIVE_AUCTION_QUERY_KEY = ['settings', 'admin', 'active-auction-snapshot'];
 const WINNER_ANNOUNCEMENT_QUERY_KEY = ['settings', 'admin', 'winner-announcement'];
+const SCHEDULER_STATUS_QUERY_KEY = ['settings', 'admin', 'auctions-scheduler-status'];
 
 const clampInt = (value, min, max, fallback) => {
   const parsed = Number(value);
@@ -22,6 +23,19 @@ const formatCountdown = (milliseconds) => {
   const minutes = Math.floor((secondsTotal % 3600) / 60);
   const seconds = secondsTotal % 60;
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
+const formatDateTime = (value) => {
+  const date = new Date(value || 0);
+  if (!value || Number.isNaN(date.getTime())) return 'Jamais';
+  return new Intl.DateTimeFormat('fr-FR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date);
 };
 
 const getStatusDetails = (session, now) => {
@@ -47,9 +61,23 @@ const normalizeSnapshot = (payload) => {
   return { session: null, slots: [] };
 };
 
+const draftFromConfig = (config) => ({
+  enabled: Boolean(config.enabled),
+  weekly_sessions_target: Number(config.weekly_sessions_target ?? 4),
+  homepage_messages_enabled: Boolean(config.homepage_messages_enabled ?? true),
+  fill_timeout_hours: Number(config.fill_timeout_hours || 12),
+  open_delay_minutes: Number(config.open_delay_minutes || 60),
+  duration_hours: Number(config.duration_hours || 8),
+  winner_announcement_enabled: Boolean(config.winner_announcement_enabled ?? true),
+  winner_announcement_minutes: Number(config.winner_announcement_minutes || 60),
+  slot_min: Number(config.slot_min || 2),
+  slot_max: Number(config.slot_max || 5),
+});
+
 function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState(null);
+  const [draftConfigVersion, setDraftConfigVersion] = useState('');
   const [launchForm, setLaunchForm] = useState({
     slotsCount: 2,
     openDelayMinutes: 60,
@@ -99,27 +127,32 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
     refetchInterval: 10_000,
   });
 
-  useEffect(() => {
-    if (!configQuery.data) return;
-    setDraft({
-      enabled: Boolean(configQuery.data.enabled),
-      weekly_sessions_target: Number(configQuery.data.weekly_sessions_target || 4),
-      homepage_messages_enabled: Boolean(configQuery.data.homepage_messages_enabled ?? true),
-      fill_timeout_hours: Number(configQuery.data.fill_timeout_hours || 12),
-      open_delay_minutes: Number(configQuery.data.open_delay_minutes || 60),
-      duration_hours: Number(configQuery.data.duration_hours || 8),
-      winner_announcement_enabled: Boolean(configQuery.data.winner_announcement_enabled ?? true),
-      winner_announcement_minutes: Number(configQuery.data.winner_announcement_minutes || 60),
-      slot_min: Number(configQuery.data.slot_min || 2),
-      slot_max: Number(configQuery.data.slot_max || 5),
-    });
+  const schedulerStatusQuery = useQuery({
+    queryKey: SCHEDULER_STATUS_QUERY_KEY,
+    enabled: Boolean(isActive && isAdmin),
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('get_admin_auction_scheduler_status_reborn');
+      if (error) throw error;
+      if (!data?.success) throw new Error(String(data?.reason || 'UNKNOWN'));
+      return data;
+    },
+    staleTime: 45_000,
+    refetchInterval: 60_000,
+  });
 
+  const nextDraftConfigVersion = configQuery.data
+    ? String(configQuery.data.updated_at || configQuery.data.created_at || 'initial')
+    : '';
+  if (configQuery.data && nextDraftConfigVersion !== draftConfigVersion) {
+    const config = configQuery.data;
+    setDraftConfigVersion(nextDraftConfigVersion);
+    setDraft(draftFromConfig(config));
     setLaunchForm((current) => ({
-      slotsCount: clampInt(current.slotsCount, Number(configQuery.data.slot_min || 2), Number(configQuery.data.slot_max || 5), Number(configQuery.data.slot_min || 2)),
-      openDelayMinutes: clampInt(current.openDelayMinutes, 1, 1440, Number(configQuery.data.open_delay_minutes || 60)),
-      durationHours: clampInt(current.durationHours, 1, 72, Number(configQuery.data.duration_hours || 8)),
+      slotsCount: clampInt(current.slotsCount, Number(config.slot_min || 2), Number(config.slot_max || 5), Number(config.slot_min || 2)),
+      openDelayMinutes: clampInt(current.openDelayMinutes, 1, 1440, Number(config.open_delay_minutes || 60)),
+      durationHours: clampInt(current.durationHours, 1, 72, Number(config.duration_hours || 8)),
     }));
-  }, [configQuery.data]);
+  }
 
   useEffect(() => {
     if (!isActive || !isAdmin) return undefined;
@@ -294,6 +327,22 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
   const activeSession = activeSessionQuery.data?.session || null;
   const activeStatus = getStatusDetails(activeSession, nowTick);
   const winnerAnnouncement = winnerAnnouncementQuery.data?.active ? winnerAnnouncementQuery.data : null;
+  const schedulerStatus = schedulerStatusQuery.data || null;
+  const nextCheckTime = new Date(schedulerStatus?.next_check_at || 0).getTime();
+  const effectiveNextCheckTime = nextCheckTime > nowTick
+    ? nextCheckTime
+    : Math.floor(nowTick / 60_000) * 60_000 + 60_000;
+  const nextCheckCountdown = schedulerStatus?.job_active && Number.isFinite(effectiveNextCheckTime)
+    ? formatCountdown(effectiveNextCheckTime - nowTick)
+    : '--:--:--';
+  const lastRunTime = new Date(schedulerStatus?.last_run_at || 0).getTime();
+  const schedulerIsHealthy = Boolean(
+    schedulerStatus?.job_configured
+    && schedulerStatus?.job_active
+    && String(schedulerStatus?.last_run_status || '').toLowerCase() === 'succeeded'
+    && Number.isFinite(lastRunTime)
+    && nowTick - lastRunTime < 3 * 60 * 1000
+  );
 
   const isBusy =
     saveConfigMutation.isPending ||
@@ -313,7 +362,56 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
   return (
     <div className="settings-section settings-admin-auctions">
       <h3 className="settings-section-title">Administration - Enchères</h3>
+      <p className="settings-admin-auctions__intro">
+        Supervise le roulement automatique, la session en cours et les réglages depuis un seul tableau de bord.
+      </p>
       <div className="settings-list">
+        <div className="settings-admin-auctions__overview">
+          <article className={`settings-admin-auctions__summary-card ${schedulerIsHealthy ? 'is-healthy' : 'is-warning'}`}>
+            <div className="settings-admin-auctions__summary-heading">
+              <Activity size={18} aria-hidden="true" />
+              <span>Automatisation</span>
+            </div>
+            {schedulerStatusQuery.isError ? (
+              <>
+                <strong>État indisponible</strong>
+                <small>Exécute auctions_scheduler_status.sql dans Supabase.</small>
+              </>
+            ) : schedulerStatusQuery.isLoading ? (
+              <strong>Vérification…</strong>
+            ) : (
+              <>
+                <strong>{schedulerIsHealthy ? 'Tick opérationnel' : 'Tick à vérifier'}</strong>
+                <small>Dernier passage : {formatDateTime(schedulerStatus?.last_run_at)}</small>
+              </>
+            )}
+          </article>
+
+          <article className="settings-admin-auctions__summary-card is-countdown">
+            <div className="settings-admin-auctions__summary-heading">
+              <CalendarClock size={18} aria-hidden="true" />
+              <span>Prochaine vérification automatique</span>
+            </div>
+            <strong className="settings-admin-auctions__next-check">{nextCheckCountdown}</strong>
+            <small>Le quota est réparti progressivement sur toute la semaine.</small>
+          </article>
+
+          <article className="settings-admin-auctions__summary-card">
+            <div className="settings-admin-auctions__summary-heading">
+              <Gavel size={18} aria-hidden="true" />
+              <span>Sessions cette semaine</span>
+            </div>
+            <strong>
+              {Number(schedulerStatus?.created_this_week || 0)} / {Number(configQuery.data?.weekly_sessions_target || 0)}
+            </strong>
+            <small>Dernière auto : {formatDateTime(schedulerStatus?.last_auto_session_at)}</small>
+          </article>
+        </div>
+
+        <div className="settings-admin-auctions__group-title">
+          <Activity size={17} aria-hidden="true" />
+          <div><strong>Supervision</strong><span>État actuel et actions rapides</span></div>
+        </div>
         {winnerAnnouncement ? (
           <div className="settings-item settings-item--stacked settings-admin-auctions__winner-alert">
             <div>
@@ -403,7 +501,12 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
           )}
         </div>
 
-        <div className="settings-item settings-item--stacked">
+        <div className="settings-admin-auctions__group-title">
+          <Settings2 size={17} aria-hidden="true" />
+          <div><strong>Configuration automatique</strong><span>Fréquence, délais et affichage public</span></div>
+        </div>
+
+        <div className="settings-item settings-item--stacked settings-admin-auctions__config-section">
           <div className="settings-item-row">
             <div>
               <p className="settings-item-title">Roulement automatique</p>
@@ -542,7 +645,12 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
           </button>
         </div>
 
-        <div className="settings-item settings-item--stacked">
+        <div className="settings-admin-auctions__group-title">
+          <Gavel size={17} aria-hidden="true" />
+          <div><strong>Lancement manuel</strong><span>Créer exceptionnellement une session</span></div>
+        </div>
+
+        <div className="settings-item settings-item--stacked settings-admin-auctions__manual-section">
           <div>
             <p className="settings-item-title">Lancer une session manuelle</p>
             <p className="settings-item-subtitle">Choisis slots et délais pour la session forcée.</p>
@@ -613,7 +721,9 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
           <div className="settings-item-row">
             <div>
               <p className="settings-item-title">Rappels</p>
-              <p className="settings-item-subtitle">Le cron doit exécuter auction_tick_reborn pour le roulement automatique.</p>
+              <p className="settings-item-subtitle">
+                Le cron vérifie le cycle chaque minute. Les sessions automatiques restent plafonnées et réparties sur la semaine selon la fréquence configurée.
+              </p>
             </div>
             <Timer size={16} aria-hidden="true" />
           </div>

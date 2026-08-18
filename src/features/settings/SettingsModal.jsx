@@ -30,6 +30,7 @@ import {
 } from './themePreferences';
 import { getFullVersionLabel } from '../utils/appVersion';
 import { syncNewsletterPreferenceToTotoxFr } from '../utils/newsletterSync';
+import useMobileScrollLock from '../utils/useMobileScrollLock';
 import './SettingsModal.css';
 
 const SECTIONS = {
@@ -77,6 +78,7 @@ const resolveFriendRequestsEnabled = (row) => {
 };
 
 function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
+  useMobileScrollLock(isOpen);
   const versionLabel = getFullVersionLabel();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

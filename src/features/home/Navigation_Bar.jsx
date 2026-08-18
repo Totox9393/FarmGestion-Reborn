@@ -2,13 +2,14 @@
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, ShoppingBag, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon, Gavel } from 'lucide-react';
+import { PlusCircle, ClipboardList, ListChecks, Factory, CalendarDays, Home as HomeIcon, ShoppingBag, UserPlus, Settings, UserCheck, UserX, Send, ChevronDown, ShoppingCart, Baby, BabyIcon, Hexagon, UserRoundSearchIcon, Gavel, LoaderCircle, MessageCircle } from 'lucide-react';
 import { Popover, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
 import logoMilo from '../../assets/logo_ico.png';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import SettingsModal from '../settings/SettingsModal';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
+import { useChatDock } from '../chat/chatDockContext';
 import {
   acceptFriendRequestById,
   declineFriendRequestById,
@@ -47,11 +48,8 @@ const buildAvatarCandidates = (value) => {
 
 function RequestAvatarMedia({ avatarUrl, alt }) {
   const candidates = useMemo(() => buildAvatarCandidates(avatarUrl), [avatarUrl]);
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [avatarUrl]);
+  const [failure, setFailure] = useState({ source: avatarUrl, index: 0 });
+  const index = failure.source === avatarUrl ? failure.index : 0;
 
   const nextSrc = candidates[index] || '';
   if (!nextSrc || index >= candidates.length) {
@@ -65,10 +63,10 @@ function RequestAvatarMedia({ avatarUrl, alt }) {
       loading="lazy"
       onError={() => {
         if (index < candidates.length - 1) {
-          setIndex((current) => current + 1);
+          setFailure({ source: avatarUrl, index: index + 1 });
           return;
         }
-        setIndex(candidates.length);
+        setFailure({ source: avatarUrl, index: candidates.length });
       }}
     />
   );
@@ -98,12 +96,18 @@ const formatPendingBadgeValue = (count) => {
 
 function Navigation_Bar() {
   const { user } = useAuth();
+  const {
+    friendConversations,
+    unreadMessagesCount,
+    areFriendConversationsLoading,
+    openChat,
+  } = useChatDock();
   const navigate = useNavigate();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [profile, setProfile] = useState(null);
   const [farm, setFarm] = useState(null);
-  const [openMenu, setOpenMenu] = useState(null);
+  const [, setOpenMenu] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isWelcomeHelpOpen, setIsWelcomeHelpOpen] = useState(false);
   const [friendsTab, setFriendsTab] = useState('received');
@@ -111,6 +115,7 @@ function Navigation_Bar() {
   const [sentRequests, setSentRequests] = useState([]);
   const [isRequestsLoading, setIsRequestsLoading] = useState(false);
   const [activeRequestId, setActiveRequestId] = useState(null);
+  const [activeConversationId, setActiveConversationId] = useState('');
   const [showMenuHint, setShowMenuHint] = useState(false);
 
   useEffect(() => {
@@ -214,6 +219,31 @@ function Navigation_Bar() {
       fetchRequests({ silent: true });
     }, 8000);
 
+    let realtimeRefreshTimer = null;
+    const scheduleRealtimeRefresh = () => {
+      if (realtimeRefreshTimer) window.clearTimeout(realtimeRefreshTimer);
+      realtimeRefreshTimer = window.setTimeout(() => {
+        void fetchRequests({ silent: true }).finally(() => {
+          window.dispatchEvent(new CustomEvent('farmgestion-friends-updated'));
+        });
+      }, 80);
+    };
+    const realtimeChannel = supabase
+      .channel(`nav-friends-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_relations',
+        filter: `user_a=eq.${user.id}`,
+      }, scheduleRealtimeRefresh)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'user_relations',
+        filter: `user_b=eq.${user.id}`,
+      }, scheduleRealtimeRefresh)
+      .subscribe();
+
     const handleFriendSync = () => {
       fetchRequests({ silent: true });
     };
@@ -223,6 +253,8 @@ function Navigation_Bar() {
     return () => {
       isMounted = false;
       window.clearInterval(intervalId);
+      if (realtimeRefreshTimer) window.clearTimeout(realtimeRefreshTimer);
+      void supabase.removeChannel(realtimeChannel);
       window.removeEventListener('farmgestion-friends-updated', handleFriendSync);
     };
   }, [user?.id]);
@@ -291,16 +323,14 @@ function Navigation_Bar() {
     go(`/community/profile/${encodeURIComponent(username)}`);
   };
 
-  const formattedMoney = useMemo(() => {
-    const value = Number(profile?.money ?? 0);
-    return new Intl.NumberFormat('fr-FR', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
-  }, [profile?.money]);
+  const formattedMoney = new Intl.NumberFormat('fr-FR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Number(profile?.money ?? 0));
 
   const pendingCount = receivedRequests.length;
   const pendingBadgeValue = formatPendingBadgeValue(pendingCount);
+  const unreadBadgeValue = formatPendingBadgeValue(unreadMessagesCount);
 
   const openRequestProfile = (username) => {
     const safe = String(username || '').trim();
@@ -353,12 +383,18 @@ function Navigation_Bar() {
     }
   };
 
-  const handleDropdownLeave = (event) => {
-    // Ne pas fermer si on reste dans l'élément ou ses descendants (dropdown inclus)
-    if (event.currentTarget.contains(event.relatedTarget)) {
-      return;
+  const handleOpenConversation = async (conversation, closePopover) => {
+    const friendId = String(conversation?.friend?.id || '').trim();
+    if (!friendId || activeConversationId) return;
+    setActiveConversationId(friendId);
+    closePopover?.();
+    try {
+      await openChat(conversation.friend);
+    } catch (error) {
+      dispatchToast(error.message || 'Impossible d’ouvrir cette conversation.', 'error');
+    } finally {
+      setActiveConversationId('');
     }
-    setOpenMenu(null);
   };
 
   const dismissMenuHint = () => {
@@ -510,22 +546,23 @@ function Navigation_Bar() {
           </button>
 
           <Popover className="nav-friends-menu">
-            {({ open }) => (
+            {({ open, close }) => (
               <>
                 <Popover.Button
                   type="button"
                   className={`nav-friends-toggle ${open ? 'is-open' : ''}`}
-                  aria-label="Ouvrir les demandes d'amis"
-                  title="Demandes d'amis"
+                  aria-label={`Ouvrir les amis et messages${pendingCount ? `, ${pendingCount} demande d’ami` : ''}${unreadMessagesCount ? `, ${unreadMessagesCount} message non lu` : ''}`}
+                  title="Amis et messages"
                 >
                   <UserPlus size={17} strokeWidth={2.1} />
-                  {pendingCount > 0 ? (
-                    <span
-                      className="nav-friends-badge"
-                      role="status"
-                      aria-label={`${pendingCount} demande${pendingCount > 1 ? 's' : ''} d'ami en attente`}
-                    >
-                      {pendingBadgeValue}
+                  {pendingCount > 0 || unreadMessagesCount > 0 ? (
+                    <span className="nav-friends-badges" aria-hidden="true">
+                      {pendingCount > 0 ? (
+                        <span className="nav-friends-badge is-request">{pendingBadgeValue}</span>
+                      ) : null}
+                      {unreadMessagesCount > 0 ? (
+                        <span className="nav-friends-badge is-message">{unreadBadgeValue}</span>
+                      ) : null}
                     </span>
                   ) : null}
                 </Popover.Button>
@@ -541,10 +578,17 @@ function Navigation_Bar() {
                 >
                   <Popover.Panel className="nav-friends-panel" static>
                     <div className="nav-friends-head">
-                      <h3>Demandes d'amis</h3>
+                      <h3>Amis et messages</h3>
                     </div>
 
                     <div className="nav-friends-tabs">
+                      <button
+                        type="button"
+                        className={`nav-friends-tab ${friendsTab === 'messages' ? 'is-active' : ''}`}
+                        onClick={() => setFriendsTab('messages')}
+                      >
+                        Messages ({unreadMessagesCount})
+                      </button>
                       <button
                         type="button"
                         className={`nav-friends-tab ${friendsTab === 'received' ? 'is-active' : ''}`}
@@ -561,7 +605,47 @@ function Navigation_Bar() {
                       </button>
                     </div>
 
-                    {isRequestsLoading ? (
+                    {friendsTab === 'messages' ? (
+                      areFriendConversationsLoading ? (
+                        <p className="nav-friends-state">Chargement des conversations...</p>
+                      ) : friendConversations.length ? (
+                        <div className="nav-friends-list nav-friends-conversations">
+                          {friendConversations.map((conversation) => {
+                            const unreadCount = Math.max(0, Number(conversation.unreadCount || 0));
+                            const isOpeningConversation = activeConversationId === conversation.friend.id;
+                            return (
+                              <button
+                                key={conversation.friend.id}
+                                type="button"
+                                className={`nav-friends-conversation ${unreadCount ? 'has-unread' : ''}`}
+                                disabled={Boolean(activeConversationId)}
+                                onClick={() => { void handleOpenConversation(conversation, close); }}
+                                title={`Ouvrir la conversation avec ${conversation.friend.username || conversation.friend.name}`}
+                              >
+                                <span className="nav-friends-avatar" aria-hidden="true">
+                                  <RequestAvatarMedia
+                                    avatarUrl={conversation.friend.image}
+                                    alt={`Avatar de ${conversation.friend.username || conversation.friend.name}`}
+                                  />
+                                </span>
+                                <span className="nav-friends-conversation__copy">
+                                  <strong>{conversation.friend.username || conversation.friend.name}</strong>
+                                  <small>{conversation.lastMessage}</small>
+                                </span>
+                                {unreadCount > 0 ? (
+                                  <span className="nav-friends-conversation__unread" aria-label={`${unreadCount} message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}`}>
+                                    {formatPendingBadgeValue(unreadCount)}
+                                  </span>
+                                ) : null}
+                                {isOpeningConversation ? <LoaderCircle className="is-spinning" size={16} /> : <MessageCircle size={16} />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="nav-friends-state">Ajoutez un ami pour démarrer une conversation.</p>
+                      )
+                    ) : isRequestsLoading ? (
                       <p className="nav-friends-state">Chargement...</p>
                     ) : friendsTab === 'received' ? (
                       receivedRequests.length ? (
@@ -698,7 +782,3 @@ function Navigation_Bar() {
 }
 
 export default Navigation_Bar;
-
-
-
-

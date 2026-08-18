@@ -12,6 +12,62 @@ import './AuctionsPage.css';
 
 const MIN_BETAIL_AGE_DAYS = 14;
 const BID_STEPS = [1, 2, 3, 5];
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+
+const buildAvatarCandidates = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return [];
+
+  const candidates = [raw];
+  if (!SUPABASE_URL) return candidates;
+
+  if (raw.startsWith('/storage/v1/object/public/')) {
+    candidates.push(`${SUPABASE_URL}${raw}`);
+  } else if (raw.startsWith('storage/v1/object/public/')) {
+    candidates.push(`${SUPABASE_URL}/${raw}`);
+  } else if (raw.startsWith('/')) {
+    candidates.push(`${SUPABASE_URL}${raw}`);
+    candidates.push(`${SUPABASE_URL}/${raw.replace(/^\/+/, '')}`);
+  } else if (!raw.startsWith('http://') && !raw.startsWith('https://')) {
+    if (raw.includes('/')) {
+      candidates.push(`${SUPABASE_URL}/storage/v1/object/public/${raw}`);
+    } else {
+      candidates.push(`${SUPABASE_URL}/storage/v1/object/public/avatars/${raw}`);
+    }
+  }
+
+  // Une ancienne URL signée peut avoir expiré : tente aussi son équivalent public.
+  const avatarPathMatch = raw.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/avatars\/([^?#]+)/i);
+  if (avatarPathMatch?.[1]) {
+    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/avatars/${avatarPathMatch[1]}`);
+  }
+
+  return Array.from(new Set(candidates));
+};
+
+function AuctionAvatar({ avatarUrl, alt = '', loading = 'lazy', className }) {
+  const candidates = useMemo(() => buildAvatarCandidates(avatarUrl), [avatarUrl]);
+  const [failureState, setFailureState] = useState({ avatarUrl, index: 0 });
+  const candidateIndex = failureState.avatarUrl === avatarUrl ? failureState.index : 0;
+
+  const src = candidates[candidateIndex] || defaultProfileUser;
+
+  return (
+    <img
+      className={className}
+      src={src}
+      alt={alt}
+      loading={loading}
+      onError={() => {
+        if (candidateIndex < candidates.length - 1) {
+          setFailureState({ avatarUrl, index: candidateIndex + 1 });
+          return;
+        }
+        if (src !== defaultProfileUser) setFailureState({ avatarUrl, index: candidates.length });
+      }}
+    />
+  );
+}
 
 const showToast = (type, message) => {
   window.dispatchEvent(new CustomEvent('farmgestion-toast', {
@@ -603,7 +659,7 @@ function AuctionsPage() {
                     <p>2 dernières enchères</p>
                     {latestTwo.map((entry, index) => (
                       <div key={`${slot.slot_id}-${index}`} className="auction-card__history-row">
-                        <img src={entry?.bidder_avatar_url || defaultProfileUser} alt="" loading="lazy" />
+                        <AuctionAvatar avatarUrl={entry?.bidder_avatar_url} />
                         <span>{entry?.bidder_username || 'Inconnu'}</span>
                         <strong>{formatMoney(entry?.amount || 0)} 💸</strong>
                       </div>
@@ -668,7 +724,11 @@ function AuctionsPage() {
             {latestWinner ? (
               <div className="auctions-last-winner">
                 <p>Dernier grand gagnant</p>
-                <img className="auctions-last-winner__profile" src={latestWinner.winner_avatar_url || defaultProfileUser} alt="" />
+                <AuctionAvatar
+                  className="auctions-last-winner__profile"
+                  avatarUrl={latestWinner.winner_avatar_url}
+                  loading="eager"
+                />
                 <h2>{latestWinner.winner_username}</h2>
                 <div className="auctions-last-winner__betail">
                   <img src={latestWinner.betail_avatar_url || defaultProfileUser} alt="" />
@@ -687,7 +747,7 @@ function AuctionsPage() {
       {winnerCelebration ? (
         <div className="auctions-winner-celebration" role="status" aria-live="polite">
           <span>🏆 Grand gagnant</span>
-          <img src={winnerCelebration.winner_avatar_url || defaultProfileUser} alt="" />
+          <AuctionAvatar avatarUrl={winnerCelebration.winner_avatar_url} loading="eager" />
           <strong>{winnerCelebration.winner_username}</strong>
           <small>remporte {winnerCelebration.betail_name} pour {formatMoney(winnerCelebration.winning_amount)} 💸</small>
         </div>

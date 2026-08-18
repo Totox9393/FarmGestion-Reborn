@@ -3303,13 +3303,13 @@
 
   .my-betail-panel {
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 16px;
-    top: auto;
+    left: 8px;
+    right: 8px;
+    top: calc(var(--nav-h, 58px) + 8px);
+    bottom: max(8px, env(safe-area-inset-bottom));
     width: auto;
     height: auto;
-    max-height: calc(100vh - var(--nav-h, 58px) - 32px);
+    max-height: none;
     transform: translateY(16px);
   }
 

@@ -8,6 +8,7 @@ import { useAuth } from '../authentification/AuthContext';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
 import { fetchActiveUserIdsThisMonth, fetchCommunityPage, fetchCommunityStats } from './communityApi';
 import { fetchAcceptedFriendIdsForUser } from './friendsApi';
+import PublicCommunityChat from '../chat/PublicCommunityChat';
 import './CommunityPage.css';
 
 const SEARCH_DEBOUNCE_MS = 320;
@@ -254,6 +255,26 @@ function CommunityPage() {
   const hasNextPage = Boolean(communityQuery.data?.hasNextPage);
   const totalVisibleFarms = statsQuery.data?.totalVisibleFarms || 0;
   const totalUsers = statsQuery.data?.totalUsers || 0;
+  const publicChatAvatarProfiles = useMemo(() => {
+    const profilesById = new Map();
+    items.forEach((item) => {
+      if (!item.ownerId) return;
+      profilesById.set(item.ownerId, {
+        id: item.ownerId,
+        username: item.username,
+        avatarUrl: item.avatarUrl,
+      });
+    });
+    userItems.forEach((item) => {
+      if (!item.id) return;
+      profilesById.set(item.id, {
+        id: item.id,
+        username: item.username,
+        avatarUrl: item.avatarUrl,
+      });
+    });
+    return Array.from(profilesById.values());
+  }, [items, userItems]);
 
   const friendIdSet = useMemo(
     () => new Set((friendsFilterQuery.data || []).filter(Boolean)),
@@ -354,6 +375,8 @@ function CommunityPage() {
             </div>
           </div>
         </header>
+
+        <PublicCommunityChat avatarProfiles={publicChatAvatarProfiles} />
 
         {showLoadingSkeleton ? (
           <CommunityLoadingSkeleton didYouKnow={didYouKnowFact} />

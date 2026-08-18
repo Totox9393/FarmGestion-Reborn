@@ -1152,7 +1152,9 @@ declare
   v_week_start date := date_trunc('week', timezone('Europe/Paris', now()))::date;
   v_week_end date := (date_trunc('week', timezone('Europe/Paris', now()))::date + 7);
   v_today date := timezone('Europe/Paris', now())::date;
+  v_day_index integer := extract(isodow from timezone('Europe/Paris', now()))::integer - 1;
   v_created_this_week integer := 0;
+  v_sessions_due integer := 0;
   v_active_exists boolean := false;
   v_remaining_sessions integer := 0;
   v_remaining_days integer := 0;
@@ -1237,9 +1239,17 @@ begin
       from public.auction_sessions_reborn s
       where (timezone('Europe/Paris', s.created_at))::date >= v_week_start
         and (timezone('Europe/Paris', s.created_at))::date < v_week_end
+        and s.launched_mode = 'auto'
         and s.status <> 'cancelled';
 
-      v_remaining_sessions := greatest(0, v_cfg.weekly_sessions_target - v_created_this_week);
+      -- Never consume the whole weekly quota at the beginning of the week.
+      -- With a target of four, the cumulative ceiling is 1 on Monday/Tuesday,
+      -- 2 on Wednesday/Thursday, 3 on Friday/Saturday and 4 on Sunday.
+      v_sessions_due := least(
+        v_cfg.weekly_sessions_target,
+        floor((v_day_index * v_cfg.weekly_sessions_target)::numeric / 7)::integer + 1
+      );
+      v_remaining_sessions := greatest(0, v_sessions_due - v_created_this_week);
       v_remaining_days := greatest(1, (v_week_end - v_today));
 
       if v_remaining_sessions > 0 then

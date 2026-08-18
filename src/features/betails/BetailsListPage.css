@@ -412,15 +412,31 @@
 
   .betails-panel,
   .betail-details-panel {
-    left: 0;
-    right: 0;
-    bottom: 16px;
-    top: auto;
+    left: 8px;
+    right: 8px;
+    top: calc(var(--nav-h, 58px) + 8px);
+    bottom: max(8px, env(safe-area-inset-bottom));
     width: auto;
     height: auto;
-    max-height: calc(100vh - var(--nav-h, 58px) - 32px);
-    border-radius: 18px 18px 0 0;
+    max-height: none;
+    border-radius: 18px;
     transform: translateY(16px);
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+
+  .betail-details-header {
+    flex: 0 0 auto;
+    padding-top: 12px;
+  }
+
+  .betail-details-body {
+    min-height: 0;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
 
   .betails-layout.has-panel .betails-panel,
