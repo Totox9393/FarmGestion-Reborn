@@ -238,9 +238,66 @@
 }
 .fg-chat-options-menu button:hover:not(:disabled) { background: rgba(196, 45, 64, .1); }
 .fg-chat-options-menu .fg-chat-options-profile { color: var(--fg-chat-text); }
-.fg-chat-options-menu .fg-chat-options-profile:hover:not(:disabled) { background: var(--fg-chat-soft); }
+.fg-chat-options-menu .fg-chat-options-pins { color: var(--fg-chat-text); }
+.fg-chat-options-menu .fg-chat-options-profile:hover:not(:disabled),
+.fg-chat-options-menu .fg-chat-options-pins:hover:not(:disabled) { background: var(--fg-chat-soft); }
 .fg-chat-options-menu button:disabled { opacity: .62; cursor: wait; }
 .fg-chat-options-menu .is-spinning { animation: fgChatSpin .8s linear infinite; }
+.fg-chat-pinned-panel {
+  position: absolute;
+  z-index: 82;
+  top: calc(100% + 5px);
+  right: calc(100% + 6px);
+  width: min(238px, calc(100vw - 112px));
+  overflow: hidden;
+  color: var(--fg-chat-text);
+  background: var(--fg-chat-surface);
+  border: 1px solid var(--fg-chat-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 22px rgba(24, 17, 51, .24);
+}
+.fg-chat-pinned-panel__head {
+  min-height: 36px;
+  padding: 6px 7px 6px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-bottom: 1px solid var(--fg-chat-border);
+}
+.fg-chat-pinned-panel__head > span { min-width: 0; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 750; }
+.fg-chat-pinned-panel__head > button {
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  border: 0;
+  color: var(--fg-chat-text);
+  background: transparent;
+}
+.fg-chat-pinned-panel__head > button:hover { background: var(--fg-chat-soft); border-color: transparent; }
+.fg-chat-pinned-panel__list { max-height: 210px; padding: 6px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.fg-chat-pinned-panel__list > p { margin: 8px; color: var(--fg-chat-muted); font-size: 11px; text-align: center; }
+.fg-chat-pinned-panel__list > button {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  border: 0;
+  color: var(--fg-chat-text);
+  background: transparent;
+  text-align: left;
+}
+.fg-chat-pinned-panel__list > button:hover { background: var(--fg-chat-soft); border-color: transparent; }
+.fg-chat-pinned-panel__list strong,
+.fg-chat-pinned-panel__list small { width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fg-chat-pinned-panel__list strong { font-size: 11px; }
+.fg-chat-pinned-panel__list small { color: var(--fg-chat-muted); font-size: 10px; }
 .fg-chat-dock .str-chat__context-menu .fg-chat-delete-action {
   display: flex;
   align-items: center;
@@ -274,8 +331,37 @@
 .fg-chat-dock .str-chat__message-text-inner { min-height: auto; padding: 6px 9px; border-radius: 12px; font-size: 12.5px; line-height: 1.3; background: var(--fg-chat-soft); color: var(--fg-chat-text); }
 .fg-chat-dock .str-chat__message--me .str-chat__message-text-inner { background: var(--fg-chat-accent); color: #fff; }
 .fg-chat-dock .str-chat__avatar { width: 24px; height: 24px; }
+.fg-chat-dock .fg-chat-message-avatar {
+  box-sizing: border-box;
+  width: 24px !important;
+  min-width: 24px !important;
+  height: 24px !important;
+  min-height: 24px !important;
+  padding: 0 !important;
+  flex: 0 0 24px;
+  align-self: center !important;
+  overflow: hidden;
+  border: 1px solid var(--fg-chat-border);
+  border-radius: 50% !important;
+  background: var(--fg-chat-surface);
+}
+.fg-chat-dock .fg-chat-message-avatar:hover { border-color: var(--fg-chat-accent); }
+.fg-chat-dock .fg-chat-message-avatar > img {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  border-radius: inherit;
+}
+.fg-chat-dock .str-chat__li:is(.str-chat__li--top, .str-chat__li--middle) .str-chat__message > .fg-chat-message-avatar {
+  display: flex;
+  visibility: visible;
+  pointer-events: auto;
+}
 .fg-chat-dock .str-chat__message-data { font-size: 9px; color: var(--fg-chat-muted); }
 .fg-chat-dock .str-chat__message-replies-count-button { display: none; }
+.fg-chat-dock .str-chat__date-separator--floating { z-index: 0; }
+.fg-chat-dock .str-chat__dialog-overlay { z-index: 70; }
 .fg-chat-dock [data-str-chat-placement]:has(> .str-chat__message-actions-box),
 .fg-chat-dock .str-chat__message-actions-box,
 .fg-chat-dock .str-chat__message-actions-box.str-chat__context-menu {

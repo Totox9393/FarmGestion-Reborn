@@ -1124,7 +1124,7 @@ function CommunityProfilePage() {
                             <span className="community-pinned-name">
                               <OverflowAutoScrollText text={betail.name} />
                             </span>
-                            <span className="community-pinned-matricule">{betail.matricule}</span>
+                            <span className="community-pinned-matricule">#{betail.matricule}</span>
                           </div>
                         </div>
 

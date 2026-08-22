@@ -27,6 +27,7 @@ const MAX_BETAIL_NAME_LENGTH = 15;
 const BETAIL_AGE_MIN = 1;
 const BETAIL_AGE_MAX = 12;
 const BETAIL_NAME_PLACEHOLDER_ROTATION_MS = 1300;
+const BETAIL_DESCRIPTION_PLACEHOLDER_ROTATION_MS = 4200;
 const BETAIL_NAME_PLACEHOLDER_OPTIONS = [
   'Luna',
   'Nino',
@@ -107,6 +108,8 @@ function BetailMaker() {
   const [qualityLocked, setQualityLocked] = useState(false);
   const [qualityInProgress, setQualityInProgress] = useState(false);
   const [commentaire, setCommentaire] = useState('');
+  const [descriptionSuggestions, setDescriptionSuggestions] = useState([]);
+  const [descriptionSuggestionIndex, setDescriptionSuggestionIndex] = useState(0);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [prenomPlaceholder, setPrenomPlaceholder] = useState(() => getRandomBetailNamePlaceholder());
   const [isSaving, setIsSaving] = useState(false);
@@ -120,6 +123,7 @@ function BetailMaker() {
   const lastAgeRef = useRef(age);
   const digitSounds = [digitSound1, digitSound2, digitSound3, digitSound4, digitSound5];
   const digitAudiosRef = useRef([]);
+  const descriptionRequestKeyRef = useRef('');
 
   const playAgeTick = () => {
     try {
@@ -493,6 +497,81 @@ function BetailMaker() {
   }, []);
 
   useEffect(() => {
+    if (currentStep !== 6 || commentaire || descriptionSuggestions.length < 2) return undefined;
+
+    const intervalId = window.setInterval(() => {
+      setDescriptionSuggestionIndex((current) => (current + 1) % descriptionSuggestions.length);
+    }, BETAIL_DESCRIPTION_PLACEHOLDER_ROTATION_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [commentaire, currentStep, descriptionSuggestions]);
+
+  useEffect(() => {
+    const hasCustomPhoto =
+      (photoSource === 'url' && Boolean(photoUrl.trim()))
+      || (photoSource === 'file' && Boolean(photoFilePreview) && photoFilePreview !== defaultProfileImage);
+
+    if (currentStep !== 4) return;
+    if (!prenom.trim() || !hasCustomPhoto) {
+      descriptionRequestKeyRef.current = '';
+      setDescriptionSuggestions([]);
+      setDescriptionSuggestionIndex(0);
+      return;
+    }
+
+    const requestKey = `${prenom.trim()}|${photoSource}|${photoUrl}|${photoFilePreview.length}|${photoFilePreview.slice(-80)}`;
+    if (descriptionRequestKeyRef.current === requestKey) return;
+    descriptionRequestKeyRef.current = requestKey;
+
+    const generateSuggestions = async () => {
+      setDescriptionSuggestions([]);
+      setDescriptionSuggestionIndex(0);
+
+      try {
+        let overrideSource = '';
+        if (photoSource === 'url' && photoUrl.trim()) {
+          const { data, error } = await supabase.functions.invoke('fetch-image', {
+            body: { imageUrl: photoUrl.trim() },
+          });
+          if (error || !data?.dataUrl) throw new Error('Image distante inaccessible');
+          overrideSource = data.dataUrl;
+        }
+
+        const blob = await createCroppedAvatarBlob(overrideSource);
+        if (!blob) throw new Error('Image illisible');
+
+        const imageDataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result || ''));
+          reader.onerror = () => reject(new Error('Image illisible'));
+          reader.readAsDataURL(blob);
+        });
+
+        const { data, error } = await supabase.functions.invoke('suggest-betail-descriptions', {
+          body: { name: prenom.trim(), imageDataUrl },
+        });
+        if (error) throw error;
+
+        const suggestions = Array.isArray(data?.suggestions)
+          ? data.suggestions.map((value) => sanitizeBetailComment(value).trim()).filter(Boolean).slice(0, 4)
+          : [];
+
+        if (descriptionRequestKeyRef.current === requestKey) {
+          setDescriptionSuggestions(data?.allowed === false ? [] : suggestions);
+        }
+      } catch {
+        if (descriptionRequestKeyRef.current === requestKey) setDescriptionSuggestions([]);
+      }
+    };
+
+    void generateSuggestions();
+    return undefined;
+    // La génération démarre en arrière-plan à l'arrivée sur l'étape matricule.
+    // Revenir modifier le prénom ou la photo puis repasser cette étape relance l'analyse.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
+
+  useEffect(() => {
     if (currentStep !== 4) {
       clearAnimationTimers();
       setIsMatriculeAnimating(false);
@@ -538,6 +617,9 @@ function BetailMaker() {
     setQualityLocked(false);
     setQualityInProgress(false);
     setCommentaire('');
+    setDescriptionSuggestions([]);
+    setDescriptionSuggestionIndex(0);
+    descriptionRequestKeyRef.current = '';
     setIsHelpOpen(false);
     setIsSaving(false);
     setSaveError('');
@@ -1167,7 +1249,9 @@ function BetailMaker() {
           </div>
         );
 
-      case 6:
+      case 6: {
+        const descriptionPlaceholder = descriptionSuggestions[descriptionSuggestionIndex]
+          || 'Écris un commentaire libre pour ce bétail...';
         return (
           <div className="step-content fade-in">
             <h2 className="step-title">Ajouter un commentaire</h2>
@@ -1175,7 +1259,7 @@ function BetailMaker() {
             <textarea
               className="comment-input"
               rows={4}
-              placeholder="Écris un commentaire libre pour ce bétail..."
+              placeholder={descriptionPlaceholder}
               value={commentaire}
               onChange={(e) => handleCommentChange(e.target.value)}
               maxLength={MAX_BETAIL_COMMENT_LENGTH}
@@ -1187,6 +1271,7 @@ function BetailMaker() {
             </button>
           </div>
         );
+      }
       case 7:
         return (
           <div className="step-content fade-in recap-step">

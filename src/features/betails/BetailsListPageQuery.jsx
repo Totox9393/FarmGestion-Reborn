@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Heart } from 'lucide-react'
+import { AlertTriangle, Heart, Sparkles } from 'lucide-react'
 import {
   useAuthorsMap,
   useBetailDetails,
@@ -19,6 +19,7 @@ import './BetailsListPage.css'
 import betailSampleImage from '../../assets/betail_sample.png'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg'
+import recommendationSound from '../../assets/sounds/SeResourceStd2nd_00001042_cloche_ding_ding.wav'
 
 const LOADER_DOTS = [1, 2, 3, 4, 5, 6, 7, 8]
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
@@ -134,6 +135,7 @@ function BetailCard({
   isPurchasing,
   onToggleLike,
   onSelect,
+  isRecommended = false,
 }) {
   const handleSelect = () => {
     onSelect?.(betail.id)
@@ -148,13 +150,14 @@ function BetailCard({
 
   return (
     <article
-      className={`betail-card ${isSelected ? 'is-selected' : ''} ${isPurchasing ? 'is-purchasing' : ''}`}
+      className={`betail-card ${isSelected ? 'is-selected' : ''} ${isPurchasing ? 'is-purchasing' : ''} ${isRecommended ? 'is-recommended' : ''}`}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       role="button"
       tabIndex={0}
       aria-pressed={isSelected}
     >
+      {isRecommended ? <span className="betail-recommended-badge"><Sparkles size={13} /> Choix de Milo</span> : null}
       {isPurchasing && (
         <div className="betail-card-overlay" aria-live="polite">
           Achat en cours...
@@ -194,7 +197,7 @@ function BetailCard({
           <h3 className="betail-name">
             <OverflowAutoScrollText text={betail.name} />
           </h3>
-          <p className="betail-matricule">{betail.matricule}</p>
+          <p className="betail-matricule">#{betail.matricule}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
         </div>
@@ -213,13 +216,50 @@ function BetailsListPageQuery() {
   const [purchasingId, setPurchasingId] = useState(null)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [reportBetailVisible, setReportBetailVisible] = useState(true)
+  const [recommendationNow, setRecommendationNow] = useState(() => Date.now())
+  const shouldPlayRecommendationSoundRef = useRef(false)
   const queryClient = useQueryClient()
   const purchaseAudio = useMemo(() => createSafeAudio(purchaseSound), [])
   const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), [])
+  const recommendationAudio = useMemo(
+    () => createSafeAudio(recommendationSound, { preload: 'auto' }),
+    [],
+  )
 
   const { data: farmId } = useUserFarmId(user?.id)
   const { data: userRole = '' } = useUserRole(user?.id)
   const purchaseMutation = usePurchaseBetail()
+
+  const recommendationQuery = useQuery({
+    queryKey: ['betails', 'recommendation', user?.id || 'anon'],
+    enabled: Boolean(user?.id),
+    retry: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke('recommend-betail', { body: { action: 'status' } })
+      if (error) throw error
+      return data
+    },
+  })
+
+  const recommendationMutation = useMutation({
+    mutationFn: async () => {
+      const { data, error } = await supabase.functions.invoke('recommend-betail', { body: { action: 'recommend' } })
+      if (error) throw error
+      return data
+    },
+    onSuccess: (payload) => {
+      queryClient.setQueryData(['betails', 'recommendation', user?.id || 'anon'], payload)
+    },
+    onError: () => {
+      shouldPlayRecommendationSoundRef.current = false
+      dispatchToast('error', "Milo n'a pas pu trouver de recommandation pour le moment.")
+    },
+  })
+  const recommendation = recommendationQuery.data?.recommendation || null
+  const recommendedBetail = recommendation?.betail || null
 
   const isAdminOrModeration = useMemo(() => {
     const normalized = String(userRole || '').trim().toUpperCase()
@@ -382,6 +422,11 @@ function BetailsListPageQuery() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
+  useEffect(() => {
+    const timer = window.setInterval(() => setRecommendationNow(Date.now()), 1000)
+    return () => window.clearInterval(timer)
+  }, [])
+
   const hasRouteBetailIdParam = typeof routeBetailIdParam === 'string' && routeBetailIdParam.trim().length > 0
   const selectedBetailId = useMemo(() => {
     if (!hasRouteBetailIdParam) return null
@@ -438,8 +483,9 @@ function BetailsListPageQuery() {
 
   const { data: authors = [] } = useAuthorsMap(authorIds)
   const selectedBetailFromList = useMemo(
-    () => betails.find((item) => item.id === selectedBetailId) ?? null,
-    [betails, selectedBetailId],
+    () => betails.find((item) => item.id === selectedBetailId)
+      ?? (recommendedBetail?.id === selectedBetailId ? recommendedBetail : null),
+    [betails, recommendedBetail, selectedBetailId],
   )
   const {
     data: selectedBetailFromRoute = null,
@@ -480,7 +526,7 @@ function BetailsListPageQuery() {
     [authors],
   )
 
-  const getAuthorName = (betail) => authorMap[betail.author_id] || 'Auteur inconnu'
+  const getAuthorName = (betail) => betail?.authorName || authorMap[betail.author_id] || 'Auteur inconnu'
 
   const stats = useMemo(() => {
     const count = betails.length
@@ -516,6 +562,35 @@ function BetailsListPageQuery() {
   )
   const isSelectedBuyDisabled = !canPurchase || isSelectedPurchasing
   const isLikedByMe = (betail) => Boolean(betail?.liked_by_me) || likedIdsSet.has(String(betail?.id || ''))
+  const cooldownUntilMs = new Date(recommendationQuery.data?.cooldownUntil || 0).getTime()
+  const cooldownRemainingMs = Number.isFinite(cooldownUntilMs) ? Math.max(0, cooldownUntilMs - recommendationNow) : 0
+  const recommendationExpiresMs = new Date(recommendation?.expiresAt || 0).getTime()
+  const recommendationRemainingMs = Number.isFinite(recommendationExpiresMs)
+    ? Math.max(0, recommendationExpiresMs - recommendationNow)
+    : 0
+  const activeRecommendedBetail = recommendationRemainingMs > 0 ? recommendedBetail : null
+  const aiRecommendationAvailable = recommendationQuery.data?.aiAvailable === true
+  const formatCountdown = (milliseconds) => {
+    const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
+    const hours = Math.floor(totalSeconds / 3600)
+    const minutes = Math.floor((totalSeconds % 3600) / 60)
+    const seconds = totalSeconds % 60
+    return [hours, minutes, seconds].map((value) => String(value).padStart(2, '0')).join(':')
+  }
+  const recommendationButtonDisabled =
+    recommendationQuery.isLoading || recommendationQuery.isError || !aiRecommendationAvailable
+    || recommendationMutation.isPending || Boolean(activeRecommendedBetail) || cooldownRemainingMs > 0
+
+  useEffect(() => {
+    if (!activeRecommendedBetail || !shouldPlayRecommendationSoundRef.current) return
+    shouldPlayRecommendationSoundRef.current = false
+    void restartAudioSafely(recommendationAudio)
+  }, [activeRecommendedBetail, recommendationAudio])
+
+  const handleRequestRecommendation = () => {
+    shouldPlayRecommendationSoundRef.current = true
+    recommendationMutation.mutate()
+  }
 
   const handleToggleLike = (betail, currentlyLiked) => {
     if (!betail?.id || toggleLikeMutation.isPending) return
@@ -605,6 +680,11 @@ function BetailsListPageQuery() {
             navigate('/betail-register', { replace: true })
           }
           void restartAudioSafely(purchaseAudio)
+          if (activeRecommendedBetail?.id === betailId) {
+            window.setTimeout(() => {
+              queryClient.invalidateQueries({ queryKey: ['betails', 'recommendation', user.id] })
+            }, 500)
+          }
           window.dispatchEvent(
             new CustomEvent('farmgestion-toast', {
               detail: { type: 'success', message: 'Bétail acheté avec succès.' },
@@ -704,6 +784,26 @@ function BetailsListPageQuery() {
                 <option value="popular">Les plus aimés</option>
               </select>
             </div>
+
+            <div className="filter-group filter-group--recommendation">
+              <span className="filter-label">Suggestion personnalisée</span>
+              <button
+                type="button"
+                className="betails-recommend-button"
+                disabled={recommendationButtonDisabled}
+                onClick={handleRequestRecommendation}
+                title={!aiRecommendationAvailable ? 'Service IA indisponible' : ''}
+              >
+                <Sparkles size={17} />
+                {cooldownRemainingMs > 0
+                  ? `Redemander dans ${formatCountdown(cooldownRemainingMs)}`
+                  : activeRecommendedBetail
+                    ? `Redemander dans ${formatCountdown(recommendationRemainingMs)}`
+                    : recommendationMutation.isPending
+                      ? 'Milo réfléchit…'
+                      : 'Recommandez-moi un bétail'}
+              </button>
+            </div>
           </section>
 
           {hasError && <p className="betails-error">{errorMessage}</p>}
@@ -711,6 +811,26 @@ function BetailsListPageQuery() {
           {shouldShowRouteBetailNotFound && (
             <p className="betails-error">404 - Le bétail demandé est introuvable ou n&apos;est plus disponible.</p>
           )}
+
+          {activeRecommendedBetail ? (
+            <section className="betail-recommendation" aria-label="Recommandation personnalisée de Milo">
+              <div className="betail-recommendation__copy">
+                <h2>{activeRecommendedBetail.name} pourrait vous plaire</h2>
+                <p>{recommendation.explanation}</p>
+              </div>
+              <BetailCard
+                betail={activeRecommendedBetail}
+                authorName={activeRecommendedBetail.authorName || 'Auteur inconnu'}
+                likedByMe={isLikedByMe(activeRecommendedBetail)}
+                isLikePending={toggleLikeMutation.isPending}
+                isSelected={selectedBetailId === activeRecommendedBetail.id}
+                isPurchasing={purchasingId === activeRecommendedBetail.id && purchaseMutation.isPending}
+                onToggleLike={handleToggleLike}
+                onSelect={handleSelectBetail}
+                isRecommended
+              />
+            </section>
+          ) : null}
 
           {isInitialLoading ? (
             <div className="betails-loading">
@@ -725,7 +845,7 @@ function BetailsListPageQuery() {
             <>
               <div className="betails-content">
                 <div className="betails-grid">
-                  {betails.map((betail) => (
+                  {betails.filter((betail) => betail.id !== activeRecommendedBetail?.id).map((betail) => (
                     <BetailCard
                       key={betail.id}
                       betail={betail}

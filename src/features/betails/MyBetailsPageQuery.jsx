@@ -226,7 +226,7 @@ function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLi
           <h3 className="betail-name">
             <OverflowAutoScrollText text={betail.name} />
           </h3>
-          <p className="betail-matricule">{betail.matricule}</p>
+          <p className="betail-matricule">#{betail.matricule}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
         </div>

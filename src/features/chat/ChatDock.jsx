@@ -10,6 +10,7 @@ import {
   MessageActions,
   MessageComposer,
   MessageList,
+  MessageUI,
   QuotedMessagePreviewUI,
   QuickMessageActionsButton,
   TypingIndicator,
@@ -25,11 +26,11 @@ import {
 import { createMentionsMiddleware, MentionsSearchSource } from 'stream-chat';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Baby, Beef, ChevronDown, LoaderCircle, MoreHorizontal, Reply, ShieldBan, Trash2, UserRound, X } from 'lucide-react';
+import { Baby, Beef, ChevronDown, LoaderCircle, MoreHorizontal, Pin, Reply, ShieldBan, Trash2, UserRound, X } from 'lucide-react';
 import { getLocalThemePreference } from '../settings/themePreferences';
 import { useAuth } from '../authentification/AuthContext';
 import { useMyBetailsList } from '../betails/hooks';
-import defaultProfileUser from '../../assets/defaut_profile_user.png';
+import ProfileAvatarImage from '../utils/ProfileAvatarImage';
 import { useChatDock } from './chatDockContext';
 import 'stream-chat-react/css/index.css';
 import './ChatDock.css';
@@ -60,6 +61,39 @@ const withBetailQuoteFallback = (message) => {
 };
 
 const quotedMessageSelector = (state) => ({ quotedMessage: state.quotedMessage });
+
+function FarmPrivateAvatar({ className = '', id: userId, imageUrl, userName, onClick, size, ...buttonProps }) {
+  return (
+    <button
+      {...buttonProps}
+      type="button"
+      className={`str-chat__avatar fg-chat-message-avatar ${className}`.trim()}
+      data-avatar-size={size}
+      data-user-id={userId}
+      onClick={onClick}
+      title={userName || 'Utilisateur'}
+    >
+      <ProfileAvatarImage
+        avatarUrl={imageUrl}
+        alt={userName ? `Photo de profil de ${userName}` : ''}
+        className="str-chat__avatar-image"
+        loading="lazy"
+      />
+    </button>
+  );
+}
+
+function FarmPrivateMessageUI(props) {
+  return <MessageUI {...props} showAvatar />;
+}
+
+const privateMessageSummary = (message) => {
+  const text = String(message?.text || '').trim();
+  if (text) return text.slice(0, 90);
+  const betail = message?.attachments?.find((attachment) => attachment.type === 'fg_betail');
+  if (betail) return `Profil bétail · ${betail.fg_betail_name || 'Bétail sans nom'}`;
+  return 'Message avec pièce jointe';
+};
 
 export function FarmQuotedMessagePreview() {
   const messageComposer = useMessageComposerController();
@@ -376,14 +410,17 @@ export function ImageOnlyMessageComposer({ mentionAllAppUsers = false, ...props 
 }
 
 function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize, onOpenProfile }) {
+  const { jumpToMessage } = useChannelActionContext();
   const [presenceTick, setPresenceTick] = useState(0);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [pinnedOpen, setPinnedOpen] = useState(false);
+  const [pinnedMessages, setPinnedMessages] = useState(() => [...(channel?.state?.pinnedMessages || [])]);
   const [blockConfirmation, setBlockConfirmation] = useState(false);
   const optionsRef = useRef(null);
   const friendMember = channel?.state?.members?.[friend?.id];
   const streamFriend = friendMember?.user;
   const online = Boolean(streamFriend?.online);
-  const avatar = streamFriend?.image || friend?.image || friend?.avatarUrl || defaultProfileUser;
+  const avatar = streamFriend?.image || friend?.image || friend?.avatarUrl || '';
   const name = streamFriend?.name || friend?.name || friend?.username || 'Ami';
 
   useEffect(() => {
@@ -397,11 +434,24 @@ function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize,
   }, [channel]);
 
   useEffect(() => {
+    const syncPinnedMessages = () => setPinnedMessages([...(channel?.state?.pinnedMessages || [])]);
+    syncPinnedMessages();
+    if (!channel) return undefined;
+    const listener = channel.on((event) => {
+      if (event.type === 'message.updated' || event.type === 'message.deleted' || event.type === 'channel.truncated') {
+        syncPinnedMessages();
+      }
+    });
+    return () => listener.unsubscribe();
+  }, [channel]);
+
+  useEffect(() => {
     if (!optionsOpen) return undefined;
     const closeOptions = (event) => {
       if (event.type === 'keydown' && event.key !== 'Escape') return;
       if (event.type === 'pointerdown' && optionsRef.current?.contains(event.target)) return;
       setOptionsOpen(false);
+      setPinnedOpen(false);
       setBlockConfirmation(false);
     };
     document.addEventListener('pointerdown', closeOptions);
@@ -419,6 +469,7 @@ function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize,
       return;
     }
     setOptionsOpen(false);
+    setPinnedOpen(false);
     setBlockConfirmation(false);
     await onBlock();
   };
@@ -426,7 +477,7 @@ function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize,
   return (
     <header className="fg-chat-header" data-presence-tick={presenceTick}>
       <span className="fg-chat-avatar-wrap">
-        <img src={avatar} alt="" className="fg-chat-avatar" onError={(event) => { event.currentTarget.src = defaultProfileUser; }} />
+        <ProfileAvatarImage avatarUrl={avatar} alt="" className="fg-chat-avatar" />
         <span className={`fg-chat-presence ${online ? 'is-online' : ''}`} aria-label={online ? 'En ligne' : 'Hors ligne'} />
       </span>
       <span className="fg-chat-title">
@@ -439,7 +490,10 @@ function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize,
           className={`fg-chat-header-button ${optionsOpen ? 'is-active' : ''}`}
           onClick={() => {
             setOptionsOpen((open) => {
-              if (open) setBlockConfirmation(false);
+              if (open) {
+                setPinnedOpen(false);
+                setBlockConfirmation(false);
+              }
               return !open;
             });
           }}
@@ -452,15 +506,50 @@ function ChatHeader({ channel, friend, isBlocking, onBlock, onClose, onMinimize,
         </button>
         {optionsOpen ? (
           <span className="fg-chat-options-menu" role="menu">
-            <button type="button" role="menuitem" className="fg-chat-options-profile" onClick={() => { setOptionsOpen(false); onOpenProfile(); }}>
+            <button type="button" role="menuitem" className="fg-chat-options-profile" onClick={() => { setOptionsOpen(false); setPinnedOpen(false); onOpenProfile(); }}>
               <UserRound size={15} />
               Accéder au profil
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              className="fg-chat-options-pins"
+              aria-expanded={pinnedOpen}
+              onClick={() => setPinnedOpen((open) => !open)}
+            >
+              <Pin size={15} />
+              Messages épinglés ({pinnedMessages.length})
             </button>
             <button type="button" role="menuitem" onClick={handleBlock} disabled={isBlocking}>
               {isBlocking ? <LoaderCircle className="is-spinning" size={15} /> : <ShieldBan size={15} />}
               {blockConfirmation ? 'Confirmer' : 'Bloquer l’utilisateur'}
             </button>
           </span>
+        ) : null}
+        {optionsOpen && pinnedOpen ? (
+          <div className="fg-chat-pinned-panel" role="dialog" aria-label="Messages épinglés">
+            <div className="fg-chat-pinned-panel__head">
+              <span><Pin size={14} /> Messages épinglés ({pinnedMessages.length})</span>
+              <button type="button" onClick={() => setPinnedOpen(false)} aria-label="Fermer les messages épinglés"><X size={14} /></button>
+            </div>
+            <div className="fg-chat-pinned-panel__list">
+              {!pinnedMessages.length ? <p>Aucun message épinglé.</p> : null}
+              {pinnedMessages.map((message) => (
+                <button
+                  type="button"
+                  key={message.id}
+                  onClick={() => {
+                    jumpToMessage?.(message.id);
+                    setPinnedOpen(false);
+                    setOptionsOpen(false);
+                  }}
+                >
+                  <strong>{message.user?.name || message.user?.username || 'Utilisateur'}</strong>
+                  <small>{privateMessageSummary(message)}</small>
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
       </span>
       <button type="button" className="fg-chat-header-button" onClick={onMinimize} aria-label="Réduire la conversation" title="Réduire">
@@ -480,14 +569,39 @@ function ChatDockWindow({ chat, chatThemeClass, client }) {
   const isBlocking = blockingUserId === friendUserId;
   const friendMember = chat.channel?.state?.members?.[friendUserId];
   const minimizedFriend = friendMember?.user || chat.friend || {};
-  const minimizedAvatar = minimizedFriend.image || minimizedFriend.avatarUrl || defaultProfileUser;
-  const minimizedName = minimizedFriend.name || minimizedFriend.username || 'Ami';
+  const minimizedAvatar = friendMember?.user?.image || chat.friend?.image || chat.friend?.avatarUrl || '';
+  const minimizedName = friendMember?.user?.name || friendMember?.user?.username || chat.friend?.name || chat.friend?.username || 'Ami';
+  const avatarProfiles = useMemo(() => ({
+    [String(client.userID || '')]: client.user || {},
+    [String(friendUserId || '')]: {
+      ...(chat.friend || {}),
+      ...(friendMember?.user || {}),
+      image: friendMember?.user?.image || chat.friend?.image || chat.friend?.avatarUrl || '',
+    },
+  }), [chat.friend, client.user, client.userID, friendMember?.user, friendUserId]);
+  const componentOverrides = useMemo(() => ({
+    Attachment: FarmAttachment,
+    AttachmentSelector: FarmAttachmentSelector,
+    Avatar: FarmPrivateAvatar,
+    extractDisplayInfo: ({ user: streamUser }) => {
+      const profile = avatarProfiles[String(streamUser?.id || '')] || streamUser || {};
+      return {
+        id: streamUser?.id,
+        imageUrl: profile.image || profile.avatarUrl || streamUser?.image || '',
+        userName: profile.username || profile.name || streamUser?.username || streamUser?.name || 'Utilisateur',
+      };
+    },
+    MessageActions: FarmMessageActions,
+    MessageUI: FarmPrivateMessageUI,
+    QuotedMessage: FarmQuotedMessage,
+    QuotedMessagePreview: FarmQuotedMessagePreview,
+  }), [avatarProfiles]);
 
   if (chat.isLoading || !chat.channel) {
     return (
       <aside className={`fg-chat-dock fg-chat-dock--loading auth-theme ${chatThemeClass}`.trim()} aria-label={`Ouverture de la conversation avec ${minimizedName}`}>
         <div className="fg-chat-loading-header">
-          <img src={minimizedAvatar} alt="" onError={(event) => { event.currentTarget.src = defaultProfileUser; }} />
+          <ProfileAvatarImage avatarUrl={minimizedAvatar} alt="" />
           <strong>{minimizedName}</strong>
           <button type="button" onClick={() => closeChat(friendUserId)} aria-label="Fermer"><X size={17} /></button>
         </div>
@@ -503,7 +617,7 @@ function ChatDockWindow({ chat, chatThemeClass, client }) {
     return (
       <aside className={`fg-chat-dock fg-chat-dock--minimized ${chat.unreadCount > 0 ? 'has-unread' : ''} auth-theme ${chatThemeClass}`.trim()} aria-label="Conversation réduite">
         <button type="button" className="fg-chat-minimized" onClick={() => restoreChat(friendUserId)} aria-label={`Ouvrir la conversation avec ${minimizedName}`}>
-          <img src={minimizedAvatar} alt="" onError={(event) => { event.currentTarget.src = defaultProfileUser; }} />
+          <ProfileAvatarImage avatarUrl={minimizedAvatar} alt="" />
           <strong>{minimizedName}</strong>
           {chat.unreadCount > 0 ? (
             <span className="fg-chat-minimized-badge" aria-label={`${chat.unreadCount} message${chat.unreadCount > 1 ? 's' : ''} non lu${chat.unreadCount > 1 ? 's' : ''}`}>
@@ -529,13 +643,7 @@ function ChatDockWindow({ chat, chatThemeClass, client }) {
     <aside className={`fg-chat-dock auth-theme ${chatThemeClass}`.trim()} aria-label={`Messagerie privée avec ${minimizedName}`}>
       <Chat client={client} theme="str-chat__theme-light">
         <Channel channel={chat.channel} TypingIndicator={TypingIndicator}>
-          <WithComponents overrides={{
-            Attachment: FarmAttachment,
-            AttachmentSelector: FarmAttachmentSelector,
-            MessageActions: FarmMessageActions,
-            QuotedMessage: FarmQuotedMessage,
-            QuotedMessagePreview: FarmQuotedMessagePreview,
-          }}>
+          <WithComponents overrides={componentOverrides}>
             <div className="fg-chat-window">
               <ChatHeader
                 channel={chat.channel}

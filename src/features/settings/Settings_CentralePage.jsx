@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, X } from 'lucide-react';
+import { Search, ScanSearch, X } from 'lucide-react';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges/badgeUtils';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
+import Settings_AdminDuplicateBetailsPanel from './Settings_AdminDuplicateBetailsPanel';
 import './Settings_CentralePage.css';
 
 const RESULT_LIMIT = 30;
@@ -483,6 +484,8 @@ function Settings_CentralePage() {
   const [searchInput, setSearchInput] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
   const [isSearchVisible, setIsSearchVisible] = useState(true);
+  const [isDuplicateDetectionVisible, setIsDuplicateDetectionVisible] = useState(false);
+  const [aiAvailability, setAiAvailability] = useState('checking');
   const [selectedBetail, setSelectedBetail] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [filters, setFilters] = useState({
@@ -504,6 +507,22 @@ function Settings_CentralePage() {
     refetchOnWindowFocus: false,
     queryFn: () => runCentralSearch({ query: effectiveQuery, filters }),
   });
+
+  useEffect(() => {
+    let active = true;
+    const checkAiAvailability = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('detect-betail-duplicates', {
+          body: { action: 'health' },
+        });
+        if (active) setAiAvailability(!error && data?.available ? 'available' : 'unavailable');
+      } catch {
+        if (active) setAiAvailability('unavailable');
+      }
+    };
+    void checkAiAvailability();
+    return () => { active = false; };
+  }, []);
 
   const results = searchQuery.data || {
     users: [],
@@ -548,6 +567,7 @@ function Settings_CentralePage() {
 
   const handleResetSearch = () => {
     setIsSearchVisible(true);
+    setIsDuplicateDetectionVisible(false);
     setSelectedBetail(null);
     setSelectedUser(null);
   };
@@ -563,6 +583,15 @@ function Settings_CentralePage() {
     const username = String(selectedUser?.username || '').trim();
     if (!username) return;
     navigate(`/community/profile/${encodeURIComponent(username)}`);
+  };
+
+  const openDuplicateBetail = async (betailId) => {
+    const { data, error } = await supabase
+      .from('betails')
+      .select('id,matricule,name,avatar_url,farm_id,farm_site,age,premium,comments,author_id,owner_id,created_at,like_count,purchased_at,visible,invisible_reason,invisible_at,equipped_badges,admin_reward_badge_ids')
+      .eq('id', betailId)
+      .maybeSingle();
+    if (!error && data) setSelectedBetail(data);
   };
 
   const selectedBetailBadges = useMemo(() => normalizeBadgeEntries(selectedBetail?.equipped_badges), [selectedBetail]);
@@ -623,10 +652,20 @@ function Settings_CentralePage() {
     : (selectedBetail?.owner_id ? `Ferme : ${selectedBetailCurrentFarmName}` : 'Indisponible au registre public');
 
   return (
-    <main className={`centrale-page ${isSearchVisible ? 'is-search-mode' : ''}`}>
+    <main className={`centrale-page ${isSearchVisible && !isDuplicateDetectionVisible ? 'is-search-mode' : ''}`}>
       <h1 className="centrale-title">Centrale FarmGestion</h1>
 
-      {isSearchVisible ? (
+      {isDuplicateDetectionVisible ? (
+        <Settings_AdminDuplicateBetailsPanel
+          supabaseUrl={supabaseUrl}
+          aiAvailable={aiAvailability === 'available'}
+          onSelectBetail={openDuplicateBetail}
+          onClose={() => {
+            setIsDuplicateDetectionVisible(false);
+            setIsSearchVisible(true);
+          }}
+        />
+      ) : isSearchVisible ? (
         <form className="centrale-search-form" onSubmit={handleSubmit}>
           <label className="centrale-search" htmlFor="centrale-search-input">
             <Search size={18} />
@@ -684,6 +723,21 @@ function Settings_CentralePage() {
           </button>
 
           {!hasActiveFilter ? <p className="centrale-hint">Active au moins un filtre.</p> : null}
+
+          <div className="centrale-tools">
+            <p>Outils d’analyse</p>
+            <button
+              type="button"
+              className="centrale-tool-button"
+              onClick={() => setIsDuplicateDetectionVisible(true)}
+              disabled={aiAvailability !== 'available'}
+              title={aiAvailability === 'unavailable' ? 'Service IA indisponible' : ''}
+            >
+              <ScanSearch size={19} />
+              {aiAvailability === 'checking' ? 'Vérification IA…' : 'Détection doublons'}
+            </button>
+            {aiAvailability === 'unavailable' ? <small className="centrale-tools__offline">Service IA indisponible</small> : null}
+          </div>
         </form>
       ) : (
         <section className="centrale-results">

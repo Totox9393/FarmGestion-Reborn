@@ -4,6 +4,7 @@ import { Gavel } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../authentification/supabaseClient';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
+import ProfileAvatarImage from '../utils/ProfileAvatarImage';
 import './HomeAuctionBanner.css';
 
 const FIVE_MINUTES_MS = 5 * 60 * 1000;
@@ -185,7 +186,10 @@ function HomeAuctionBanner() {
           <strong>{winnerAnnouncement.winner_username}</strong>
         </div>
         <div className="home-auction-banner__winner-person">
-          <img src={winnerAnnouncement.winner_avatar_url || defaultProfileUser} alt="" />
+          <ProfileAvatarImage
+            avatarUrl={winnerAnnouncement.winner_avatar_url}
+            alt={`Photo de profil de ${winnerAnnouncement.winner_username || 'la personne gagnante'}`}
+          />
         </div>
         <div className="home-auction-banner__winner-betail">
           <img src={winnerAnnouncement.betail_avatar_url || defaultProfileUser} alt="" />
@@ -242,7 +246,11 @@ function HomeAuctionBanner() {
               <div className="home-auction-banner__lot-history">
                 {history.length ? history.map((bid, index) => (
                   <span key={`${slot.slot_id}-${bid.bidder_user_id || 'bid'}-${bid.created_at || index}`}>
-                    <img src={bid.bidder_avatar_url || defaultProfileUser} alt="" />
+                    <ProfileAvatarImage
+                      avatarUrl={bid.bidder_avatar_url}
+                      alt={`Photo de profil de ${bid.bidder_username || 'l’enchérisseur'}`}
+                      loading="lazy"
+                    />
                     <small>{bid.bidder_username || 'Enchérisseur'}</small>
                     <strong>{formatMoney(bid.amount)} 💸</strong>
                   </span>

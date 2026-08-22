@@ -1182,10 +1182,10 @@ function FarmGestion_Home_Mere() {
                       <div className="podium-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
                         <img src={betail.img} alt={betail.name} onError={handleImgError} />
                       </div>
-                      <div className="podium-rank">{rank}</div>
+                      <div className="podium-rank">- {rank} -</div>
                       <div className="podium-info">
                         <p className="podium-name">{betail.name}</p>
-                        <p className="podium-meta">{betail.matricule}</p>
+                        <p className="podium-meta">#{betail.matricule}</p>
                         <p className="podium-likes"><Heart size={14} /> {betail.likes ?? 0}</p>
                       </div>
                     </div>
