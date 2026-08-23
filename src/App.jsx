@@ -24,6 +24,7 @@ import CommunityProfilePage from './features/community/CommunityProfilePage';
 import Settings_CentralePage from './features/settings/Settings_CentralePage';
 import AuctionsPage from './features/betails/AuctionsPage';
 import { useAuth } from './features/authentification/AuthContext';
+import { supabase } from './features/authentification/supabaseClient';
 import { ChatDockProvider } from './features/chat/ChatDockProvider';
 import { readInitialSurpriseCode, redeemSurpriseCode } from './features/authentification/surpriseCode';
 import './App.css';
@@ -115,17 +116,55 @@ function AppRoutes() {
       // Ignore storage read failures.
     }
 
-    let targetPath = '/home';
-    try {
-      const savedPath = String(window.sessionStorage.getItem(LAST_AUTH_ROUTE_STORAGE_KEY) || '').trim();
-      if (savedPath && savedPath !== '/') {
-        targetPath = savedPath;
-      }
-    } catch {
-      // Ignore storage read failures.
-    }
+    let cancelled = false;
 
-    navigate(targetPath, { replace: true });
+    const redirectOnboardedUser = async () => {
+      const { data: profile, error } = await supabase
+        .from('users_profiles')
+        .select('farm_id, avatar_url')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (cancelled || error) return;
+
+      const hasFarm = Boolean(profile?.farm_id);
+      const hasAvatar = typeof profile?.avatar_url === 'string'
+        ? profile.avatar_url.trim().length > 0
+        : Boolean(profile?.avatar_url);
+
+      // A new account is allowed to stay on the landing page while its profile
+      // and onboarding are being completed. Redirecting it to a private route
+      // here would bounce it straight back to `/` and create a history loop.
+      if (!hasFarm || !hasAvatar) {
+        try {
+          window.sessionStorage.setItem('fg_forceFarmCreation', '1');
+        } catch {
+          // Ignore storage write failures.
+        }
+        window.dispatchEvent(new CustomEvent('farmgestion-open-farm-creation'));
+        return;
+      }
+
+      let targetPath = '/home';
+      try {
+        const savedPath = String(window.sessionStorage.getItem(LAST_AUTH_ROUTE_STORAGE_KEY) || '').trim();
+        if (savedPath && savedPath !== '/') {
+          targetPath = savedPath;
+        }
+      } catch {
+        // Ignore storage read failures.
+      }
+
+      if (!cancelled) {
+        navigate(targetPath, { replace: true });
+      }
+    };
+
+    redirectOnboardedUser();
+
+    return () => {
+      cancelled = true;
+    };
   }, [user?.id, location.pathname, navigate]);
 
   useEffect(() => {
@@ -147,7 +186,11 @@ function AppRoutes() {
     }
   };
 
-  const showToastFromQuery = () => {
+  useEffect(() => {
+    showToastFromStorage();
+  }, [location.pathname]);
+
+  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const toastParam = params.get('toast');
     if (!toastParam) return;
@@ -160,17 +203,8 @@ function AppRoutes() {
     params.delete('toast');
     const nextSearch = params.toString();
     const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
-    window.history.replaceState({}, '', nextUrl);
-  };
-
-  useEffect(() => {
-    showToastFromStorage();
-    showToastFromQuery();
-  }, [location.pathname]);
-
-  useEffect(() => {
-    showToastFromQuery();
-  }, [location.search]);
+    navigate(nextUrl, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     const handleToastEvent = (event) => {

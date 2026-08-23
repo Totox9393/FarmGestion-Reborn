@@ -137,22 +137,48 @@ function Home() {
   }, []);
 
   useEffect(() => {
-    const shouldForceCreation = sessionStorage.getItem('fg_forceFarmCreation');
-    if (!shouldForceCreation) return;
-    (async () => {
-      sessionStorage.removeItem('fg_forceFarmCreation');
-      const { data: userData } = await supabase.auth.getUser();
-      const currentUser = userData?.user;
-      if (!currentUser) return;
-      const { data } = await supabase
-        .from('users_profiles')
-        .select('farm_id')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-      if (!data?.farm_id) {
-        authFlowRef.current?.openFarmCreation?.();
+    let cancelled = false;
+    let opening = false;
+
+    const openFarmCreationIfNeeded = async () => {
+      if (opening || cancelled) return;
+      opening = true;
+      try {
+        const { data: userData } = await supabase.auth.getUser();
+        const currentUser = userData?.user;
+        if (!currentUser || cancelled) return;
+        const { data } = await supabase
+          .from('users_profiles')
+          .select('farm_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        if (!cancelled && !data?.farm_id) {
+          authFlowRef.current?.openFarmCreation?.();
+        }
+      } finally {
+        // Keep the marker during this whole effect. AppRoutes reads the same
+        // marker and must not redirect to /home before the stepper is opened.
+        if (!cancelled) {
+          sessionStorage.removeItem('fg_forceFarmCreation');
+        }
+        opening = false;
       }
-    })();
+    };
+
+    const handleForceFarmCreation = () => {
+      void openFarmCreationIfNeeded();
+    };
+
+    window.addEventListener('farmgestion-open-farm-creation', handleForceFarmCreation);
+
+    if (sessionStorage.getItem('fg_forceFarmCreation')) {
+      void openFarmCreationIfNeeded();
+    }
+
+    return () => {
+      cancelled = true;
+      window.removeEventListener('farmgestion-open-farm-creation', handleForceFarmCreation);
+    };
   }, []);
 
   useEffect(() => {
@@ -162,8 +188,8 @@ function Home() {
     params.delete('auth');
     const nextSearch = params.toString();
     const nextUrl = `${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`;
-    window.history.replaceState({}, '', nextUrl);
-  }, [location.pathname, location.search]);
+    navigate(nextUrl, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   return (
     <div className="home" ref={homeRef}>
