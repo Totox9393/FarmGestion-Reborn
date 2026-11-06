@@ -15,6 +15,17 @@ const AuthFlowManager = forwardRef((props, ref) => {
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showFarmStepper, setShowFarmStepper] = useState(false);
   const [pendingFarmCheck, setPendingFarmCheck] = useState(false);
+  const isAuthContainerOpen = showRegister || showLogin || showPasswordModal || showFarmStepper;
+
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined;
+
+    document.body.classList.toggle('fg-auth-flow-open', isAuthContainerOpen);
+
+    return () => {
+      document.body.classList.remove('fg-auth-flow-open');
+    };
+  }, [isAuthContainerOpen]);
 
   useEffect(() => {
     if (!showRegister && !showLogin) return undefined;

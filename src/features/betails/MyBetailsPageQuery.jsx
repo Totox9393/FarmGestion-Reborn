@@ -37,6 +37,7 @@ import MyBetailsShippingPanel from './MyBetailsShippingPanel'
 import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits'
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio'
 import useMobileScrollLock from '../utils/useMobileScrollLock'
+import { formatMatricule } from '../utils/formatMatricule'
 import './BetailsListPage.css'
 import './MyBetailsPage.css'
 
@@ -226,7 +227,7 @@ function MyBetailCard({ betail, authorName, likedByMe, isLikePending, onToggleLi
           <h3 className="betail-name">
             <OverflowAutoScrollText text={betail.name} />
           </h3>
-          <p className="betail-matricule">#{betail.matricule}</p>
+          <p className="betail-matricule">{formatMatricule(betail.matricule)}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
         </div>
@@ -1513,7 +1514,7 @@ function MyBetailsPageQuery() {
                             decoding="async"
                           />
                         )}
-                        <p className="betail-matricule betail-matricule--panel">{selectedBetail.matricule}</p>
+                        <p className="betail-matricule betail-matricule--panel">{formatMatricule(selectedBetail.matricule)}</p>
                       </div>
 
                       {isPremiumAnimationVisible ? (

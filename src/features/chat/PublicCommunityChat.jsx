@@ -15,7 +15,7 @@ import {
   useMessageContext,
   WithComponents,
 } from 'stream-chat-react';
-import { AtSign, Check, Clock3, LoaderCircle, MessageCircle, MoreHorizontal, Pin, PinOff, Trash2, Volume2, VolumeX, X } from 'lucide-react';
+import { AtSign, Check, Clock3, LoaderCircle, MoreHorizontal, Pin, PinOff, Trash2, Volume2, VolumeX, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useChatDock } from './chatDockContext';
 import { moderatePublicStreamChannel, openPublicStreamChannel } from './streamApi';
@@ -27,9 +27,9 @@ import {
   ImageOnlyMessageComposer,
   QuickQuoteAction,
 } from './ChatDock';
-import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import { getLocalThemePreference } from '../settings/themePreferences';
 import { supabase } from '../authentification/supabaseClient';
+import ProfileAvatarImage from '../utils/ProfileAvatarImage';
 import './PublicCommunityChat.css';
 
 const PublicModerationContext = createContext({
@@ -38,7 +38,6 @@ const PublicModerationContext = createContext({
   setMutedUser: () => {},
 });
 const toast = (type, message) => window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type, message } }));
-const SUPABASE_URL = String(import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
 
 const muteEntriesToMap = (entries) => Object.fromEntries(
   (Array.isArray(entries) ? entries : [])
@@ -93,24 +92,6 @@ function PublicCooldownTimer() {
     </div>
   );
 }
-
-const buildAvatarCandidates = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  if (/^https?:\/\//i.test(raw) || !SUPABASE_URL) return [raw];
-  const candidates = [raw];
-  if (raw.startsWith('/storage/v1/object/public/')) candidates.push(`${SUPABASE_URL}${raw}`);
-  else if (raw.startsWith('storage/v1/object/public/')) candidates.push(`${SUPABASE_URL}/${raw}`);
-  else if (raw.startsWith('/')) candidates.push(`${SUPABASE_URL}${raw}`, `${SUPABASE_URL}/${raw.replace(/^\/+/, '')}`);
-  else if (raw.includes('/')) candidates.push(`${SUPABASE_URL}/storage/v1/object/public/${raw}`);
-  else {
-    candidates.push(
-      `${SUPABASE_URL}/storage/v1/object/public/avatars/${raw}`,
-      `${SUPABASE_URL}/storage/v1/object/public/ressources/${raw}`,
-    );
-  }
-  return Array.from(new Set(candidates));
-};
 
 function ModeratorDeleteAction() {
   const { canModerate } = useContext(PublicModerationContext);
@@ -258,11 +239,6 @@ function PublicMessageActions() {
 }
 
 function FarmPublicAvatar({ className = '', id: userId, imageUrl, userName, onClick, size, ...buttonProps }) {
-  const avatarSource = String(imageUrl || '').trim();
-  const candidates = useMemo(() => buildAvatarCandidates(avatarSource), [avatarSource]);
-  const [failure, setFailure] = useState({ source: avatarSource, index: 0 });
-  const candidateIndex = failure.source === avatarSource ? failure.index : 0;
-  const src = candidates[candidateIndex] || defaultProfileUser;
   return (
     <button
       {...buttonProps}
@@ -273,12 +249,9 @@ function FarmPublicAvatar({ className = '', id: userId, imageUrl, userName, onCl
       onClick={onClick}
       title={`Voir le profil de ${userName || 'cet utilisateur'}`}
     >
-      <img
-        src={src}
+      <ProfileAvatarImage
+        avatarUrl={imageUrl}
         alt={userName ? `Photo de profil de ${userName}` : ''}
-        onError={() => {
-          setFailure({ source: avatarSource, index: candidateIndex + 1 });
-        }}
       />
     </button>
   );
@@ -748,7 +721,7 @@ export default function PublicCommunityChat({ avatarProfiles = [] }) {
       const profile = avatarDirectory.byId[userId] || avatarDirectory.byName[streamUsername.toLowerCase()];
       return {
         id: streamUser?.id,
-        imageUrl: profile?.avatarUrl || streamUser?.image,
+        imageUrl: streamUser?.image || profile?.avatarUrl,
         userName: profile?.username || streamUsername || userId,
       };
     },
@@ -801,10 +774,9 @@ export default function PublicCommunityChat({ avatarProfiles = [] }) {
   return (
     <section className={`community-public-chat ${isDarkChat ? 'is-dark' : ''}`} aria-label="Conversation publique FarmGestion">
       <header className="community-public-chat__header">
-        <span className="community-public-chat__icon"><MessageCircle size={20} /></span>
         <div>
           <p>Grace Field House - Conversation publique</p>
-          <span>Découvrez les différents membres de la communauté</span>
+          <span>Salon ouvert à tous les membres de la communauté.</span>
         </div>
         {state.canModerate ? <strong>Modération active</strong> : null}
         <button

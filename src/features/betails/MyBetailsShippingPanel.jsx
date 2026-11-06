@@ -4,6 +4,7 @@ import costRevealSound from '../../assets/sounds/SeResourceStd2nd_00000799.wav'
 import finalHoverSound from '../../assets/sounds/SE_CTR_HOME_POPUP_POWER.wav'
 import finalClickSound from '../../assets/sounds/CMN_MINIGAME_BNK_SE_0000000A.wav'
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio'
+import { formatMatricule } from '../utils/formatMatricule'
 
 const COST_FORMATTER = new Intl.NumberFormat('fr-FR')
 const MIN_SHIPPING_AGE = 7
@@ -491,7 +492,7 @@ function MyBetailsShippingPanel({
   }, [isOpen, shippingTarget?.id, clearCautionAudio])
 
   const shippingLabel = useMemo(() => {
-    const matricule = shippingTarget?.matricule || '---'
+    const matricule = formatMatricule(shippingTarget?.matricule, '---')
     const name = shippingTarget?.name || 'Bétail inconnu'
     return `${matricule} - ${name}`
   }, [shippingTarget])

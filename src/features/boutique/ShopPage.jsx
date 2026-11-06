@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowDownUp, Clock3, Coins, Crown, ShoppingBag } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '../authentification/supabaseClient'
 import { useAuth } from '../authentification/AuthContext'
@@ -27,6 +26,8 @@ const ROTATION_RULES = {
 
 const SHOP_CATEGORIES = ['1_common', '2_rare', '3_epic', '4_legendary']
 const MAX_ROTATION_BADGES = 15
+
+const formatPrice = (value) => Number(value || 0).toLocaleString('fr-FR')
 
 const emitToast = (type, message) => {
   if (typeof window === 'undefined') return
@@ -407,78 +408,49 @@ function ShopPage() {
       <div className="shop-page-shell">
         <header className="shop-hero">
           <div className="shop-hero-copy">
-            <p className="shop-hero-eyebrow">Boutique</p>
             <h1 className="shop-hero-title">Boutique FarmGestion</h1>
             <p className="shop-hero-subtitle">Ici vous pouvez acheter un tas de choses, que ce soit en 💸 ou en euros.</p>
 
-            <div className="shop-hero-kpis">
-              <article className="shop-hero-kpi">
-                <p className="shop-hero-kpi-label">
-                  <Coins size={15} aria-hidden="true" />
-                  Solde actuel
-                </p>
-                <p className="shop-hero-kpi-value">
-                  <strong>{Number(money || 0).toLocaleString('fr-FR')} 💸</strong>
-                </p>
-                <p className="shop-hero-kpi-meta">Votre solde actuel #richesse</p>
-              </article>
-
-              <article className="shop-hero-kpi">
-                <p className="shop-hero-kpi-label">
-                  <Clock3 size={15} aria-hidden="true" />
-                  Prochaine rotation
-                </p>
-                <p className="shop-hero-kpi-value">
-                  <strong>{formatCountdown(secondsToRotation)}</strong>
-                </p>
-                <p className="shop-hero-kpi-meta">Avant le renouvellement quotidien des badges.</p>
-              </article>
-            </div>
-
-            <div className="shop-hero-tools">
-              <div className="shop-mode-switch" role="tablist" aria-label="Sections de la boutique">
-                <button
-                  type="button"
-                  className={`shop-mode-chip ${activeTab === 'badges' ? 'is-active' : ''}`}
-                  role="tab"
-                  aria-selected={activeTab === 'badges'}
-                  onClick={() => setActiveTab('badges')}
-                >
-                  <span className="shop-mode-chip-main">
-                    <span className="shop-mode-chip-title">
-                      <ShoppingBag size={15} aria-hidden="true" />
-                      Badges
-                    </span>
-                    <span className="shop-mode-chip-subtitle">Achat en 💸</span>
-                  </span>
-                  <span className="shop-mode-chip-badge">Actif</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`shop-mode-chip ${activeTab === 'packs' ? 'is-active' : ''} ${!isPacksAvailable ? 'is-disabled' : ''}`}
-                  role="tab"
-                  aria-selected={activeTab === 'packs'}
-                  disabled={!isPacksAvailable}
-                  onClick={() => setActiveTab('packs')}
-                >
-                  <span className="shop-mode-chip-main">
-                    <span className="shop-mode-chip-title">
-                      <Crown size={15} aria-hidden="true" />
-                      Packs
-                    </span>
-                    <span className="shop-mode-chip-subtitle">Paiement en euros</span>
-                  </span>
-                  <span className="shop-mode-chip-badge">Bientot</span>
-                </button>
+            <dl className="shop-hero-facts">
+              <div className="shop-hero-fact">
+                <dt>Solde</dt>
+                <dd>{formatPrice(money)} 💸</dd>
               </div>
+              <div className="shop-hero-fact">
+                <dt>Nouveaux badges dans</dt>
+                <dd>{formatCountdown(secondsToRotation)}</dd>
+              </div>
+            </dl>
+
+            <div className="shop-tabs" role="tablist" aria-label="Sections de la boutique">
+              <button
+                type="button"
+                className="shop-tab"
+                role="tab"
+                aria-selected={activeTab === 'badges'}
+                onClick={() => setActiveTab('badges')}
+              >
+                Badges
+                <span className="shop-tab-note">achat en 💸</span>
+              </button>
+              <button
+                type="button"
+                className="shop-tab"
+                role="tab"
+                aria-selected={activeTab === 'packs'}
+                disabled={!isPacksAvailable}
+                onClick={() => setActiveTab('packs')}
+              >
+                Packs
+                <span className="shop-tab-note">bientôt, en euros</span>
+              </button>
             </div>
           </div>
 
           {miloImageUrl ? (
             <img
               src={miloImageUrl}
-              alt="Milo presente la boutique"
+              alt="Milo présente la boutique"
               className="shop-hero-milo"
               loading="lazy"
               decoding="async"
@@ -495,24 +467,23 @@ function ShopPage() {
             <div className="shop-panel-head">
               <div>
                 <h2>Rotation badges du jour</h2>
-                <p>{rotationBadges.length} badges affichés aujourd'hui.</p>
+                <p>
+                  {rotationBadges.length} {rotationBadges.length > 1 ? 'badges affichés' : 'badge affiché'} aujourd'hui.
+                </p>
               </div>
 
-              <div className="shop-panel-actions">
-                <button
-                  type="button"
-                  className="shop-sort-btn"
-                  onClick={() => setSortOrder((current) => (current === 'asc' ? 'desc' : 'asc'))}
-                >
-                  <ArrowDownUp size={15} aria-hidden="true" />
-                  Prix {sortOrder === 'asc' ? 'croissant' : 'décroissant'}
-                </button>
-              </div>
+              <button
+                type="button"
+                className="shop-sort-btn"
+                onClick={() => setSortOrder((current) => (current === 'asc' ? 'desc' : 'asc'))}
+              >
+                Tri : prix {sortOrder === 'asc' ? 'croissant' : 'décroissant'}
+              </button>
             </div>
 
             {sqlFunctionMissing ? (
               <p className="shop-inline-warning">
-                La fonction SQL `buy_badge_reborn` est absente. Exécute les scripts SQL reborn badges.
+                La fonction SQL <code>buy_badge_reborn</code> est absente. Exécute les scripts SQL reborn badges.
               </p>
             ) : null}
 
@@ -520,7 +491,7 @@ function ShopPage() {
             {loadingError ? <p className="shop-inline-warning">{loadingError}</p> : null}
 
             {isLoading ? (
-              <p className="shop-loading">Chargement de la boutique badges...</p>
+              <p className="shop-loading">Chargement des badges…</p>
             ) : (
               <div className="shop-badges-grid" role="list" aria-label="Badges disponibles">
                 {sortedRotationBadges.map((badge) => {
@@ -558,11 +529,9 @@ function ShopPage() {
 
                       <h3 className="shop-badge-name">{badge.name}</h3>
                       <p className="shop-badge-description">
-                        Ce badge est classé <span className="shop-rarity-text">{badge.rarityLabel}</span>
+                        <span className="shop-rarity-text">{badge.rarityLabel}</span>
                       </p>
-                      <p className="shop-badge-price">
-                        <strong>{badge.price} 💸</strong>
-                      </p>
+                      <p className="shop-badge-price">{formatPrice(badge.price)} 💸</p>
 
                       <button
                         type="button"
@@ -570,7 +539,7 @@ function ShopPage() {
                         onClick={() => requestBuyBadge(badge)}
                         disabled={disableBuy}
                       >
-                        {isOwned ? 'Déjà acheté' : isSoldOut ? 'Épuisé' : isBuying ? 'Achat...' : 'Acheter'}
+                        {isOwned ? 'Déjà acheté' : isSoldOut ? 'Épuisé' : isBuying ? 'Achat…' : 'Acheter'}
                       </button>
                     </article>
                   )
@@ -583,7 +552,7 @@ function ShopPage() {
             <div className="shop-panel-head">
               <div>
                 <h2>Packs en euros</h2>
-                <p>Section en préparation. Le design restera volontairement simple.</p>
+                <p>Les packs en euros ne sont pas encore disponibles.</p>
               </div>
             </div>
 
@@ -595,7 +564,7 @@ function ShopPage() {
               </article>
               <article className="shop-placeholder-card">
                 <h3>Pack VIP à vie</h3>
-                <p>Accès VIP permanent + bonus 💸 + 3 bétails spéciaux.</p>
+                <p>Accès VIP permanent, bonus 💸 et 3 bétails spéciaux.</p>
                 <span>Bientôt disponible</span>
               </article>
             </div>
@@ -619,33 +588,43 @@ function ShopPage() {
               aria-labelledby="shop-buy-modal-title"
               onMouseDown={(event) => event.stopPropagation()}
             >
-              <p className="shop-buy-modal-kicker">Confirmation</p>
               <h3 id="shop-buy-modal-title">Acheter ce badge ?</h3>
-              <p className="shop-buy-modal-name">{badgeToConfirm.name}</p>
-              <p className="shop-buy-modal-line">
-                Coût: <strong>{badgeToConfirm.price} 💸</strong>
-              </p>
-              <p className="shop-buy-modal-line">
-                Stock restant: <strong>{badgeToConfirm.stockLeft}</strong>
-              </p>
-              <p className="shop-buy-modal-line">
-                Solde actuel: <strong>{Number(money || 0).toLocaleString('fr-FR')} 💸</strong>
-              </p>
 
-              <div className="shop-buy-modal-preview" aria-hidden="true">
-                {!badgeToConfirm.imageUrl || modalBadgeImageError ? (
-                  <span className="shop-buy-modal-preview-fallback">?</span>
-                ) : (
-                  <img
-                    src={badgeToConfirm.imageUrl}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                    draggable={false}
-                    onDragStart={(event) => event.preventDefault()}
-                    onError={() => setModalBadgeImageError(true)}
-                  />
-                )}
+              <div className="shop-buy-modal-body">
+                <div className="shop-buy-modal-preview" aria-hidden="true">
+                  {!badgeToConfirm.imageUrl || modalBadgeImageError ? (
+                    <span className="shop-buy-modal-preview-fallback">?</span>
+                  ) : (
+                    <img
+                      src={badgeToConfirm.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                      draggable={false}
+                      onDragStart={(event) => event.preventDefault()}
+                      onError={() => setModalBadgeImageError(true)}
+                    />
+                  )}
+                </div>
+
+                <dl className="shop-buy-modal-facts">
+                  <div>
+                    <dt>Badge</dt>
+                    <dd>{badgeToConfirm.name}</dd>
+                  </div>
+                  <div>
+                    <dt>Coût</dt>
+                    <dd>{formatPrice(badgeToConfirm.price)} 💸</dd>
+                  </div>
+                  <div>
+                    <dt>Stock restant</dt>
+                    <dd>{formatPrice(badgeToConfirm.stockLeft)}</dd>
+                  </div>
+                  <div>
+                    <dt>Solde actuel</dt>
+                    <dd>{formatPrice(money)} 💸</dd>
+                  </div>
+                </dl>
               </div>
 
               <div className="shop-buy-modal-actions">
@@ -663,7 +642,7 @@ function ShopPage() {
                   onClick={handleConfirmPurchase}
                   disabled={Boolean(buyingBadgeId) || badgeToConfirm.stockLeft <= 0}
                 >
-                  {buyingBadgeId ? 'Achat...' : `Confirmer ${badgeToConfirm.price} 💸`}
+                  {buyingBadgeId ? 'Achat…' : `Confirmer ${formatPrice(badgeToConfirm.price)} 💸`}
                 </button>
               </div>
             </div>

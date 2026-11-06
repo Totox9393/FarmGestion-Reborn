@@ -7,10 +7,13 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
   const { user, loading } = useAuth();
   const userId = user?.id ?? null;
   const requiresProfileCheck = requireOnboarding || requireFarm || requireAvatar || requireAdmin;
-  const [checkingAccess, setCheckingAccess] = useState(requiresProfileCheck);
+  const [checkingAccess, setCheckingAccess] = useState(false);
   const [hasFarm, setHasFarm] = useState(null);
   const [hasAvatar, setHasAvatar] = useState(null);
   const [hasAdminRole, setHasAdminRole] = useState(null);
+  const farmRequired = requireOnboarding || requireFarm;
+  const avatarRequired = requireOnboarding || requireAvatar;
+  const adminRequired = requireAdmin;
 
   useEffect(() => {
     let ignore = false;
@@ -29,8 +32,9 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
       .select('farm_id, avatar_url, role, role_ingame')
       .eq('id', userId)
       .maybeSingle()
-      .then(({ data }) => {
+      .then(({ data, error }) => {
         if (ignore) return;
+        if (error) throw error;
         setHasFarm(data?.farm_id ? true : false);
         setHasAvatar(typeof data?.avatar_url === 'string' ? data.avatar_url.trim().length > 0 : Boolean(data?.avatar_url));
         const normalizedRoles = String(`${data?.role || ''} ${data?.role_ingame || ''}`).toUpperCase();
@@ -39,21 +43,26 @@ function PrivateRoute({ children, requireFarm = false, requireAvatar = false, re
       })
       .catch(() => {
         if (!ignore) {
-          setHasFarm(null);
-          setHasAvatar(null);
-          setHasAdminRole(null);
+          // Do not bounce authenticated users to `/` on transient profile-check failures.
+          setHasFarm(farmRequired ? true : null);
+          setHasAvatar(avatarRequired ? true : null);
+          setHasAdminRole(adminRequired ? false : true);
           setCheckingAccess(false);
         }
       });
     return () => { ignore = true; };
-  }, [requiresProfileCheck, userId]);
+  }, [adminRequired, avatarRequired, farmRequired, requiresProfileCheck, userId]);
 
-  if (loading || checkingAccess) return null;
+  if (loading) return null;
   if (!user) return <Navigate to="/" replace />;
 
-  const farmRequired = requireOnboarding || requireFarm;
-  const avatarRequired = requireOnboarding || requireAvatar;
-  const adminRequired = requireAdmin;
+  const waitingProfileResolution = requiresProfileCheck
+    && (checkingAccess
+      || (farmRequired && hasFarm === null)
+      || (avatarRequired && hasAvatar === null)
+      || (adminRequired && hasAdminRole === null));
+  if (waitingProfileResolution) return null;
+
   const hasRequiredFarm = !farmRequired || hasFarm === true;
   const hasRequiredAvatar = !avatarRequired || hasAvatar === true;
   const hasRequiredAdmin = !adminRequired || hasAdminRole === true;

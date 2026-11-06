@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
+import { formatMatricule } from '../utils/formatMatricule';
 import defaultBetailAvatar from '../../assets/defaut_profile.png';
 
 const PAGE_SIZE = 8;
@@ -693,7 +694,7 @@ function Settings_ReportsPanel({ isActive, canAccessAdministration, currentUserI
                 <div className="settings-admin-shipping-info">
                   <p className="settings-admin-shipping-title">{row.betailName}</p>
                   <p className="settings-admin-shipping-meta settings-admin-report-owner-line">
-                    Matricule: {row.betailMatricule} · <span className="settings-admin-report-owner">{row.ownershipLabel}</span>
+                    Matricule: {formatMatricule(row.betailMatricule)} · <span className="settings-admin-report-owner">{row.ownershipLabel}</span>
                   </p>
                   <p className="settings-admin-shipping-meta">
                     Signalé par: {row.reporterName} · Le {formatReportDate(row.createdAt)}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Building2, RefreshCcw, ShoppingCart, Truck, Users } from 'lucide-react';
+import { RefreshCcw } from 'lucide-react';
 import { useRef } from 'react';
 import { supabase } from '../authentification/supabaseClient';
 import { useAuth } from '../authentification/AuthContext';
@@ -1749,104 +1749,94 @@ function FarmPage() {
               <div className="farm-page-overview-tab">
                 {isOwner ? (
                   <div className="farm-page-owner-dashboard">
-                    <div className="farm-page-dashboard-top-cards" role="list" aria-label="Indicateurs principaux">
-                      <article className="farm-page-dashboard-stat-card" role="listitem">
-                        <p className="farm-page-dashboard-stat-title">
-                          <Users size={15} aria-hidden="true" />
-                          Population
-                        </p>
-                        <strong>{ownerDashboardStats.population}</strong>
-                        <span>Nombre total de bétails dans la ferme</span>
-                      </article>
+                    <div className="farm-page-dashboard-figures" role="list" aria-label="Indicateurs principaux">
+                      <div className="farm-page-dashboard-figure" role="listitem">
+                        <span className="farm-page-dashboard-figure-value">{ownerDashboardStats.population}</span>
+                        <span className="farm-page-dashboard-figure-label">
+                          {ownerDashboardStats.population > 1 ? 'bétails dans la ferme' : 'bétail dans la ferme'}
+                        </span>
+                      </div>
 
-                      <article className="farm-page-dashboard-stat-card" role="listitem">
-                        <p className="farm-page-dashboard-stat-title">
-                          <Building2 size={15} aria-hidden="true" />
-                          Sites habités
-                        </p>
-                        <strong>{ownerDashboardStats.inhabitedSites}</strong>
-                        <span>Sites contenant au moins un bétail</span>
-                      </article>
+                      <div className="farm-page-dashboard-figure" role="listitem">
+                        <span className="farm-page-dashboard-figure-value">{ownerDashboardStats.inhabitedSites}</span>
+                        <span className="farm-page-dashboard-figure-label">
+                          {ownerDashboardStats.inhabitedSites > 1 ? 'sites avec au moins un bétail' : 'site avec au moins un bétail'}
+                        </span>
+                      </div>
                     </div>
 
                     <section className="farm-page-dashboard-activity" aria-label="Activité récente">
-                      <p className="farm-page-dashboard-activity-title">Activité récente</p>
+                      <h3 className="farm-page-dashboard-heading">Activité récente</h3>
 
-                      <div className="farm-page-dashboard-activity-content">
-                        <div className="farm-page-dashboard-activity-metrics">
-                          <article className="farm-page-dashboard-activity-metric">
-                            <p>
-                              <ShoppingCart size={14} aria-hidden="true" />
-                              Achats aujourd'hui
-                            </p>
-                            <strong>{ownerDashboardStats.purchasesToday}</strong>
-                          </article>
+                      <div className="farm-page-dashboard-row">
+                        <span>Achats aujourd'hui</span>
+                        <span className="farm-page-dashboard-row-value">{ownerDashboardStats.purchasesToday}</span>
+                      </div>
 
-                          <article className="farm-page-dashboard-activity-metric">
-                            <p>
-                              <Truck size={14} aria-hidden="true" />
-                              Expéditions aujourd'hui
-                            </p>
-                            <strong>{ownerDashboardStats.shippedToday}</strong>
-                          </article>
+                      <div className="farm-page-dashboard-row">
+                        <span>Expéditions aujourd'hui</span>
+                        <span className="farm-page-dashboard-row-value">{ownerDashboardStats.shippedToday}</span>
+                      </div>
+
+                      <div className="farm-page-dashboard-shipping" aria-label="Répartition des expéditions en cours">
+                        <span className="farm-page-dashboard-subheading">Expéditions en cours</span>
+                        <div
+                          className="farm-page-dashboard-bar is-with-shipping"
+                          style={{ '--ratio': shippingPieRatio }}
+                          role="img"
+                          aria-label={`Expéditions en cours: ${ownerDashboardStats.withShippingInProgress} avec date, ${ownerDashboardStats.withoutShippingInProgress} sans date`}
+                        >
+                          <span />
                         </div>
-
-                        <div className="farm-page-dashboard-pie-block" aria-label="Répartition des expéditions en cours">
-                          <div
-                            className="farm-page-dashboard-pie"
-                            style={{ '--with-shipping-ratio': shippingPieRatio }}
-                            role="img"
-                            aria-label={`Expéditions en cours: ${ownerDashboardStats.withShippingInProgress} avec date, ${ownerDashboardStats.withoutShippingInProgress} sans date`}
-                          >
-                            <span className="farm-page-dashboard-pie-value">{Math.round(shippingPieRatio * 100)}%</span>
-                          </div>
-
-                          <div className="farm-page-dashboard-pie-legend">
-                            <p className="is-with-shipping">
-                              Avec expédition <strong>{ownerDashboardStats.withShippingInProgress}</strong>
-                            </p>
-                            <p className="is-without-shipping">
-                              Sans expédition <strong>{ownerDashboardStats.withoutShippingInProgress}</strong>
-                            </p>
-                          </div>
+                        <div className="farm-page-dashboard-row is-with-shipping">
+                          <span>Avec expédition</span>
+                          <span className="farm-page-dashboard-row-value">{ownerDashboardStats.withShippingInProgress}</span>
+                        </div>
+                        <div className="farm-page-dashboard-row is-without-shipping">
+                          <span>Sans expédition</span>
+                          <span className="farm-page-dashboard-row-value">{ownerDashboardStats.withoutShippingInProgress}</span>
                         </div>
                       </div>
                     </section>
 
                     <div className="farm-page-dashboard-bottom-grid">
                       <section className="farm-page-dashboard-split" aria-label="Répartition du bétail">
-                        <p className="farm-page-dashboard-split-title">Répartition du bétail</p>
+                        <h3 className="farm-page-dashboard-heading">Répartition du bétail</h3>
 
-                        <article className="farm-page-dashboard-split-row">
-                          <p>
-                            Premium
-                            <strong>{ownerDashboardStats.premiumCount}</strong>
-                          </p>
-                          <div className="farm-page-dashboard-split-track" role="img" aria-label={`Premium ${Math.round(premiumRatio * 100)}%`}>
-                            <span
-                              className="is-premium"
-                              style={{ '--split-ratio': premiumRatio }}
-                            />
+                        <div className="farm-page-dashboard-meter">
+                          <div className="farm-page-dashboard-row">
+                            <span>Premium</span>
+                            <span className="farm-page-dashboard-row-value">{ownerDashboardStats.premiumCount}</span>
                           </div>
-                        </article>
+                          <div
+                            className="farm-page-dashboard-bar is-premium"
+                            style={{ '--ratio': premiumRatio }}
+                            role="img"
+                            aria-label={`Premium ${Math.round(premiumRatio * 100)}%`}
+                          >
+                            <span />
+                          </div>
+                        </div>
 
-                        <article className="farm-page-dashboard-split-row">
-                          <p>
-                            Produit standard
-                            <strong>{ownerDashboardStats.standardCount}</strong>
-                          </p>
-                          <div className="farm-page-dashboard-split-track" role="img" aria-label={`Standard ${Math.round(standardRatio * 100)}%`}>
-                            <span
-                              className="is-standard"
-                              style={{ '--split-ratio': standardRatio }}
-                            />
+                        <div className="farm-page-dashboard-meter">
+                          <div className="farm-page-dashboard-row">
+                            <span>Produit standard</span>
+                            <span className="farm-page-dashboard-row-value">{ownerDashboardStats.standardCount}</span>
                           </div>
-                        </article>
+                          <div
+                            className="farm-page-dashboard-bar is-standard"
+                            style={{ '--ratio': standardRatio }}
+                            role="img"
+                            aria-label={`Standard ${Math.round(standardRatio * 100)}%`}
+                          >
+                            <span />
+                          </div>
+                        </div>
                       </section>
 
                       <section className="farm-page-dashboard-badges farm-page-badge-manager" aria-label="Badges équipés sur la ferme">
                         <div className="farm-page-dashboard-badges-head">
-                          <p className="farm-page-dashboard-badges-title">Badges</p>
+                          <h3 className="farm-page-dashboard-heading">Badges</h3>
                           <button
                             type="button"
                             className="settings-admin-refresh-icon-btn"
@@ -1909,7 +1899,7 @@ function FarmPage() {
                                     <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
                                   )}
                                 </button>
-                                <p className="farm-page-dashboard-badge-slot-label">Slot {slot}</p>
+                                <span className="farm-page-dashboard-badge-slot-label">Slot {slot}</span>
                                 <button
                                   type="button"
                                   className="settings-action settings-action--tiny"
@@ -1926,29 +1916,29 @@ function FarmPage() {
                     </div>
 
                     <section className="farm-page-dashboard-sites" aria-label="Sites gérés">
-                      <p className="farm-page-dashboard-sites-title">Sites gérés</p>
+                      <h3 className="farm-page-dashboard-heading">Sites gérés</h3>
                       <div className="farm-page-dashboard-sites-list" role="list" aria-label="Capacité des sites de la ferme">
                         {managedSitesData.map((siteData) => (
-                          <article key={`farm-managed-site-${siteData.site}`} className="farm-page-dashboard-site-row" role="listitem">
-                            <p>
+                          <div key={`farm-managed-site-${siteData.site}`} className="farm-page-dashboard-meter" role="listitem">
+                            <div className="farm-page-dashboard-row">
                               <span>Site {siteData.site}</span>
-                              <strong>
-                                <span className="farm-page-dashboard-site-count">{siteData.count}</span>
-                                <span className="farm-page-dashboard-site-unit">bétail(s)</span>
-                              </strong>
-                            </p>
+                              <span className="farm-page-dashboard-row-value">
+                                {siteData.count}
+                                <span className="farm-page-dashboard-row-unit"> sur {SITE_MANAGED_SITE_CAPACITY}</span>
+                              </span>
+                            </div>
                             <div
-                              className="farm-page-dashboard-site-track"
+                              className="farm-page-dashboard-bar"
                               style={{
-                                '--site-ratio': siteData.ratio,
-                                '--site-color': siteData.color,
+                                '--ratio': siteData.ratio,
+                                '--bar-color': siteData.color,
                               }}
                               role="img"
                               aria-label={`Site ${siteData.site} : ${siteData.count} sur ${SITE_MANAGED_SITE_CAPACITY}`}
                             >
-                              <span>{siteData.count}/{SITE_MANAGED_SITE_CAPACITY}</span>
+                              <span />
                             </div>
-                          </article>
+                          </div>
                         ))}
                       </div>
                     </section>
@@ -1956,29 +1946,25 @@ function FarmPage() {
                   </div>
                 ) : (
                   <div className="farm-page-owner-dashboard farm-page-owner-dashboard--visitor">
-                    <div className="farm-page-dashboard-top-cards" role="list" aria-label="Indicateurs publics de la ferme">
-                      <article className="farm-page-dashboard-stat-card" role="listitem">
-                        <p className="farm-page-dashboard-stat-title">
-                          <Users size={15} aria-hidden="true" />
-                          Population
-                        </p>
-                        <strong>{ownerDashboardStats.population}</strong>
-                        <span>Nombre total de bétails visibles</span>
-                      </article>
+                    <div className="farm-page-dashboard-figures" role="list" aria-label="Indicateurs publics de la ferme">
+                      <div className="farm-page-dashboard-figure" role="listitem">
+                        <span className="farm-page-dashboard-figure-value">{ownerDashboardStats.population}</span>
+                        <span className="farm-page-dashboard-figure-label">
+                          {ownerDashboardStats.population > 1 ? 'bétails visibles' : 'bétail visible'}
+                        </span>
+                      </div>
 
-                      <article className="farm-page-dashboard-stat-card" role="listitem">
-                        <p className="farm-page-dashboard-stat-title">
-                          <Building2 size={15} aria-hidden="true" />
-                          Sites habités
-                        </p>
-                        <strong>{ownerDashboardStats.inhabitedSites}</strong>
-                        <span>Sites contenant au moins un bétail</span>
-                      </article>
+                      <div className="farm-page-dashboard-figure" role="listitem">
+                        <span className="farm-page-dashboard-figure-value">{ownerDashboardStats.inhabitedSites}</span>
+                        <span className="farm-page-dashboard-figure-label">
+                          {ownerDashboardStats.inhabitedSites > 1 ? 'sites avec au moins un bétail' : 'site avec au moins un bétail'}
+                        </span>
+                      </div>
                     </div>
 
                     <section className="farm-page-dashboard-badges farm-page-badge-manager" aria-label="Badges équipés sur la ferme">
                       <div className="farm-page-dashboard-badges-head">
-                        <p className="farm-page-dashboard-badges-title">Badges</p>
+                        <h3 className="farm-page-dashboard-heading">Badges</h3>
                       </div>
 
                       {badgesLoadError ? (
@@ -2023,7 +2009,7 @@ function FarmPage() {
                                   <span className="settings-badge-slot-fallback" aria-hidden="true">?</span>
                                 )}
                               </div>
-                              <p className="farm-page-dashboard-badge-slot-label">Slot {slot}</p>
+                              <span className="farm-page-dashboard-badge-slot-label">Slot {slot}</span>
                             </article>
                           );
                         })}
@@ -2065,12 +2051,12 @@ function FarmPage() {
                   selectedSiteNumber ? (
                     <div className="farm-page-site-subpanel" role="region" aria-live="polite" aria-label={`Site ${selectedSiteNumber}`}>
                       <div className="farm-page-site-subpanel-head">
-                        <span className="farm-page-site-badge">Couleur - Site n°{selectedSiteNumber}</span>
+                        <h3 className="farm-page-dashboard-heading">Site {selectedSiteNumber}</h3>
                         <span className="farm-page-site-color-code">{activeSiteColor || DEFAULT_CUSTOM_COLOR}</span>
                       </div>
-                      <p className="farm-page-site-subpanel-copy">
-                        {isOwner ? 'Palette active: cliquez une couleur pour ce site.' : 'Mode visiteur : couleurs consultables seulement.'}
-                      </p>
+                      <div className="farm-page-site-subpanel-copy">
+                        {isOwner ? 'Choisissez une couleur pour ce site.' : 'Couleurs en consultation, modification réservée au propriétaire.'}
+                      </div>
                       <div
                         className="farm-page-clay-slab"
                         role="list"
@@ -2125,9 +2111,9 @@ function FarmPage() {
                       ) : null}
                     </div>
                   ) : (
-                    <p className="farm-page-site-empty">
+                    <div className="farm-page-site-empty">
                       Cliquez sur un site dans l'hexagone pour afficher la palette de couleurs.
-                    </p>
+                    </div>
                   )
                 ) : null}
 
@@ -2136,8 +2122,7 @@ function FarmPage() {
                     {isOwner ? (
                       <section className="farm-page-center-style-card farm-page-center-style-card--modern" role="region" aria-label="Personnalisation du centre">
                         <div className="farm-page-center-heading">
-                          <p className="farm-page-center-style-title">Centre de la ferme</p>
-                          <p className="farm-page-center-heading-copy">Importez, chargez par URL ou personnalisez le visuel en direct.</p>
+                          <div className="farm-page-center-heading-copy">Importez, chargez par URL ou personnalisez le visuel en direct.</div>
                         </div>
 
                         <input
@@ -2182,11 +2167,11 @@ function FarmPage() {
 
                             {centerEditorMode === CENTER_MODE_UPLOAD ? (
                               <div className="farm-page-center-mode-pane">
-                                <p className="farm-page-center-mode-pane-title">Importer une image</p>
-                                <p className="farm-page-center-mode-hint">Chargement local puis recadrage direct dans l'aperçu.</p>
+                                <div className="farm-page-center-mode-pane-title">Importer une image</div>
+                                <div className="farm-page-center-mode-hint">Chargement local puis recadrage direct dans l'aperçu.</div>
                                 <button
                                   type="button"
-                                  className="farm-page-btn farm-page-center-action"
+                                  className="farm-page-center-action"
                                   onClick={() => centerFileInputRef.current?.click()}
                                   disabled={isCenterStyleSaving}
                                 >
@@ -2210,7 +2195,7 @@ function FarmPage() {
                                 </label>
                                 <button
                                   type="button"
-                                  className="farm-page-btn farm-page-center-action"
+                                  className="farm-page-center-action"
                                   onClick={handleCenterLoadFromUrl}
                                   disabled={isCenterUrlLoading || isCenterStyleSaving}
                                 >
@@ -2246,7 +2231,7 @@ function FarmPage() {
                           </div>
 
                           <div className="farm-page-center-preview-card">
-                            <p className="farm-page-center-preview-kicker">Aperçu en direct</p>
+                            <div className="farm-page-center-preview-kicker">Aperçu</div>
 
                             {centerDraftType === 'image' ? (
                               <div className="farm-page-center-image-stage">
@@ -2307,10 +2292,10 @@ function FarmPage() {
                                         disabled={isCenterStyleSaving}
                                       />
                                     </label>
-                                    <p>Glissez l'image pour recadrer.</p>
+                                    <div className="farm-page-center-mode-hint">Glissez l'image pour recadrer.</div>
                                   </div>
                                 ) : (
-                                  <p className="farm-page-center-image-controls-help">Importez ou chargez une image pour commencer.</p>
+                                  <div className="farm-page-center-image-controls-help">Importez ou chargez une image pour commencer.</div>
                                 )}
                               </div>
                             ) : (
@@ -2322,18 +2307,18 @@ function FarmPage() {
                                 >
                                   <span>{centerSymbol || DEFAULT_CENTER_SYMBOL}</span>
                                 </div>
-                                <p>Le symbole sera affiché sur le centre avec la couleur choisie.</p>
+                                <div className="farm-page-center-mode-hint">Le symbole sera affiché sur le centre avec la couleur choisie.</div>
                               </div>
                             )}
                           </div>
                         </div>
 
-                        {centerImageError ? <p className="farm-page-center-feedback is-error">{centerImageError}</p> : null}
-                        {centerImageStatus ? <p className="farm-page-center-feedback is-success">{centerImageStatus}</p> : null}
+                        {centerImageError ? <div className="farm-page-center-feedback is-error">{centerImageError}</div> : null}
+                        {centerImageStatus ? <div className="farm-page-center-feedback is-success">{centerImageStatus}</div> : null}
 
                         <button
                           type="button"
-                          className="farm-page-btn farm-page-center-save-btn"
+                          className="farm-page-center-save-btn"
                           onClick={handleSaveCenterStyle}
                           disabled={!hasCenterPendingChange || isCenterStyleSaving || updateCenterStyleMutation.isPending}
                         >
@@ -2341,7 +2326,7 @@ function FarmPage() {
                         </button>
                       </section>
                     ) : (
-                      <p className="farm-page-site-empty">La customisation du centre est réservée au propriétaire de la ferme.</p>
+                      <div className="farm-page-site-empty">La customisation du centre est réservée au propriétaire de la ferme.</div>
                     )}
                   </div>
                 ) : null}

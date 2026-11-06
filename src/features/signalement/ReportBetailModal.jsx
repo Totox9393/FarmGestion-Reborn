@@ -2,38 +2,39 @@ import { useEffect, useMemo, useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
 import milo18 from '../../assets/img/milo_emotions/milo18.png'
 import { supabase } from '../authentification/supabaseClient'
+import { formatMatricule } from '../utils/formatMatricule'
 import './ReportBetailModal.css'
 
 const REASONS = [
   {
     id: 'photo_inappropriee',
-    title: 'Photo inappropriee',
+    title: 'Photo inappropriée',
     hint: 'Image offensante, violente, sexuelle ou discriminatoire.',
   },
   {
     id: 'nom_inapproprie',
-    title: 'Nom inapproprie',
+    title: 'Nom inapproprié',
     hint: 'Nom insultant, haineux, sexuel ou discriminatoire.',
   },
   {
     id: 'description_inappropriee',
-    title: 'Description inappropriee',
-    hint: 'Contenu offensant, menacant ou harceleur.',
+    title: 'Description inappropriée',
+    hint: 'Contenu offensant, menaçant ou harcelant.',
   },
   {
     id: 'informations_personnelles',
     title: 'Informations personnelles',
-    hint: 'Partage de donnees privees sans consentement.',
+    hint: 'Partage de données privées sans consentement.',
   },
   {
     id: 'fraude_manipulation',
     title: 'Fraude ou manipulation',
-    hint: 'Abus du systeme, triche ou exploitation de faille.',
+    hint: 'Abus du système, triche ou exploitation de faille.',
   },
   {
     id: 'harcelement',
-    title: 'Harcèlement / comportement abusif',
-    hint: 'Intimidation, attaques repetees ou comportement toxique.',
+    title: 'Harcèlement ou comportement abusif',
+    hint: 'Intimidation, attaques répétées ou comportement toxique.',
   },
   {
     id: 'autre',
@@ -209,12 +210,11 @@ function ReportBetailModal({
               type="button"
               className={`report-betail-visibility-toggle ${isBetailVisible ? 'is-visible' : 'is-hidden'}`}
               aria-label={isBetailVisible ? 'Rendre le bétail invisible' : 'Rendre le bétail visible'}
-              title={isBetailVisible ? 'Rendre invisible' : 'Rendre visible'}
-              data-tooltip={isBetailVisible ? 'Rendre ce bétail invisible' : 'Rendre ce bétail visible'}
+              title={isBetailVisible ? 'Rendre ce bétail invisible' : 'Rendre ce bétail visible'}
               onClick={onToggleVisibility}
               disabled={isTogglingVisibility}
             >
-              {isBetailVisible ? <Eye size={17} /> : <EyeOff size={17} />}
+              {isBetailVisible ? <Eye size={18} /> : <EyeOff size={18} />}
             </button>
           ) : null}
 
@@ -229,12 +229,11 @@ function ReportBetailModal({
         </div>
 
         <header className="report-betail-header">
-          <img src={milo18} alt="Milo guide" className="report-betail-milo" />
+          <img src={milo18} alt="" className="report-betail-milo" />
           <div>
-            <p className="report-betail-eyebrow">Moderation FarmGestion</p>
             <h2 id="report-betail-title">Signaler ce bétail</h2>
             <p id="report-betail-subtitle">
-              Choisis le motif le plus proche pour aider la moderation.
+              Choisis le motif le plus proche pour aider la modération.
             </p>
           </div>
         </header>
@@ -243,7 +242,7 @@ function ReportBetailModal({
           <div className="report-betail-success" role="status" aria-live="polite">
             <h3>Signalement bien pris en compte</h3>
             <p>
-              Merci pour ton retour. Notre equipe va verifier ce bétail en se basant sur le règlement FarmGestion.
+              Merci pour ton retour. L'équipe va vérifier ce bétail en se basant sur le règlement FarmGestion.
             </p>
             <button type="button" className="report-betail-submit" onClick={onClose}>
               Fermer
@@ -252,7 +251,7 @@ function ReportBetailModal({
         ) : (
           <form className="report-betail-form" onSubmit={handleSubmit}>
             <div className="report-betail-layout">
-              <section className="report-betail-summary" aria-label="Rappel du bétail a signaler">
+              <section className="report-betail-summary" aria-label="Rappel du bétail à signaler">
                 <div className="report-betail-summary-head">
                   <div className="report-betail-avatar" aria-hidden="true">
                     {thumbnailUrl ? (
@@ -262,8 +261,8 @@ function ReportBetailModal({
                     )}
                   </div>
                   <div>
-                    <h3>{betail.name || 'Betail sans nom'}</h3>
-                    <p>{betail.matricule || 'Matricule inconnu'}</p>
+                    <h3>{betail.name || 'Bétail sans nom'}</h3>
+                    <p>{formatMatricule(betail.matricule, 'Matricule inconnu')}</p>
                   </div>
                 </div>
 
@@ -273,7 +272,7 @@ function ReportBetailModal({
                     <dd>{authorName || 'Auteur inconnu'}</dd>
                   </div>
                   <div>
-                    <dt>Date de creation</dt>
+                    <dt>Date de création</dt>
                     <dd>{createdAtLabel || 'Date inconnue'}</dd>
                   </div>
                 </dl>
@@ -301,6 +300,7 @@ function ReportBetailModal({
                             checked={selectedReason === reason.id}
                             onChange={() => setSelectedReason(reason.id)}
                           />
+                          <span className="report-betail-reason-dot" aria-hidden="true" />
                           <span className="report-betail-reason-title">{reason.title}</span>
                         </label>
                       ))}
@@ -309,7 +309,7 @@ function ReportBetailModal({
                     <p className="report-betail-selected-hint" aria-live="polite">
                       {selectedReasonConfig
                         ? selectedReasonConfig.hint
-                        : 'Selectionne un motif pour afficher un rappel de la regle correspondante.'}
+                        : 'Sélectionne un motif pour voir le rappel de la règle correspondante.'}
                     </p>
                   </>
                 ) : (
@@ -326,24 +326,24 @@ function ReportBetailModal({
                     </p>
 
                     <div className="report-betail-other-wrap is-active">
-                      <label htmlFor="report-betail-other">Precise ton signalement (motif Autre)</label>
+                      <label htmlFor="report-betail-other">Précise ton signalement (motif Autre)</label>
                       <textarea
                         id="report-betail-other"
                         value={otherText}
                         onChange={(event) => setOtherText(event.target.value)}
-                        placeholder="Decris brievement ce qui enfreint les regles..."
+                        placeholder="Décris brièvement ce qui enfreint les règles…"
                         rows={4}
                         maxLength={400}
                       />
                       <div className="report-betail-other-foot">
                         <span className={otherTooShort || (showErrors && trimmedOtherText.length < 10) ? 'is-warning' : ''}>
-                          Minimum 10 caracteres
+                          Minimum 10 caractères
                         </span>
                         <span>{trimmedOtherText.length}/400</span>
                       </div>
                       {showErrors && trimmedOtherText.length < 10 && (
                         <p className="report-betail-error" role="alert">
-                          Merci d'apporter plus de details pour le motif Autre.
+                          Merci d'apporter plus de détails pour le motif Autre.
                         </p>
                       )}
                     </div>
@@ -363,7 +363,7 @@ function ReportBetailModal({
                 Annuler
               </button>
               <button type="submit" className="report-betail-submit" disabled={!canSubmit || isSubmitting}>
-                {isSubmitting ? 'Envoi...' : 'Envoyer le signalement'}
+                {isSubmitting ? 'Envoi…' : 'Envoyer le signalement'}
               </button>
             </footer>
           </form>

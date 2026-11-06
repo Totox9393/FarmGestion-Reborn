@@ -7,6 +7,11 @@
   padding-top: 60px;
 }
 
+body.fg-auth-flow-open .home {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
 .home-section {
   min-height: 100vh;
   display: flex;

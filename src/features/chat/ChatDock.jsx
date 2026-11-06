@@ -31,6 +31,7 @@ import { getLocalThemePreference } from '../settings/themePreferences';
 import { useAuth } from '../authentification/AuthContext';
 import { useMyBetailsList } from '../betails/hooks';
 import ProfileAvatarImage from '../utils/ProfileAvatarImage';
+import { formatMatricule } from '../utils/formatMatricule';
 import { useChatDock } from './chatDockContext';
 import 'stream-chat-react/css/index.css';
 import './ChatDock.css';
@@ -51,13 +52,15 @@ const withBetailQuoteFallback = (message) => {
   const attachment = message.attachments?.find((item) => item?.type === 'fg_betail');
   if (!attachment) return message;
 
-  const details = [
-    attachment.fg_betail_name || 'Bétail sans nom',
-    attachment.fg_betail_matricule || 'Sans matricule',
-    attachment.fg_betail_age != null ? `${attachment.fg_betail_age} ans` : null,
-  ].filter(Boolean);
+  const compactLabel = `Profil bétail · ${attachment.fg_betail_name || 'Bétail sans nom'}`;
+  const nonBetailAttachments = (message.attachments || []).filter((item) => item?.type !== 'fg_betail');
 
-  return { ...message, text: `Profil bétail · ${details.join(' · ')}` };
+  // Keep quotes compact: avoid rendering the full custom betail card inside quote previews.
+  return {
+    ...message,
+    text: compactLabel,
+    attachments: nonBetailAttachments,
+  };
 };
 
 const quotedMessageSelector = (state) => ({ quotedMessage: state.quotedMessage });
@@ -337,7 +340,7 @@ export function FarmAttachment(props) {
           <span className="fg-chat-betail-card-copy">
             <small>Profil bétail</small>
             <strong>{attachment.fg_betail_name || 'Bétail sans nom'}</strong>
-            <span>{attachment.fg_betail_matricule || 'Sans matricule'}{attachment.fg_betail_age != null ? ` · ${attachment.fg_betail_age} ans` : ''}</span>
+            <span>{formatMatricule(attachment.fg_betail_matricule, 'Sans matricule')}{attachment.fg_betail_age != null ? ` · ${attachment.fg_betail_age} ans` : ''}</span>
           </span>
         </button>
       ))}

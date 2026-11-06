@@ -2,14 +2,19 @@ import { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from '@iconify/react';
+import confetti from 'canvas-confetti';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
-import { Heart, Crown, CalendarDays, PlusCircle, ShoppingCart, Tractor, ListChecks, ArrowRight, ShoppingBag, LifeBuoy } from 'lucide-react';
+import { Heart, Crown, CalendarDays, Tractor, ArrowRight, LifeBuoy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
 import { getFullVersionLabel } from '../utils/appVersion';
+import { formatMatricule } from '../utils/formatMatricule';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import HomeAuctionBanner from './HomeAuctionBanner';
 import './FarmGestionHome.css';
+import './HomeWelcome.css';
+import './HomeImports.css';
+import './HomePodium.css';
 import logoFg from '../../assets/img/logo_milo_fg.png';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
@@ -24,19 +29,10 @@ import betail9 from '../../assets/img/betails/betail9.jpg';
 import betail11 from '../../assets/img/betails/betail11.jpg';
 import betail13 from '../../assets/img/betails/betail13.jpg';
 import gupna1 from '../../assets/img/gupna/gupna1.png';
-import gupna3 from '../../assets/img/gupna/gupna3.png';
 import gupna4 from '../../assets/img/gupna/gupna4.png';
-import gupna6 from '../../assets/img/gupna/gupna6.png';
 import gupna8 from '../../assets/img/gupna/gupna8.png';
-import gupna9 from '../../assets/img/gupna/gupna9.png';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const MILO_REFECTOIRE_URL = supabaseUrl
-  ? `${supabaseUrl}/storage/v1/object/public/ressources/milo_refectoire.png`
-  : '';
-const FARMS_BG_URL = supabaseUrl
-  ? `${supabaseUrl}/storage/v1/object/public/ressources/farms.png`
-  : '';
 const BETAILS_CACHE_TTL_MS = 15000;
 const PARIS_TIMEZONE = 'Europe/Paris';
 const WEEK_LABELS = ['LUN', 'MAR', 'MER', 'JEU', 'VEN', 'SAM', 'DIM'];
@@ -118,20 +114,41 @@ const normalizeSettingBetailIds = (value) => {
 };
 
 const mockBetails = [
-  { id: 1, name: 'Marguerite', matricule: 'BT-7539', race: '⭐ Premium', img: betail1, likes: 24 },
-  { id: 2, name: 'Belle', matricule: 'BT-2814', race: 'Standard', img: betail2, likes: 12 },
-  { id: 3, name: 'Rosalie', matricule: 'BT-9021', race: 'Standard', img: betail3, likes: 31 },
-  { id: 4, name: 'Capucine', matricule: 'BT-4567', race: 'Standard', img: betail5, likes: 9 },
-  { id: 5, name: 'Duchesse', matricule: 'BT-1234', race: '⭐ Premium', img: betail7, likes: 27 },
-  { id: 6, name: 'Fleur', matricule: 'BT-8890', race: 'Standard', img: betail9, likes: 6 },
-  { id: 7, name: 'Praline', matricule: 'BT-5512', race: 'Standard', img: betail11, likes: 18 },
-  { id: 8, name: 'Candy', matricule: 'BT-6677', race: '⭐ Premium', img: betail13, likes: 22 },
+  { id: 1, name: 'Marguerite', matricule: '17539', race: '⭐ Premium', img: betail1, likes: 24 },
+  { id: 2, name: 'Belle', matricule: '22814', race: 'Standard', img: betail2, likes: 12 },
+  { id: 3, name: 'Rosalie', matricule: '39021', race: 'Standard', img: betail3, likes: 31 },
+  { id: 4, name: 'Capucine', matricule: '44567', race: 'Standard', img: betail5, likes: 9 },
+  { id: 5, name: 'Duchesse', matricule: '51234', race: '⭐ Premium', img: betail7, likes: 27 },
+  { id: 6, name: 'Fleur', matricule: '68890', race: 'Standard', img: betail9, likes: 6 },
+  { id: 7, name: 'Praline', matricule: '75512', race: 'Standard', img: betail11, likes: 18 },
+  { id: 8, name: 'Candy', matricule: '66677', race: '⭐ Premium', img: betail13, likes: 22 },
 ];
 
 function FarmGestion_Home_Mere() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), []);
+  const lastConfettiAtRef = useRef(0);
+  const fireWinnerConfetti = useCallback((event) => {
+    const now = Date.now();
+    if (now - lastConfettiAtRef.current < 2500) return;
+    lastConfettiAtRef.current = now;
+    const rect = event.currentTarget.getBoundingClientRect();
+    confetti({
+      particleCount: 28,
+      spread: 70,
+      startVelocity: 22,
+      gravity: 0.9,
+      ticks: 110,
+      scalar: 0.7,
+      origin: {
+        x: (rect.left + rect.width / 2) / window.innerWidth,
+        y: (rect.top + rect.height * 0.25) / window.innerHeight,
+      },
+      colors: ['#e0b44e', '#f2d27a', '#d89466', '#b3bdd0', '#d9534f'],
+      disableForReducedMotion: true,
+    });
+  }, []);
   const [profile, setProfile] = useState(null);
   const [farm, setFarm] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -140,7 +157,6 @@ function FarmGestion_Home_Mere() {
   const [topBetailsData, setTopBetailsData] = useState([]);
   const [likedBetailIds, setLikedBetailIds] = useState([]);
   const [pendingLikeIds, setPendingLikeIds] = useState([]);
-  const [showLatestCreator, setShowLatestCreator] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
   const [isCarouselPaused, setIsCarouselPaused] = useState(false);
   const [visibleBetails, setVisibleBetails] = useState(4);
@@ -596,12 +612,6 @@ function FarmGestion_Home_Mere() {
     if (!profile?.farm_id) return;
     navigate(`/farm/${profile.farm_id}`);
   }, [navigate, profile?.farm_id]);
-  const handleWidgetKeyDown = useCallback((event, action) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      action();
-    }
-  }, []);
   const openBetailRegister = useCallback(() => {
     navigate('/betail-register');
   }, [navigate]);
@@ -634,6 +644,10 @@ function FarmGestion_Home_Mere() {
   const farmVisibilityLabel = farmStats.farmVisible === true ? 'Publique' : farmStats.farmVisible === false ? 'Privee' : '—';
   const farmBadgeCount = typeof farmStats.badgeCount === 'number' ? farmStats.badgeCount : 0;
   const canOpenFarm = Boolean(profile?.farm_id);
+  const welcomeBetailCount = hasBetailCount ? farmStats.betailCount : 0;
+  const welcomeFarmDescription = canOpenFarm
+    ? `${farm?.name || 'Ta ferme'}, ${welcomeBetailCount} bétail${welcomeBetailCount > 1 ? 's' : ''}`
+    : 'Tu n\'as pas encore de ferme.';
   const hasLastPurchasedBetail = Boolean(lastPurchasedBetail?.id);
   const hasOwnedBetails = hasBetailCount ? farmStats.betailCount > 0 : false;
   const shouldCreateFirstBetail = !isLoadingFarmStats && !hasOwnedBetails;
@@ -645,10 +659,9 @@ function FarmGestion_Home_Mere() {
       actions.push({
         key: 'create-first-betail',
         title: 'Créer mon premier bétail',
-        subtitle: 'Lance ton élevage en quelques secondes.',
+        subtitle: 'Donne-lui un nom et une image : c\'est la base du jeu.',
         onClick: openBetailMaker,
         variant: 'priority',
-        icon: PlusCircle,
       });
     }
 
@@ -656,10 +669,9 @@ function FarmGestion_Home_Mere() {
       actions.push({
         key: 'buy-first-betail',
         title: 'Acheter mon premier bétail',
-        subtitle: 'Va dans le registre pour choisir ton premier compagnon.',
+        subtitle: 'Choisis-en un déjà créé par un autre joueur, dans le registre.',
         onClick: openBetailRegister,
         variant: shouldCreateFirstBetail ? 'secondary' : 'priority',
-        icon: ShoppingCart,
       });
     }
 
@@ -668,29 +680,26 @@ function FarmGestion_Home_Mere() {
         {
           key: 'my-betails',
           title: 'Voir mes bétails',
-          subtitle: 'Retrouve tous tes bétails en un clic.',
+          subtitle: 'La liste de tous les bétails que tu possèdes.',
           onClick: openMyBetailsPage,
           variant: 'secondary',
-          icon: ListChecks,
         },
         {
           key: 'register',
           title: 'Ouvrir le registre',
-          subtitle: 'Achète de nouveaux bétails pour ta ferme.',
+          subtitle: 'Achète les bétails créés par les autres joueurs.',
           onClick: openBetailRegister,
           variant: 'secondary',
-          icon: ShoppingCart,
         },
       );
     }
 
     actions.push({
       key: 'shop',
-      title: 'Accéder à la boutique',
-      subtitle: 'Découvre les badges et packs disponibles.',
+      title: 'Ouvrir la boutique',
+      subtitle: 'Badges et packs pour personnaliser ta ferme.',
       onClick: openShopPage,
       variant: 'secondary',
-      icon: ShoppingBag,
     });
 
     return actions;
@@ -705,7 +714,7 @@ function FarmGestion_Home_Mere() {
   const lastPurchasedAvatar = hasLastPurchasedBetail ? normalizeAvatar(lastPurchasedBetail?.avatar_url) : '';
   const lastPurchasedName = hasLastPurchasedBetail ? lastPurchasedBetail?.name || 'Sans nom' : 'Aucun bétail acheté';
   const lastPurchasedMatricule = hasLastPurchasedBetail
-    ? lastPurchasedBetail?.matricule || 'Matricule inconnu'
+    ? formatMatricule(lastPurchasedBetail?.matricule, 'Matricule inconnu')
     : 'Ton prochain achat apparaitra ici';
 
   const toggleLikeMutation = useMutation({
@@ -806,7 +815,7 @@ function FarmGestion_Home_Mere() {
     );
   }, [applyLikeToCollections, likeConfirmAudio, pendingLikeIds, toggleLikeMutation, user?.id]);
 
-  const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.betail-like'));
+  const isLikeButtonTarget = (target) => target instanceof Element && Boolean(target.closest('.home-imports__like'));
 
   const handleImportCardClick = (event, betail) => {
     if (isLikeButtonTarget(event.target)) {
@@ -880,28 +889,11 @@ function FarmGestion_Home_Mere() {
   const roleInfo = useMemo(() => {
     const role = (profile?.role || 'STANDARD').toUpperCase();
     const roleMap = {
-      ADMIN: { label: 'Admin', className: 'home-hero__tag--admin' },
-      MODERATION: { label: 'Modération', className: 'home-hero__tag--moderation' },
-      STANDARD: { label: 'Standard', className: 'home-hero__tag--standard' }
+      ADMIN: { label: 'Admin', className: 'is-admin' },
+      MODERATION: { label: 'Modération', className: 'is-moderation' },
     };
-    return roleMap[role] || roleMap.STANDARD;
+    return roleMap[role] || null;
   }, [profile?.role]);
-
-  const updateWidgetOverflow = useCallback(() => {
-    const wraps = document.querySelectorAll('.home-hero__scroll-wrap');
-    wraps.forEach((wrap) => {
-      const content = wrap.querySelector('.home-hero__scroll');
-      if (!content) return;
-      const overflow = content.scrollWidth - wrap.clientWidth;
-      const isOverflowing = overflow > 4;
-      wrap.classList.toggle('is-overflowing', isOverflowing);
-      if (isOverflowing) {
-        wrap.style.setProperty('--scroll-distance', `${overflow + 16}px`);
-      } else {
-        wrap.style.removeProperty('--scroll-distance');
-      }
-    });
-  }, []);
 
   useEffect(() => {
     const updateVisibleBetails = () => {
@@ -934,25 +926,6 @@ function FarmGestion_Home_Mere() {
     return () => clearInterval(intervalId);
   }, [maxIndex, isCarouselPaused]);
 
-  useEffect(() => {
-    const rafId = requestAnimationFrame(updateWidgetOverflow);
-    const timeoutId = window.setTimeout(updateWidgetOverflow, 120);
-    window.addEventListener('resize', updateWidgetOverflow);
-    return () => {
-      cancelAnimationFrame(rafId);
-      window.clearTimeout(timeoutId);
-      window.removeEventListener('resize', updateWidgetOverflow);
-    };
-  }, [updateWidgetOverflow, profile?.username, user?.email, farm?.name]);
-
-  useEffect(() => {
-    const intervalId = window.setInterval(() => {
-      setShowLatestCreator((prev) => !prev);
-    }, 6000);
-
-    return () => window.clearInterval(intervalId);
-  }, []);
-
   if (loading)
     return (
       <div className="home-loader">
@@ -975,139 +948,130 @@ function FarmGestion_Home_Mere() {
     <>
       <div className="home-shell">
       <HomeAuctionBanner />
-      <div className="home-hero">
-        <div
-          className="home-hero__title-block"
-          style={{ '--hero-logo': `url(${logoFg})` }}
-        >
-          <div className="home-hero__header">
-            <div>
-              <h1 className="home-hero__title">Bienvenue, {profile.username || 'fermier·e'} !</h1>
-            </div>
-            <div className="home-hero__header-side">
-              <div className="home-hero__tags">
-                <span className="home-hero__tag">Profil actif</span>
-                <span className={`home-hero__tag ${roleInfo.className}`}>
-                  {roleInfo.label}
-                </span>
-              </div>
-              <button
-                type="button"
-                className="home-hero__help-launch"
-                onClick={openWelcomeHelp}
-                aria-haspopup="dialog"
-                aria-expanded={isWelcomeHelpOpen}
-                aria-label="Ouvrir l'aide de bienvenue"
-              >
-                <LifeBuoy size={15} aria-hidden="true" />
-                Besoin d'aide ?
-              </button>
-            </div>
+      <section
+        className="home-welcome"
+        aria-labelledby="home-welcome-title"
+        style={{ '--hw-logo': `url(${logoFg})` }}
+      >
+        <header className="home-welcome__header">
+          <div className="home-welcome__heading">
+            <h1 id="home-welcome-title" className="home-welcome__title">
+              Bienvenue, {profile.username || 'fermier·e'}
+            </h1>
+            {roleInfo ? (
+              <span className={`home-welcome__role ${roleInfo.className}`}>{roleInfo.label}</span>
+            ) : null}
           </div>
-          <p className="home-hero__subtitle">Prêt à gérer ta ferme et tes bétails en quelques clics ?</p>
-          <div className="home-hero__layout">
-            <div className="home-hero__content">
-              <div className="home-hero__quick-access" role="group" aria-label="Actions rapides">
-                {heroQuickActions.map((action) => {
-                  const ActionIcon = action.icon;
-                  return (
-                    <button
-                      key={action.key}
-                      type="button"
-                      className={`home-hero__quick-btn home-hero__quick-btn--${action.variant}`}
-                      onClick={action.onClick}
-                      disabled={Boolean(action.disabled)}
-                    >
-                      <span className="home-hero__quick-btn-icon" aria-hidden="true">
-                        <ActionIcon size={17} strokeWidth={2.1} />
-                      </span>
-                      <span className="home-hero__quick-btn-text">
-                        <span className="home-hero__quick-btn-title">{action.title}</span>
-                        <span className="home-hero__quick-btn-subtitle">{action.subtitle}</span>
-                      </span>
-                      <ArrowRight size={16} className="home-hero__quick-btn-arrow" aria-hidden="true" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-            <div className="home-hero__widgets">
-              <div
-                className="home-hero__widget home-hero__widget--community home-hero__widget--interactive"
-                style={{ '--community-bg': MILO_REFECTOIRE_URL ? `url(${MILO_REFECTOIRE_URL})` : 'none' }}
-                role="button"
-                tabIndex={0}
-                onClick={openCommunityPage}
-                onKeyDown={(event) => handleWidgetKeyDown(event, openCommunityPage)}
-                aria-label="Ouvrir la communauté"
-              >
-                <p className="home-hero__widget-title">Communauté</p>
-                <p className="home-hero__widget-value">Visites les fermes et les profils des autres</p>
-                <p className="home-hero__widget-meta">Découvre les membres actifs.</p>
-                <p className="home-hero__widget-cta" aria-hidden="true">
-                  <span>Explorer la communauté</span>
-                  <span>→</span>
-                </p>
-              </div>
-              <div
-                className="home-hero__widget home-hero__widget--farm home-hero__widget--interactive"
-                style={{ '--farm-bg': FARMS_BG_URL ? `url(${FARMS_BG_URL})` : 'none' }}
-                role="button"
-                tabIndex={0}
-                onClick={openFarmPage}
-                onKeyDown={(event) => handleWidgetKeyDown(event, openFarmPage)}
-                aria-label="Ouvrir la ferme liée"
-                aria-disabled={!canOpenFarm}
-              >
-                <p className="home-hero__widget-title">Ferme liée</p>
-                <p className="home-hero__widget-value">
-                  <span className="home-hero__scroll-wrap">
-                    <span className="home-hero__scroll">{farm?.name || 'À créer'}</span>
+          <div className="home-welcome__intro">
+            Tu crées ou tu achètes des bétails pour ta ferme, puis tu planifies leur expédition pour gagner de l'argent.
+          </div>
+          <button
+            type="button"
+            className="home-welcome__help"
+            onClick={openWelcomeHelp}
+            aria-haspopup="dialog"
+            aria-expanded={isWelcomeHelpOpen}
+          >
+            Première visite ? Ouvrir le guide de démarrage
+          </button>
+        </header>
+
+        <div className="home-welcome__body">
+          <section className="home-welcome__col" aria-labelledby="home-welcome-actions-title">
+            <h2 id="home-welcome-actions-title" className="home-welcome__col-title">
+              {shouldCreateFirstBetail || shouldBuyFirstBetail ? 'Pour commencer' : 'Raccourcis'}
+            </h2>
+            <ul className="home-welcome__list">
+              {heroQuickActions.map((action) => (
+                <li key={action.key}>
+                  <button
+                    type="button"
+                    className={`home-welcome__row${action.variant === 'priority' ? ' is-primary' : ''}`}
+                    onClick={action.onClick}
+                  >
+                    <span className="home-welcome__row-text">
+                      <span className="home-welcome__row-title">{action.title}</span>
+                      <span className="home-welcome__row-desc">{action.subtitle}</span>
+                    </span>
+                    <ArrowRight size={16} className="home-welcome__row-arrow" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          <section className="home-welcome__col" aria-labelledby="home-welcome-explore-title">
+            <h2 id="home-welcome-explore-title" className="home-welcome__col-title">Explorer</h2>
+            <ul className="home-welcome__list">
+              <li>
+                <button
+                  type="button"
+                  className="home-welcome__row"
+                  onClick={openFarmPage}
+                  disabled={!canOpenFarm}
+                >
+                  <span className="home-welcome__row-text">
+                    <span className="home-welcome__row-title">Ma ferme</span>
+                    <span className="home-welcome__row-desc">{welcomeFarmDescription}</span>
                   </span>
-                </p>
-                <p className="home-hero__widget-meta">Bétails dans la ferme : {hasBetailCount ? farmStats.betailCount : 0}</p>
-                <p className="home-hero__widget-cta" aria-hidden="true">
-                  <span>{canOpenFarm ? 'Aller à ma ferme' : 'Aucune ferme disponible'}</span>
-                  <span aria-hidden>{canOpenFarm ? '→' : ''}</span>
-                </p>
-              </div>
-            </div>
-          </div>
+                  <ArrowRight size={16} className="home-welcome__row-arrow" aria-hidden="true" />
+                </button>
+              </li>
+              <li>
+                <button type="button" className="home-welcome__row" onClick={openCommunityPage}>
+                  <span className="home-welcome__row-text">
+                    <span className="home-welcome__row-title">Communauté</span>
+                    <span className="home-welcome__row-desc">Visite les fermes et les profils des autres joueurs.</span>
+                  </span>
+                  <ArrowRight size={16} className="home-welcome__row-arrow" aria-hidden="true" />
+                </button>
+              </li>
+            </ul>
+          </section>
         </div>
-      </div>
+      </section>
 
       {/* Carrousel de bétails */}
       <div
-        className="home-carousel-section"
+        className="home-imports"
+        style={{ '--hi-visible': visibleBetails }}
         onMouseEnter={() => setIsCarouselPaused(true)}
         onMouseLeave={() => setIsCarouselPaused(false)}
       >
-        <div className="home-carousel-header">
-          <h2 className="home-carousel-title">Dernières importations</h2>
-          <div className="home-carousel-controls">
+        <div className="home-imports__header">
+          <div className="home-imports__heading">
+            <h2 className="home-imports__title">Dernières importations</h2>
+            <span className="home-imports__hint">
+              Les bétails ajoutés récemment au registre. Clique sur l'un d'eux pour voir sa fiche.
+            </span>
+          </div>
+          <div className="home-imports__controls">
+            <span className="home-imports__count" aria-live="polite">
+              {carouselIndex + 1}–{Math.min(carouselIndex + visibleBetails, carouselBetails.length)} sur {carouselBetails.length}
+            </span>
             <button
               type="button"
-              className="carousel-btn"
+              className="home-imports__nav"
               onClick={prevSlide}
               disabled={carouselIndex === 0}
               aria-label="Précédent"
             >
-              <span className="carousel-btn__arrow" aria-hidden="true">‹</span>
+              <ChevronLeft size={20} aria-hidden="true" />
             </button>
             <button
               type="button"
-              className="carousel-btn"
+              className="home-imports__nav"
               onClick={nextSlide}
               disabled={carouselIndex >= maxIndex}
               aria-label="Suivant"
             >
-              <span className="carousel-btn__arrow" aria-hidden="true">›</span>
+              <ChevronRight size={20} aria-hidden="true" />
             </button>
           </div>
         </div>
-        <div className="home-carousel">
+        <div className="home-imports__viewport">
           <div
-            className="home-carousel-track"
+            className="home-imports__track"
             style={{ transform: `translateX(-${carouselIndex * (100 / visibleBetails)}%)` }}
             onTouchStart={handleCarouselTouchStart}
             onTouchEnd={handleCarouselTouchEnd}
@@ -1116,155 +1080,169 @@ function FarmGestion_Home_Mere() {
             {carouselBetails.map(betail => (
               <div
                 key={betail.id}
-                className="betail-card"
+                className="home-imports__card"
                 role="button"
                 tabIndex={0}
                 onClick={(event) => handleImportCardClick(event, betail)}
                 onKeyDown={(event) => handleImportCardKeyDown(event, betail)}
                 aria-label={`Voir ${betail.name} dans le registre`}
               >
-                <button
-                  type="button"
-                  className={`betail-like ${betail.likedByMe ? 'is-liked' : ''}`}
-                  aria-label={betail.likedByMe ? `Retirer le like de ${betail.name}` : `Aimer ${betail.name}`}
-                  title={betail.likedByMe ? 'Retirer le like' : 'Aimer'}
-                  onClick={(event) => handleToggleCarouselLike(event, betail)}
-                  disabled={!betail.canLike || pendingLikeIds.includes(String(betail.id))}
-                >
-                  <Heart size={16} fill={betail.likedByMe ? 'currentColor' : 'none'} />
-                  <span>{betail.likes ?? 0}</span>
-                </button>
-                <div
-                  className="betail-avatar"
-                  style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}
-                  onDragStart={preventImageDrag}
-                >
+                <div className="home-imports__media" onDragStart={preventImageDrag}>
                   <img src={betail.img} alt={betail.name} onError={handleImgError} draggable={false} onDragStart={preventImageDrag} />
                 </div>
-                <div className="betail-info">
-                  <h3 className="betail-name">{betail.name}</h3>
-                  <p className="betail-matricule">{betail.matricule}</p>
-                  <p className="betail-race">Par {betail.author || 'Auteur inconnu'}</p>
+                <div className="home-imports__body">
+                  <div className="home-imports__text">
+                    <h3 className="home-imports__name">{betail.name}</h3>
+                    <span className="home-imports__matricule">{formatMatricule(betail.matricule)}</span>
+                    <span className="home-imports__author">Par {betail.author || 'Auteur inconnu'}</span>
+                  </div>
+                  <button
+                    type="button"
+                    className={`home-imports__like ${betail.likedByMe ? 'is-liked' : ''}`}
+                    aria-label={betail.likedByMe ? `Retirer le like de ${betail.name}` : `Aimer ${betail.name}`}
+                    title={betail.likedByMe ? 'Retirer le like' : 'Aimer'}
+                    onClick={(event) => handleToggleCarouselLike(event, betail)}
+                    disabled={!betail.canLike || pendingLikeIds.includes(String(betail.id))}
+                  >
+                    <Heart size={16} fill={betail.likedByMe ? 'currentColor' : 'none'} aria-hidden="true" />
+                    <span>{betail.likes ?? 0}</span>
+                  </button>
                 </div>
               </div>
             ))}
           </div>
         </div>
+      </div>
 
-        <div className="home-podium">
-          <h3 className="home-podium-title">
-            {showLatestCreator ? 'Dernier créateur de bétail' : 'Podium des bétails les plus likés'}
-          </h3>
-
-          <div className="home-podium-decor" aria-hidden="true">
-            <img className="gupna gupna-a" src={gupna1} alt="" />
-            <img className="gupna gupna-c" src={gupna3} alt="" />
-            <img className="gupna gupna-d" src={gupna4} alt="" />
-            <img className="gupna gupna-f" src={gupna6} alt="" />
-            <img className="gupna gupna-h" src={gupna8} alt="" />
-            <img className="gupna gupna-i" src={gupna9} alt="" />
+      <section className="home-ranking" aria-labelledby="home-ranking-title">
+        <div className="home-ranking__podium">
+          <div className="home-ranking__heading">
+            <h2 id="home-ranking-title" className="home-ranking__title">Podium des bétails les plus likés</h2>
+            <span className="home-ranking__hint">
+              Les trois bétails qui ont reçu le plus de likes. Clique sur l'un d'eux pour voir sa fiche.
+            </span>
           </div>
 
-          <div className="home-podium-switcher">
-            <div className={`home-podium-panel home-podium-panel--podium ${showLatestCreator ? 'is-hidden' : 'is-visible'}`}>
-              <div className="home-podium-stand">
-                {[1, 0, 2].map((podiumIndex) => {
-                  const betail = topBetails[podiumIndex];
-                  if (!betail) return null;
-                  const rank = podiumIndex + 1;
-                  return (
-                    <div key={betail.id} className={`podium-slot podium-${rank}`}>
-                      {rank === 1 && (
-                        <div className="podium-crown" aria-hidden="true">
-                          <Crown size={22} />
-                        </div>
-                      )}
-                      <div className="podium-avatar" style={{ backgroundImage: `url(${betail.img})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                        <img src={betail.img} alt={betail.name} onError={handleImgError} />
-                      </div>
-                      <div className="podium-rank">- {rank} -</div>
-                      <div className="podium-info">
-                        <p className="podium-name">{betail.name}</p>
-                        <p className="podium-meta">#{betail.matricule}</p>
-                        <p className="podium-likes"><Heart size={14} /> {betail.likes ?? 0}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+          <div className="home-ranking__stage">
+            <div className="home-ranking__flowers" aria-hidden="true">
+              <img className="home-ranking__flower is-left-big" src={gupna1} alt="" draggable={false} />
+              <img className="home-ranking__flower is-left-small" src={gupna8} alt="" draggable={false} />
+              <img className="home-ranking__flower is-right-small" src={gupna8} alt="" draggable={false} />
+              <img className="home-ranking__flower is-right-big" src={gupna4} alt="" draggable={false} />
             </div>
 
-            <div
-              className={`home-podium-panel home-podium-panel--latest ${showLatestCreator ? 'is-visible' : 'is-hidden'}`}
-              role="status"
-              aria-live="polite"
-            >
-              <div className="home-latest-creator">
-                {latestCreatedBetail ? (
-                  <>
-                    <div className="home-latest-creator-row">
-                      <div className="home-latest-creator-item">
-                        <span className="home-latest-creator-label">Mère</span>
-                        <button
-                          type="button"
-                          className="home-latest-creator-hit"
-                          onClick={handleOpenLatestCreatorProfile}
-                          disabled={!latestCreatedBetail.authorHandle}
-                          aria-label={`Ouvrir le profil de ${latestCreatedBetail.authorName}`}
-                        >
-                          <span className="home-latest-creator-avatar">
-                            <img
-                              src={latestCreatedBetail.authorAvatar}
-                              alt={`Avatar de ${latestCreatedBetail.authorName}`}
-                              onError={(event) => {
-                                event.currentTarget.onerror = null;
-                                event.currentTarget.src = defaultProfileUser;
-                              }}
-                            />
-                          </span>
-                          <p className="home-latest-creator-user">{latestCreatedBetail.authorName}</p>
-                        </button>
-                      </div>
-
-                      <span className="home-latest-creator-plus" aria-hidden="true">→</span>
-
-                      <div className="home-latest-creator-item">
-                        <span className="home-latest-creator-label">Dernière création</span>
-                        <span
-                          className={`home-latest-creator-tooltip-wrap ${latestCreatedBetail.isPublicRegisterBetail ? '' : 'is-disabled'}`}
-                          data-tooltip="Zut ! Ce bétail a déjà été acheté par quelqu'un d'autre"
-                        >
-                          <button
-                            type="button"
-                            className="home-latest-creator-hit"
-                            onClick={handleOpenLatestCreatorBetail}
-                            disabled={!latestCreatedBetail.isPublicRegisterBetail}
-                            aria-label={latestCreatedBetail.isPublicRegisterBetail
-                              ? `Ouvrir ${latestCreatedBetail.betailName} dans le registre`
-                              : `${latestCreatedBetail.betailName} n'est plus disponible dans le registre public`
-                            }
-                          >
-                            <span className="home-latest-creator-avatar home-latest-creator-avatar--betail">
-                              <img
-                                src={latestCreatedBetail.betailAvatar}
-                                alt={latestCreatedBetail.betailName}
-                                onError={handleImgError}
-                              />
-                            </span>
-                            <p className="home-latest-creator-betail">{latestCreatedBetail.betailName}</p>
-                          </button>
+            <ol className="home-ranking__steps">
+              {[1, 2, 3].map((rank) => {
+                const betail = topBetails[rank - 1];
+                const rankLabel = rank === 1 ? '1er' : `${rank}e`;
+                const likes = betail?.likes ?? 0;
+                const likesLabel = `${likes} like${likes > 1 ? 's' : ''}`;
+                return (
+                  <li key={rank} className={`home-ranking__step is-rank-${rank}`}>
+                    {betail ? (
+                      <button
+                        type="button"
+                        className="home-ranking__betail"
+                        onMouseEnter={rank === 1 ? fireWinnerConfetti : undefined}
+                        onFocus={rank === 1 ? fireWinnerConfetti : undefined}
+                        onClick={() => {
+                          if (isLikeableId(betail.id)) navigate(`/betail-register/${betail.id}`);
+                          else openBetailRegister();
+                        }}
+                        aria-label={`${rankLabel} : ${betail.name}, ${likesLabel}. Voir sa fiche`}
+                      >
+                        {rank === 1 && <Crown size={26} className="home-ranking__crown" aria-hidden="true" />}
+                        <span className="home-ranking__avatar">
+                          <img src={betail.img} alt="" onError={handleImgError} draggable={false} />
                         </span>
+                        <span className="home-ranking__name">{betail.name}</span>
+                        <span className="home-ranking__matricule">{formatMatricule(betail.matricule)}</span>
+                        <span className="home-ranking__likes">
+                          <Heart size={14} fill="currentColor" aria-hidden="true" />
+                          {likesLabel}
+                        </span>
+                      </button>
+                    ) : (
+                      <div className="home-ranking__betail is-empty">
+                        <span className="home-ranking__avatar" aria-hidden="true" />
+                        <span className="home-ranking__name">Place libre</span>
                       </div>
+                    )}
+                    <div className="home-ranking__block" aria-hidden="true">
+                      <span className="home-ranking__rank">{rank}</span>
                     </div>
-                  </>
-                ) : (
-                  <p className="home-latest-creator-empty">Aucune création récente disponible.</p>
-                )}
-              </div>
-            </div>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         </div>
-      </div>
+
+        <aside className="home-ranking__latest" aria-labelledby="home-latest-title">
+          <div className="home-ranking__heading">
+            <h2 id="home-latest-title" className="home-ranking__title">Dernière création</h2>
+            <span className="home-ranking__hint">Le bétail le plus récent du registre et son créateur.</span>
+          </div>
+
+          {latestCreatedBetail ? (
+            <div className="home-latest">
+              <button
+                type="button"
+                className="home-latest__betail"
+                onClick={handleOpenLatestCreatorBetail}
+                disabled={!latestCreatedBetail.isPublicRegisterBetail}
+                aria-label={latestCreatedBetail.isPublicRegisterBetail
+                  ? `Ouvrir ${latestCreatedBetail.betailName} dans le registre`
+                  : `${latestCreatedBetail.betailName} n'est plus disponible dans le registre public`
+                }
+              >
+                <span className="home-latest__avatar">
+                  <img
+                    src={latestCreatedBetail.betailAvatar}
+                    alt=""
+                    onError={handleImgError}
+                    draggable={false}
+                  />
+                </span>
+                <span className="home-latest__name">{latestCreatedBetail.betailName}</span>
+                <span className="home-latest__cta">
+                  {latestCreatedBetail.isPublicRegisterBetail
+                    ? 'Voir dans le registre'
+                    : 'Déjà acheté par un autre joueur'}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                className="home-latest__author"
+                onClick={handleOpenLatestCreatorProfile}
+                disabled={!latestCreatedBetail.authorHandle}
+                aria-label={`Ouvrir le profil de ${latestCreatedBetail.authorName}`}
+              >
+                <span className="home-latest__author-avatar">
+                  <img
+                    src={latestCreatedBetail.authorAvatar}
+                    alt=""
+                    onError={(event) => {
+                      event.currentTarget.onerror = null;
+                      event.currentTarget.src = defaultProfileUser;
+                    }}
+                  />
+                </span>
+                <span className="home-latest__author-text">
+                  <span className="home-latest__label">Créé par</span>
+                  <span className="home-latest__author-name">{latestCreatedBetail.authorName}</span>
+                </span>
+                {latestCreatedBetail.authorHandle && (
+                  <ArrowRight size={16} className="home-latest__author-arrow" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          ) : (
+            <span className="home-latest__empty">Aucune création récente pour le moment.</span>
+          )}
+        </aside>
+      </section>
 
       <div className="home-grid">
         <button type="button" className="home-card home-card--shipping-week" onClick={() => navigate('/gce')}>

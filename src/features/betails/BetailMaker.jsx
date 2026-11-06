@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck, Upload } from 'lucide-react';
+import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck, Upload, Link2, Search, Lightbulb, ArrowLeft } from 'lucide-react';
 import './BetailMaker.css';
 import './AdminBetailMaker.css';
+import './BetailInspiration.css';
 import miloImage from '../../assets/betail_sample.png';
 import digitSound1 from '../../assets/sounds/COUNT_DOWN_10.wav';
 import digitSound2 from '../../assets/sounds/COUNT_DOWN_10.wav';
@@ -15,12 +16,15 @@ import AdminBetailMaker from './AdminBetailMaker';
 import BetailMaker_QualiteGame1 from './BetailMaker_QualiteGame1';
 import BetailMaker_QualiteGame2 from './BetailMaker_QualiteGame2';
 import BetailMaker_QualiteGame3 from './BetailMaker_QualiteGame3';
+import BetailImageBank from './BetailImageBank';
+import BetailInspirationPanel from './BetailInspirationPanel';
 import { useUserRole } from './hooks';
 import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import { qualityStandardSound, qualityPremiumSound } from './qualitySounds';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
+import { formatMatricule } from '../utils/formatMatricule';
 
 const MONEY_FORMATTER = new Intl.NumberFormat('fr-FR');
 const MAX_BETAIL_NAME_LENGTH = 15;
@@ -91,10 +95,11 @@ function BetailMaker() {
   const [photoSource, setPhotoSource] = useState('file');
   const [photoZoom, setPhotoZoom] = useState(1);
   const [photoPosition, setPhotoPosition] = useState({ x: 0, y: 0 });
+  const [photoPickerView, setPhotoPickerView] = useState('file');
+  const [photoAttribution, setPhotoAttribution] = useState(null);
   const [isDraggingPhoto, setIsDraggingPhoto] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [dragOrigin, setDragOrigin] = useState({ x: 0, y: 0 });
-  const [isDragActive, setIsDragActive] = useState(false);
   const [imageNaturalSize, setImageNaturalSize] = useState({ width: 0, height: 0 });
   const [matricule, setMatricule] = useState('');
   const [displayedDigits, setDisplayedDigits] = useState(['0', '0', '0', '0', '0']);
@@ -111,6 +116,7 @@ function BetailMaker() {
   const [descriptionSuggestions, setDescriptionSuggestions] = useState([]);
   const [descriptionSuggestionIndex, setDescriptionSuggestionIndex] = useState(0);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
+  const [isInspirationOpen, setIsInspirationOpen] = useState(false);
   const [prenomPlaceholder, setPrenomPlaceholder] = useState(() => getRandomBetailNamePlaceholder());
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -120,6 +126,7 @@ function BetailMaker() {
   const defaultPhotoOffset = { x: 0, y: 12 };
   const animationTimersRef = useRef({ intervals: [], timeouts: [] });
   const qualityRevealTimersRef = useRef([]);
+  const photoFileInputRef = useRef(null);
   const lastAgeRef = useRef(age);
   const digitSounds = [digitSound1, digitSound2, digitSound3, digitSound4, digitSound5];
   const digitAudiosRef = useRef([]);
@@ -253,6 +260,9 @@ function BetailMaker() {
       return;
     }
     setPhotoSource('file');
+    setPhotoUrl('');
+    setPhotoAttribution(null);
+    setPhotoPickerView('preview');
     const reader = new FileReader();
     reader.onloadend = () => {
       setPhotoFilePreview(reader.result?.toString() || '');
@@ -263,11 +273,26 @@ function BetailMaker() {
   const handlePhotoUrlChange = (value) => {
     setPhotoSource('url');
     setPhotoUrl(value);
+    setPhotoAttribution(null);
+    setPhotoPickerView('url');
+  };
+
+  const handleSelectImageFromBank = (image) => {
+    if (!image?.imageUrl) return;
+    setPhotoSource('url');
+    setPhotoUrl(image.imageUrl);
+    setPhotoFilePreview('');
+    setPhotoAttribution(image);
+    setPhotoPickerView('preview');
+    setPhotoZoom(1);
+    setPhotoPosition({ x: 0, y: 0 });
   };
 
   const handleUseDefaultPhoto = () => {
     setPhotoSource('file');
+    setPhotoPickerView('preview');
     setPhotoUrl('');
+    setPhotoAttribution(null);
     setPhotoFilePreview(defaultProfileImage);
     setPhotoZoom(defaultPhotoZoom);
     setPhotoPosition(defaultPhotoOffset);
@@ -276,29 +301,8 @@ function BetailMaker() {
   const handleRemovePhoto = () => {
     setPhotoFilePreview('');
     setPhotoUrl('');
-  };
-
-  const handlePhotoDrop = (e) => {
-    e.preventDefault();
-    setIsDragActive(false);
-    const file = e.dataTransfer?.files?.[0];
-    if (!file) {
-      return;
-    }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setPhotoFilePreview(reader.result?.toString() || '');
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handlePhotoDragOver = (e) => {
-    e.preventDefault();
-    setIsDragActive(true);
-  };
-
-  const handlePhotoDragLeave = () => {
-    setIsDragActive(false);
+    setPhotoAttribution(null);
+    setPhotoPickerView('file');
   };
 
   const handlePhotoPointerDown = (e) => {
@@ -598,12 +602,13 @@ function BetailMaker() {
     setPhotoUrl('');
     setPhotoFilePreview('');
     setPhotoSource('file');
+    setPhotoPickerView('file');
+    setPhotoAttribution(null);
     setPhotoZoom(1);
     setPhotoPosition({ x: 0, y: 0 });
     setIsDraggingPhoto(false);
     setDragStart({ x: 0, y: 0 });
     setDragOrigin({ x: 0, y: 0 });
-    setIsDragActive(false);
     setImageNaturalSize({ width: 0, height: 0 });
     setMatricule('');
     setDisplayedDigits(['0', '0', '0', '0', '0']);
@@ -621,8 +626,10 @@ function BetailMaker() {
     setDescriptionSuggestionIndex(0);
     descriptionRequestKeyRef.current = '';
     setIsHelpOpen(false);
+    setIsInspirationOpen(false);
     setIsSaving(false);
     setSaveError('');
+    setPhotoAttribution(null);
     setQualityRevealEffect('');
     setIsQualityRevealActive(false);
     setCreationReward(null);
@@ -944,86 +951,175 @@ function BetailMaker() {
         );
 
       case 3:
+        if (photoPickerView === 'search') {
+          return (
+            <div className="step-content fade-in photo-search-stage">
+              <header className="photo-search-stage__header">
+                <button
+                  type="button"
+                  className="photo-search-back"
+                  onClick={() => setPhotoPickerView('file')}
+                >
+                  <ArrowLeft size={15} aria-hidden="true" />
+                  Retour
+                </button>
+                <h2 className="step-title">Rechercher une image</h2>
+              </header>
+
+              <BetailImageBank
+                className="betail-image-bank--photo-step"
+                hideHeader
+                onSelectImage={handleSelectImageFromBank}
+                selectionEnabled
+              />
+            </div>
+          )
+        }
+
         return (
-          <div className="step-content fade-in">
+          <div className="step-content fade-in photo-stage">
             <h2 className="step-title">Choisis une photo</h2>
 
-            <div className="photo-choice">
-              <div className="photo-input">
-                <input
-                  type="url"
-                  className="step-input"
-                  placeholder="Collez une URL d'image..."
-                  value={photoUrl}
-                  onChange={(e) => handlePhotoUrlChange(e.target.value)}
-                />
+            <div className="photo-methods" role="group" aria-label="Methode de selection de photo">
+              <button
+                type="button"
+                className={`photo-method-button ${photoPickerView === 'search' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setPhotoPickerView('search');
+                }}
+              >
+                <Search size={16} aria-hidden="true" />
+                <span className="photo-method-button__copy">
+                  <strong>Rechercher une image</strong>
+                  <small>Trouver un portrait avec la banque d'images integree.</small>
+                </span>
+              </button>
+
+              <div className="photo-import-row">
+                <button
+                  type="button"
+                  className={`photo-method-button photo-method-button--import ${photoPickerView === 'file' ? 'is-active' : ''}`}
+                  onClick={() => {
+                    setPhotoPickerView('file');
+                    setPhotoSource('file');
+                    photoFileInputRef.current?.click?.();
+                  }}
+                >
+                  <Upload size={16} aria-hidden="true" />
+                  <span className="photo-method-button__copy">
+                    <strong>Importer une image</strong>
+                    <small>Choisir une photo enregistree sur son appareil.</small>
+                  </span>
+                </button>
+                <button
+                  className="photo-default-button"
+                  type="button"
+                  onClick={handleUseDefaultPhoto}
+                >
+                  Photo par défaut
+                </button>
               </div>
+
+              <button
+                type="button"
+                className={`photo-method-button ${photoPickerView === 'url' ? 'is-active' : ''}`}
+                onClick={() => {
+                  setPhotoPickerView('url');
+                  setPhotoSource('url');
+                }}
+              >
+                <Link2 size={16} aria-hidden="true" />
+                <span className="photo-method-button__copy">
+                  <strong>Utiliser un lien</strong>
+                  <small>Coller l'URL d'une image trouvee ailleurs.</small>
+                </span>
+              </button>
             </div>
 
-            <div
-              className="photo-preview"
-              onPointerDown={
-                photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerDown
-              }
-              onPointerMove={
-                photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerMove
-              }
-              onPointerUp={
-                photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerUp
-              }
-              onPointerLeave={
-                photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerUp
-              }
-              onDragOver={handlePhotoDragOver}
-              onDragLeave={handlePhotoDragLeave}
-              onDrop={handlePhotoDrop}
-            >
-              {(photoSource === 'file' && photoFilePreview) || (photoSource === 'url' && photoUrl) ? (
-                <>
-                  <img
-                    src={photoSource === 'file' ? photoFilePreview : photoUrl}
-                    alt="Aperçu"
-                    className="photo-preview-image"
-                    draggable={false}
-                    onDragStart={(e) => e.preventDefault()}
-                    onLoad={(e) => {
-                      setImageNaturalSize({
-                        width: e.currentTarget.naturalWidth,
-                        height: e.currentTarget.naturalHeight,
-                      });
-                      if (photoFilePreview === defaultProfileImage) {
-                        setPhotoPosition(defaultPhotoOffset);
-                        setPhotoZoom(defaultPhotoZoom);
-                      } else {
-                        setPhotoPosition((prev) => clampPhotoPosition(prev, photoZoom));
-                      }
-                    }}
-                    style={{
-                      width: `${imageNaturalSize.width ? imageNaturalSize.width * getBaseScale() : previewSize}px`,
-                      height: `${imageNaturalSize.height ? imageNaturalSize.height * getBaseScale() : previewSize}px`,
-                      transform:
-                        photoFilePreview === defaultProfileImage
-                          ? `translate(-50%, -50%) translate(${defaultPhotoOffset.x}px, ${defaultPhotoOffset.y}px) scale(${defaultPhotoZoom})`
-                          : `translate(-50%, -50%) translate(${photoPosition.x}px, ${photoPosition.y}px) scale(${photoZoom})`,
-                    }}
-                  />
-                </>
-              ) : (
-                <label className={`photo-preview-placeholder ${isDragActive ? 'active' : ''}`}>
+            <input
+              ref={photoFileInputRef}
+              type="file"
+              accept="image/*"
+              className="file-input"
+              onChange={handlePhotoFileChange}
+            />
+
+            {photoPickerView === 'url' ? (
+              <div className="photo-choice">
+                <div className="photo-input">
                   <input
-                    type="file"
-                    accept="image/*"
-                    className="file-input"
-                    onChange={handlePhotoFileChange}
+                    type="url"
+                    className="step-input"
+                    placeholder="Collez une URL d'image..."
+                    value={photoUrl}
+                    onChange={(e) => handlePhotoUrlChange(e.target.value)}
                   />
-                  <span className="photo-preview-placeholder__icon" aria-hidden="true">
-                    <Upload size={30} />
-                  </span>
-                  <span className="photo-preview-placeholder__text">Cliquer ou glisser une photo ici</span>
-                  
-                </label>
-              )}
-            </div>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="photo-stage__body">
+            {(photoSource === 'file' && photoFilePreview) || (photoSource === 'url' && photoUrl) ? (
+              <div
+                className="photo-preview"
+                onPointerDown={
+                  photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerDown
+                }
+                onPointerMove={
+                  photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerMove
+                }
+                onPointerUp={
+                  photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerUp
+                }
+                onPointerLeave={
+                  photoFilePreview === defaultProfileImage ? undefined : handlePhotoPointerUp
+                }
+              >
+                <img
+                  src={photoSource === 'file' ? photoFilePreview : photoUrl}
+                  alt="Aperçu"
+                  className="photo-preview-image"
+                  draggable={false}
+                  onDragStart={(e) => e.preventDefault()}
+                  onLoad={(e) => {
+                    setImageNaturalSize({
+                      width: e.currentTarget.naturalWidth,
+                      height: e.currentTarget.naturalHeight,
+                    });
+                    if (photoFilePreview === defaultProfileImage) {
+                      setPhotoPosition(defaultPhotoOffset);
+                      setPhotoZoom(defaultPhotoZoom);
+                    } else {
+                      setPhotoPosition((prev) => clampPhotoPosition(prev, photoZoom));
+                    }
+                  }}
+                  style={{
+                    width: `${imageNaturalSize.width ? imageNaturalSize.width * getBaseScale() : previewSize}px`,
+                    height: `${imageNaturalSize.height ? imageNaturalSize.height * getBaseScale() : previewSize}px`,
+                    transform:
+                      photoFilePreview === defaultProfileImage
+                        ? `translate(-50%, -50%) translate(${defaultPhotoOffset.x}px, ${defaultPhotoOffset.y}px) scale(${defaultPhotoZoom})`
+                        : `translate(-50%, -50%) translate(${photoPosition.x}px, ${photoPosition.y}px) scale(${photoZoom})`,
+                  }}
+                />
+              </div>
+            ) : (
+              <div className="photo-decor" aria-hidden="true">
+                <span className="photo-decor__halo">
+                  <img src={miloImage} alt="" className="photo-decor__image" draggable={false} />
+                </span>
+                <span className="photo-decor__text">Ton bétail apparaîtra ici</span>
+              </div>
+            )}
+
+            {photoAttribution ? (
+              <p className="betail-photo-attribution">
+                Source: <a href={photoAttribution.sourcePageUrl || photoAttribution.imageUrl} target="_blank" rel="noreferrer">{photoAttribution.sourceName || 'Lien'}</a>
+                {' · Auteur: '}{photoAttribution.authorName || 'Inconnu'}
+                {' · Licence: '}{photoAttribution.licenseName || 'Inconnue'}
+                {photoAttribution.requiresAttribution ? ' · Attribution requise' : ''}
+              </p>
+            ) : null}
 
             {((photoSource === 'file' && photoFilePreview) || (photoSource === 'url' && photoUrl)) &&
               photoFilePreview !== defaultProfileImage && (
@@ -1047,49 +1143,16 @@ function BetailMaker() {
                 <p className="photo-hint">Fais glisser l’image pour la positionner dans le cercle.</p>
               </div>
             )}
-
+            </div>
 
             <button
-              className="next-button"
+              className="next-button photo-stage__next"
               onClick={handleNextPhoto}
               disabled={!photoFilePreview && !photoUrl.trim()}
             >
               Suivant
               <span className="arrow">→</span>
             </button>
-
-            <div className="photo-actions photo-actions--secondary">
-              {photoFilePreview === defaultProfileImage ? (
-                <label className="photo-action photo-action--gallery" style={{ cursor: 'pointer' }}>
-                  Choisir une photo dans la galerie
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="file-input"
-                    style={{ display: 'none' }}
-                    onChange={handlePhotoFileChange}
-                  />
-                </label>
-              ) : (
-                <button
-                  className="photo-action photo-action--default"
-                  type="button"
-                  onClick={handleUseDefaultPhoto}
-                >
-                  Utiliser la photo par défaut
-                </button>
-              )}
-              {(photoFilePreview || photoUrl) && photoFilePreview !== defaultProfileImage && (
-                <button
-                  className="photo-action photo-action--remove"
-                  type="button"
-                  onClick={handleRemovePhoto}
-                >
-                  <X size={15} aria-hidden="true" />
-                  Supprimer cette photo
-                </button>
-              )}
-            </div>
           </div>
         );
 
@@ -1362,7 +1425,7 @@ function BetailMaker() {
               </div>
               <div className="recap-row">
                 <span className="recap-label">Matricule :</span>
-                <span className="recap-matricule">{matricule}</span>
+                <span className="recap-matricule">{formatMatricule(matricule)}</span>
               </div>
               <div className="recap-row">
                 <span className="recap-label">Commentaire :</span>
@@ -1449,26 +1512,48 @@ function BetailMaker() {
 
   return (
     <div className="betail-maker">
-      <div className={`betail-container${isQualityRevealActive ? ' blurred' : ''}`}>
-        <div className="stepper-card">
-          <button
-            type="button"
-            className="help-button"
-            aria-label="Afficher l'aide sur l'enregistrement"
-            onClick={() => setIsHelpOpen(true)}
-          >
-            <CircleHelp size={16} strokeWidth={2.3} aria-hidden="true" />
-          </button>
-          {currentStep > 0 && (
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${(currentStep / (totalSteps - 1)) * 100}%` }}
-              />
-            </div>
-          )}
-          {renderStepContent()}
+      <div className="betail-maker-shell">
+        <div className={`betail-container${isQualityRevealActive ? ' blurred' : ''}`}>
+          <div className={`stepper-card ${currentStep === 3 ? 'is-photo-step' : ''}`.trim()}>
+            <button
+              type="button"
+              className="help-button inspiration-toggle"
+              aria-label="Ouvrir le carnet d'inspiration"
+              title="Carnet d'inspiration"
+              onClick={() => setIsInspirationOpen((value) => !value)}
+            >
+              <Lightbulb size={16} strokeWidth={2.3} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className="help-button"
+              aria-label="Afficher l'aide sur l'enregistrement"
+              onClick={() => setIsHelpOpen(true)}
+            >
+              <CircleHelp size={16} strokeWidth={2.3} aria-hidden="true" />
+            </button>
+            {currentStep > 0 && (
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${(currentStep / (totalSteps - 1)) * 100}%` }}
+                />
+              </div>
+            )}
+            {renderStepContent()}
+          </div>
         </div>
+
+        <BetailInspirationPanel
+          isOpen={isInspirationOpen}
+          onClose={() => setIsInspirationOpen(false)}
+          currentStep={currentStep}
+          onSelectImageForPhoto={(image) => {
+            setIsInspirationOpen(false);
+            setCurrentStep(3);
+            handleSelectImageFromBank(image);
+          }}
+        />
       </div>
       {/* Overlay effet visuel qualité */}
       {qualityRevealEffect && qualityResult && (

@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, Users, ChevronRight } from 'lucide-react';
+import { Search, ChevronRight } from 'lucide-react';
 import miloFriends from '../../assets/img/milo_friends_happy2nb.png';
-import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import { useAuth } from '../authentification/AuthContext';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
+import ProfileAvatarImage from '../utils/ProfileAvatarImage';
 import { fetchActiveUserIdsThisMonth, fetchCommunityPage, fetchCommunityStats } from './communityApi';
 import { fetchAcceptedFriendIdsForUser } from './friendsApi';
 import PublicCommunityChat from '../chat/PublicCommunityChat';
+import useStreamAvatarUrls from '../chat/useStreamAvatarUrls';
 import './CommunityPage.css';
 
 const SEARCH_DEBOUNCE_MS = 320;
@@ -23,73 +24,18 @@ const COMMUNITY_DID_YOU_KNOW = [
   'Un utilisateur que vous avez bloqué ne pourra plus voir votre profil ni interagir avec vous sur FarmGestion.',
 ];
 
+const PROFILE_FILTERS = [
+  { id: 'all', label: 'Tous les profils' },
+  { id: 'active', label: 'Actifs ce mois-ci' },
+  { id: 'friends', label: 'Mes amis' },
+];
+
+const pluralize = (count, singular, plural) => (count > 1 ? plural : singular);
+
 const isRetriableError = (error) => {
   const status = Number(error?.status || 0);
   return status >= 500;
 };
-
-const toAvatarFallback = (username) => {
-  const safe = String(username || '').trim();
-  return safe ? safe.slice(0, 1).toUpperCase() : '?';
-};
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
-
-const buildAvatarCandidates = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return [raw];
-  if (!SUPABASE_URL) return [raw];
-
-  const candidates = [raw];
-  if (raw.startsWith('/storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-  } else if (raw.startsWith('storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}/${raw}`);
-  } else if (raw.startsWith('/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-    const normalized = raw.replace(/^\/+/, '');
-    candidates.push(`${SUPABASE_URL}/${normalized}`);
-  } else if (raw.includes('/')) {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/${raw}`);
-  } else {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/avatars/${raw}`);
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/ressources/${raw}`);
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/betails/${raw}`);
-  }
-
-  return Array.from(new Set(candidates));
-};
-
-function AvatarMedia({ avatarUrl, username, alt }) {
-  const candidates = useMemo(() => buildAvatarCandidates(avatarUrl), [avatarUrl]);
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [avatarUrl]);
-
-  const nextSrc = candidates[index] || '';
-
-  if (!nextSrc || index >= candidates.length) {
-    return <img src={defaultProfileUser} alt={alt} loading="lazy" />;
-  }
-
-  return (
-    <img
-      src={nextSrc}
-      alt={alt}
-      loading="lazy"
-      onError={() => {
-        if (index < candidates.length - 1) {
-          setIndex((current) => current + 1);
-          return;
-        }
-        setIndex(candidates.length);
-      }}
-    />
-  );
-}
 
 const formatDate = (iso) => {
   if (!iso) return 'Date inconnue';
@@ -110,7 +56,7 @@ const dispatchToast = (message, type = 'warning') => {
   );
 };
 
-const buildCommunityProfilePath = (username, userId) => {
+const buildCommunityProfilePath = (username) => {
   const normalizedUsername = String(username || '').trim();
   if (normalizedUsername) return `/community/profile/${encodeURIComponent(normalizedUsername)}`;
   return '';
@@ -118,39 +64,25 @@ const buildCommunityProfilePath = (username, userId) => {
 
 function CommunityLoadingSkeleton({ didYouKnow }) {
   return (
-    <section className="community-loading" aria-live="polite" aria-busy="true">
-      <article className="community-loading__tip">
-        <p className="community-loading__tip-kicker">Le saviez-vous ?</p>
-        <p className="community-loading__tip-text">{didYouKnow}</p>
-      </article>
-
-      <section className="community-loading__profiles" aria-hidden="true">
-        <div className="community-loading__line community-skeleton community-loading__line--title" />
-        <div className="community-loading__profiles-row">
-          {Array.from({ length: 5 }).map((_, index) => (
-            <div key={`community-loading-profile-${index}`} className="community-loading__profile-chip">
-              <span className="community-loading__avatar community-skeleton" />
-              <span className="community-loading__line community-skeleton community-loading__line--chip" />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section className="community-loading__grid" aria-hidden="true">
+    <section className="community-results" aria-live="polite" aria-busy="true">
+      <p className="community-loading__tip">
+        <strong>Le saviez-vous ?</strong> {didYouKnow}
+      </p>
+      <div className="community-grid" aria-hidden="true">
         {Array.from({ length: 6 }).map((_, index) => (
-          <article key={`community-loading-card-${index}`} className="community-loading__card">
-            <div className="community-loading__card-head">
-              <span className="community-loading__avatar community-skeleton" />
-              <div className="community-loading__card-copy">
-                <div className="community-loading__line community-skeleton community-loading__line--name" />
-                <div className="community-loading__line community-skeleton community-loading__line--meta" />
-              </div>
+          <div key={`community-loading-card-${index}`} className="community-card">
+            <div className="community-card__head community-card__head--skeleton">
+              <span className="community-avatar community-skeleton" />
+              <span className="community-loading__line community-skeleton" style={{ width: '45%' }} />
             </div>
-            <div className="community-loading__line community-skeleton community-loading__line--farm" />
-            <div className="community-loading__farm-preview community-skeleton" />
-          </article>
+            <div className="community-farm-hit">
+              <span className="community-loading__line community-skeleton" style={{ width: '60%' }} />
+              <span className="community-loading__line community-skeleton" style={{ width: '40%' }} />
+              <span className="community-mini-farm community-skeleton" />
+            </div>
+          </div>
         ))}
-      </section>
+      </div>
     </section>
   );
 }
@@ -250,8 +182,16 @@ function CommunityPage() {
     retryDelay: (attemptIndex) => Math.min(1200 * (2 ** attemptIndex), 6000),
   });
 
-  const items = communityQuery.data?.items || [];
-  const userItems = communityQuery.data?.userItems || [];
+  const items = useMemo(() => communityQuery.data?.items || [], [communityQuery.data?.items]);
+  const userItems = useMemo(() => communityQuery.data?.userItems || [], [communityQuery.data?.userItems]);
+  const communityUserIds = useMemo(
+    () => [
+      ...items.map((item) => item.ownerId),
+      ...userItems.map((item) => item.id),
+    ],
+    [items, userItems],
+  );
+  const streamAvatarUrlsById = useStreamAvatarUrls(communityUserIds);
   const hasNextPage = Boolean(communityQuery.data?.hasNextPage);
   const totalVisibleFarms = statsQuery.data?.totalVisibleFarms || 0;
   const totalUsers = statsQuery.data?.totalUsers || 0;
@@ -309,16 +249,8 @@ function CommunityPage() {
     || isFriendsFilterLoading
   );
 
-  const cycleProfileFilterMode = () => {
-    setProfileFilterMode((current) => {
-      if (current === 'all') return 'active';
-      if (current === 'active') return 'friends';
-      return 'all';
-    });
-  };
-
-  const handleUserClick = (userId, username) => {
-    const path = buildCommunityProfilePath(username, userId);
+  const handleUserClick = (username) => {
+    const path = buildCommunityProfilePath(username);
     if (!path) {
       dispatchToast(`Le profil de ${username} est indisponible.`, 'warning');
       return;
@@ -329,137 +261,143 @@ function CommunityPage() {
   return (
     <main className="community-page">
       <section className="community-shell">
-        <header className="community-hero" style={{ '--community-hero-image': `url(${miloFriends})` }}>
-          <div className="community-hero__copy">
-            <p className="community-hero__eyebrow">Communauté</p>
-            <h1>Fermes publiques</h1>
-            <p>
+        <div className="community-panel">
+          <header className="community-panel__intro" style={{ '--community-logo': `url(${miloFriends})` }}>
+            <h1 className="community-panel__title">Fermes publiques</h1>
+            <p className="community-panel__text">
               Explore les fermes de la communauté, retrouve les membres actifs du mois
               et visite leur ferme en un clic.
             </p>
-            <div className="community-hero__kpis">
-              <article className="community-kpi">
-                <p className="community-kpi__label">Fermes affichées</p>
-                <p className="community-kpi__value"><Users size={14} /> {visibleItems.length}</p>
-                <p className="community-kpi__meta">{totalVisibleFarms} fermes · {totalUsers} inscrits</p>
-              </article>
-            </div>
-            <div className="community-hero__tools">
-              <label className="community-search" htmlFor="community-search-input">
-                <Search size={16} />
-                <input
-                  id="community-search-input"
-                  type="search"
-                  placeholder="Rechercher un utilisateur ou une ferme"
-                  value={searchInput}
-                  onChange={(event) => setSearchInput(event.target.value)}
-                  autoComplete="off"
-                />
-              </label>
+            <p className="community-panel__count">
+              <strong>{visibleItems.length}</strong> {pluralize(visibleItems.length, 'ferme affichée', 'fermes affichées')}
+              <span>
+                {totalVisibleFarms} {pluralize(totalVisibleFarms, 'ferme publique', 'fermes publiques')}, {totalUsers} {pluralize(totalUsers, 'inscrit', 'inscrits')}
+              </span>
+            </p>
 
-              <button
-                type="button"
-                className={`community-active-toggle ${profileFilterMode !== 'all' ? 'is-on' : ''}`}
-                onClick={cycleProfileFilterMode}
-                aria-pressed={profileFilterMode !== 'all'}
-              >
-                <span className="community-active-toggle__dot" />
-                <span>
-                  {profileFilterMode === 'all'
-                    ? 'Tous les profils'
-                    : profileFilterMode === 'active'
-                      ? 'Actifs uniquement'
-                      : 'Amis uniquement'}
-                </span>
-              </button>
-            </div>
-          </div>
-        </header>
+            <label className="community-search" htmlFor="community-search-input">
+              <Search size={16} aria-hidden="true" />
+              <input
+                id="community-search-input"
+                type="search"
+                placeholder="Rechercher un utilisateur ou une ferme"
+                value={searchInput}
+                onChange={(event) => setSearchInput(event.target.value)}
+                autoComplete="off"
+              />
+            </label>
 
-        <PublicCommunityChat avatarProfiles={publicChatAvatarProfiles} />
+            <div className="community-filters" role="group" aria-label="Filtrer les profils">
+              {PROFILE_FILTERS.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  className="community-filters__tab"
+                  aria-pressed={profileFilterMode === filter.id}
+                  onClick={() => setProfileFilterMode(filter.id)}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </header>
+
+          <PublicCommunityChat avatarProfiles={publicChatAvatarProfiles} />
+        </div>
 
         {showLoadingSkeleton ? (
           <CommunityLoadingSkeleton didYouKnow={didYouKnowFact} />
         ) : communityQuery.isError ? (
           <p className="community-state is-error">Impossible de charger la communauté pour le moment.</p>
-        ) : !visibleItems.length ? (
-          <p className="community-state">Aucune ferme publique ne correspond à ta recherche.</p>
+        ) : !visibleItems.length && !visibleUserItems.length ? (
+          <p className="community-state">
+            {searchTerm || profileFilterMode !== 'all'
+              ? 'Aucune ferme ne correspond à ta recherche ou à ce filtre.'
+              : 'Aucune ferme publique pour le moment.'}
+          </p>
         ) : (
-          <>
+          <section className="community-results" aria-live="polite">
             {visibleUserItems.length ? (
-              <section className="community-profiles-strip" aria-label="Profils sans ferme publique">
-                <p className="community-profiles-strip__title">Profils trouvés (sans ferme publique)</p>
-                <div className="community-profiles-strip__list">
+              <div className="community-profiles" aria-label="Profils sans ferme publique">
+                <p className="community-profiles__title">Profils trouvés sans ferme publique</p>
+                <div className="community-profiles__list">
                   {visibleUserItems.map((userItem) => (
                     <button
                       key={userItem.id}
                       type="button"
-                      className="community-profile-chip"
-                      onClick={() => handleUserClick(userItem.id, userItem.username)}
+                      className="community-profile-link"
+                      onClick={() => handleUserClick(userItem.username)}
                       title={userItem.username}
                     >
-                      <span className="community-profile-chip__avatar" aria-hidden="true">
-                        <AvatarMedia avatarUrl={userItem.avatarUrl} username={userItem.username} alt="Avatar profil" />
+                      <span className="community-avatar community-avatar--small" aria-hidden="true">
+                        <ProfileAvatarImage
+                          avatarUrl={streamAvatarUrlsById[userItem.id] || userItem.avatarUrl}
+                          alt="Avatar profil"
+                          loading="lazy"
+                        />
                       </span>
-                      <span className="community-profile-chip__name">{userItem.username}</span>
-                      <ChevronRight size={14} />
+                      <span className="community-profile-link__name">{userItem.username}</span>
                     </button>
                   ))}
                 </div>
-              </section>
+              </div>
             ) : null}
 
-            <section className="community-grid" aria-live="polite">
-              {visibleItems.map((item) => (
-                <article key={item.farmId} className="community-card">
-                <div className="community-card__head">
-                  <button
-                    type="button"
-                    className="community-user-hit"
-                    onClick={() => handleUserClick(item.ownerId, item.username)}
-                    title={item.username}
-                  >
-                    <div className="community-avatar" aria-hidden="true">
-                      <AvatarMedia avatarUrl={item.avatarUrl} username={item.username} alt="Avatar utilisateur" />
+            {visibleItems.length ? (
+              <div className="community-grid">
+                {visibleItems.map((item) => (
+                  <article key={item.farmId} className="community-card">
+                    <div className="community-card__head">
+                      <button
+                        type="button"
+                        className="community-user-hit"
+                        onClick={() => handleUserClick(item.username)}
+                        title={item.username}
+                      >
+                        <span className="community-avatar" aria-hidden="true">
+                          <ProfileAvatarImage
+                            avatarUrl={streamAvatarUrlsById[item.ownerId] || item.avatarUrl}
+                            alt="Avatar utilisateur"
+                            loading="lazy"
+                          />
+                        </span>
+                        <span className="community-card__identity">
+                          <span className="community-card__username">{item.username}</span>
+                          <span className="community-card__farmname">
+                            Accéder au profil <ChevronRight size={12} aria-hidden="true" />
+                          </span>
+                        </span>
+                      </button>
+                      {item.isActive ? <span className="community-status">Actif</span> : null}
                     </div>
-                    <div className="community-card__identity">
-                      <p className="community-card__username">{item.username}</p>
-                      <p className="community-card__farmname">
-                        Accéder au profil <ChevronRight size={12} className="community-card__inline-arrow" />
-                      </p>
-                    </div>
-                  </button>
-                  {item.isActive ? <span className="community-status">Actif</span> : null}
-                </div>
 
-                <button
-                  type="button"
-                  className="community-farm-hit"
-                  onClick={() => navigate(`/farm/${item.farmId}`)}
-                  title={`Ouvrir la ferme ${item.farmName}`}
-                >
-                  <div className="community-farm-hit__title-row">
-                    <div>
-                      <p className="community-farm-hit__label">Ferme publique</p>
-                      <p className="community-farm-hit__name">{item.farmName}</p>
-                      <p className="community-farm-hit__meta">
-                        Créée le {formatDate(item.creationDate)}
-                      </p>
-                    </div>
-                    <span className="community-hit__cta community-hit__cta--farm">
-                      Voir ferme <ChevronRight size={15} className="community-hit__arrow" />
-                    </span>
-                  </div>
-                  <MiniFarmPreview
-                    siteColors={item.siteColors}
-                    centerStyle={item.centerStyle}
-                    label={item.farmName}
-                  />
-                </button>
-                </article>
-              ))}
-            </section>
-          </>
+                    <button
+                      type="button"
+                      className="community-farm-hit"
+                      onClick={() => navigate(`/farm/${item.farmId}`)}
+                      title={`Ouvrir la ferme ${item.farmName}`}
+                    >
+                      <span className="community-farm-hit__title-row">
+                        <span className="community-farm-hit__text">
+                          <span className="community-farm-hit__label">Ferme publique</span>
+                          <span className="community-farm-hit__name">{item.farmName}</span>
+                          <span className="community-farm-hit__meta">Créée le {formatDate(item.creationDate)}</span>
+                        </span>
+                        <span className="community-hit__cta">
+                          Voir ferme <ChevronRight size={15} aria-hidden="true" />
+                        </span>
+                      </span>
+                      <MiniFarmPreview
+                        siteColors={item.siteColors}
+                        centerStyle={item.centerStyle}
+                        label={item.farmName}
+                      />
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+          </section>
         )}
 
         {!communityQuery.isLoading && !communityQuery.isError ? (
@@ -469,7 +407,7 @@ function CommunityPage() {
               onClick={() => setPage((current) => Math.max(0, current - 1))}
               disabled={page === 0 || communityQuery.isFetching}
             >
-              Precedent
+              Précédent
             </button>
             <span>Page {page + 1}</span>
             <button

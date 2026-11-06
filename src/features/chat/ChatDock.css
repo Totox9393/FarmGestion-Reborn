@@ -406,6 +406,34 @@
 }
 .fg-chat-dock .str-chat__send-button { color: var(--fg-chat-accent); }
 
+.fg-chat-dock .str-chat__button.str-chat__attachment-preview__remove-button,
+.community-public-chat__stream .str-chat__button.str-chat__attachment-preview__remove-button {
+  top: 4px;
+  inset-inline-end: 4px;
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  min-height: 19px;
+  display: grid;
+  place-items: center;
+  border-width: 1px;
+  border-color: color-mix(in srgb, var(--fg-chat-border, #d7d3ea) 78%, transparent);
+  color: var(--fg-chat-text, #27213d);
+  background: color-mix(in srgb, var(--fg-chat-surface, #fff) 92%, #f2f0fb);
+  box-shadow: 0 1px 5px rgba(23, 20, 41, 0.2);
+}
+.fg-chat-dock .str-chat__button.str-chat__attachment-preview__remove-button:hover,
+.community-public-chat__stream .str-chat__button.str-chat__attachment-preview__remove-button:hover {
+  border-color: transparent;
+  color: #fff;
+  background: var(--fg-chat-accent, #7b61ff);
+}
+.fg-chat-dock .str-chat__button.str-chat__attachment-preview__remove-button > svg,
+.community-public-chat__stream .str-chat__button.str-chat__attachment-preview__remove-button > svg {
+  width: 11px;
+  height: 11px;
+}
+
 .fg-chat-betail-submenu {
   position: relative;
   z-index: 100;

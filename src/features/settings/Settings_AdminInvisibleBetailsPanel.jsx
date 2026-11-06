@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
+import { formatMatricule } from '../utils/formatMatricule';
 
 const PAGE_SIZE = 8;
 const SEARCH_DEBOUNCE_MS = 280;
@@ -356,7 +357,7 @@ function Settings_AdminInvisibleBetailsPanel({ isActive, isAdmin }) {
                 <div className="settings-admin-shipping-info">
                   <p className="settings-admin-shipping-title">{row.name}</p>
                   <p className="settings-admin-shipping-meta">
-                    Matricule: {row.matricule} · Owner: {row.owner}
+                    Matricule: {formatMatricule(row.matricule)} · Owner: {row.owner}
                   </p>
                   {row.isVisible ? (
                     <p className="settings-admin-shipping-meta">Statut: Visible</p>

@@ -31,6 +31,7 @@ import {
 import { getFullVersionLabel } from '../utils/appVersion';
 import { syncNewsletterPreferenceToTotoxFr } from '../utils/newsletterSync';
 import useMobileScrollLock from '../utils/useMobileScrollLock';
+import { formatMatricule } from '../utils/formatMatricule';
 import './SettingsModal.css';
 
 const SECTIONS = {
@@ -1108,7 +1109,7 @@ function SettingsModal({ isOpen, onClose, onOpenHelp, user, profile }) {
                                       : null;
                                     const equippedHoverLabel = isEquippedOnBetail
                                       ? (equippedBetailInfo
-                                        ? `${equippedBetailInfo.name} • ${equippedBetailInfo.matricule}`
+                                        ? `${equippedBetailInfo.name} • ${formatMatricule(equippedBetailInfo.matricule)}`
                                         : (equippedBetailsQuery.isLoading ? 'Chargement du bétail...' : 'Bétail équipé'))
                                       : 'Équipé sur la ferme';
                                     return (

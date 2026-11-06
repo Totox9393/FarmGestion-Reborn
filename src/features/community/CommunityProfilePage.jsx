@@ -22,7 +22,10 @@ import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import blockedProfileFailSound from '../../assets/sounds/JIN_EVENT_FAIL.WAV';
 import likeConfirmSound from '../../assets/sounds/confirmation_003.ogg';
 import { createSafeAudio, playAudioSafely, restartAudioSafely } from '../utils/safeAudio';
+import ProfileAvatarImage from '../utils/ProfileAvatarImage';
+import { formatMatricule } from '../utils/formatMatricule';
 import { useChatDock } from '../chat/chatDockContext';
+import useStreamAvatarUrls from '../chat/useStreamAvatarUrls';
 import './CommunityProfilePage.css';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -39,32 +42,6 @@ const isMissingRpcError = (error) => {
 const isNotAuthenticatedError = (error) => {
   const message = String(error?.message || '').toLowerCase();
   return message.includes('not authenticated');
-};
-
-const buildAvatarCandidates = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return [];
-  if (raw.startsWith('http://') || raw.startsWith('https://')) return [raw];
-  if (!SUPABASE_URL) return [raw];
-
-  const candidates = [raw];
-  if (raw.startsWith('/storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-  } else if (raw.startsWith('storage/v1/object/public/')) {
-    candidates.push(`${SUPABASE_URL}/${raw}`);
-  } else if (raw.startsWith('/')) {
-    candidates.push(`${SUPABASE_URL}${raw}`);
-    const normalized = raw.replace(/^\/+/, '');
-    candidates.push(`${SUPABASE_URL}/${normalized}`);
-  } else if (raw.includes('/')) {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/${raw}`);
-  } else {
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/avatars/${raw}`);
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/ressources/${raw}`);
-    candidates.push(`${SUPABASE_URL}/storage/v1/object/public/betails/${raw}`);
-  }
-
-  return Array.from(new Set(candidates));
 };
 
 const normalizeSettingBetailIds = (value) => {
@@ -120,35 +97,6 @@ const resolveBetailImageUrl = (value) => {
 const dispatchToast = (message, type = 'info') => {
   window.dispatchEvent(new CustomEvent('farmgestion-toast', { detail: { type, message } }));
 };
-
-function AvatarMedia({ avatarUrl }) {
-  const candidates = useMemo(() => buildAvatarCandidates(avatarUrl), [avatarUrl]);
-  const [index, setIndex] = useState(0);
-
-  useEffect(() => {
-    setIndex(0);
-  }, [avatarUrl]);
-
-  const nextSrc = candidates[index] || '';
-  if (!nextSrc || index >= candidates.length) {
-    return <img src={defaultProfileUser} alt="Avatar profil" loading="lazy" />;
-  }
-
-  return (
-    <img
-      src={nextSrc}
-      alt="Avatar profil"
-      loading="lazy"
-      onError={() => {
-        if (index < candidates.length - 1) {
-          setIndex((current) => current + 1);
-          return;
-        }
-        setIndex(candidates.length);
-      }}
-    />
-  );
-}
 
 function OverflowAutoScrollText({ text, className = '', title }) {
   const viewportRef = useRef(null);
@@ -501,7 +449,11 @@ function CommunityProfilePage() {
   const handleOpenChat = async () => {
     if (!isFriend || !profile?.id) return;
     try {
-      await openChat({ id: profile.id, name: profile.username, image: profile.avatar_url });
+      await openChat({
+        id: profile.id,
+        name: profile.username,
+        image: streamAvatarUrlsById[profile.id] || profile.avatar_url,
+      });
     } catch (error) {
       dispatchToast(error?.message || 'Impossible d’ouvrir la conversation.', 'error');
     }
@@ -531,7 +483,12 @@ function CommunityProfilePage() {
     unblockMutation.mutate();
   };
 
-  const friendsList = friendsListQuery.data || [];
+  const friendsList = useMemo(() => friendsListQuery.data || [], [friendsListQuery.data]);
+  const profileAvatarUserIds = useMemo(
+    () => [profile?.id, ...friendsList.map((friend) => friend.friendId)],
+    [friendsList, profile?.id],
+  );
+  const streamAvatarUrlsById = useStreamAvatarUrls(profileAvatarUserIds);
   const profileBadges = profileBadgesQuery.data || [];
   const collapsedBadgesCount = isMobileBadgesLayout ? COLLAPSED_BADGES_COUNT_MOBILE : COLLAPSED_BADGES_COUNT_DESKTOP;
   const canToggleBadges = profileBadges.length > collapsedBadgesCount;
@@ -838,7 +795,11 @@ function CommunityProfilePage() {
           <article className="community-profile-card">
             <div className="community-profile-head">
               <div className="community-profile-avatar" aria-hidden="true">
-                <AvatarMedia avatarUrl={profile?.avatar_url} />
+                <ProfileAvatarImage
+                  avatarUrl={streamAvatarUrlsById[profile?.id] || profile?.avatar_url}
+                  alt="Avatar profil"
+                  loading="lazy"
+                />
               </div>
               <div>
                 <h1>{profile.username || 'Utilisateur'}</h1>
@@ -1053,7 +1014,11 @@ function CommunityProfilePage() {
                       onClick={() => navigate(`/community/profile/${encodeURIComponent(friend.username)}`)}
                     >
                       <span className="community-profile-friend-card__avatar" aria-hidden="true">
-                        <AvatarMedia avatarUrl={friend.avatarUrl} />
+                        <ProfileAvatarImage
+                          avatarUrl={streamAvatarUrlsById[friend.friendId] || friend.avatarUrl}
+                          alt="Avatar profil"
+                          loading="lazy"
+                        />
                       </span>
                       <span className="community-profile-friend-card__content">
                         <span className="community-profile-friend-card__name">{friend.username}</span>
@@ -1086,7 +1051,7 @@ function CommunityProfilePage() {
                     <article
                       key={betail.id}
                       className={`community-pinned-card ${flippedBetailIds.has(betail.id) ? 'is-flipped' : ''}`}
-                      title={`${betail.name} (${betail.matricule})`}
+                      title={`${betail.name} (${formatMatricule(betail.matricule)})`}
                       role="button"
                       tabIndex={0}
                       onClick={() => togglePinnedCard(betail.id)}
@@ -1124,7 +1089,7 @@ function CommunityProfilePage() {
                             <span className="community-pinned-name">
                               <OverflowAutoScrollText text={betail.name} />
                             </span>
-                            <span className="community-pinned-matricule">#{betail.matricule}</span>
+                            <span className="community-pinned-matricule">{formatMatricule(betail.matricule)}</span>
                           </div>
                         </div>
 

@@ -6,6 +6,7 @@ import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges/badgeUtils';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
+import { formatMatricule } from '../utils/formatMatricule';
 import Settings_AdminDuplicateBetailsPanel from './Settings_AdminDuplicateBetailsPanel';
 import './Settings_CentralePage.css';
 
@@ -202,12 +203,6 @@ const normalizeBadgeEntries = (value) => {
     seen.add(key);
     return true;
   });
-};
-
-const formatMatricule = (value) => {
-  const raw = String(value || '').trim();
-  if (!raw) return '-';
-  return raw.startsWith('#') ? raw : `#${raw}`;
 };
 
 const isPublicRegisterBetail = (betail) => {

@@ -1,100 +1,142 @@
+/* Signalement d'un bétail (voir DESIGN_ANTI_IA.md). Variables --rb-* définies sur la modale. */
+
 .report-betail-overlay {
   position: fixed;
   inset: 0;
   z-index: 2000;
-  background: rgba(14, 16, 24, 0.55);
-  backdrop-filter: blur(6px);
   display: grid;
   place-items: center;
   padding: 20px;
+  background: rgba(8, 10, 18, 0.6);
 }
 
 .report-betail-modal {
-  --report-bg: #fbfbff;
-  --report-panel: #ffffff;
-  --report-panel-soft: #f4f6ff;
-  --report-text: #241b3f;
-  --report-text-soft: rgba(36, 27, 63, 0.72);
-  --report-border: rgba(110, 92, 192, 0.2);
-  --report-accent: #6a4bdd;
-  --report-accent-soft: rgba(106, 75, 221, 0.12);
-  --report-danger: #d84862;
-  width: min(700px, calc(100vw - 24px));
-  max-height: min(640px, calc(100vh - 24px));
-  border-radius: 20px;
-  border: 1px solid var(--report-border);
-  background: var(--report-bg);
-  color: var(--report-text);
-  box-shadow: 0 22px 50px rgba(14, 16, 24, 0.35);
+  --rb-ink: #2a2438;
+  --rb-soft: #5d576f;
+  --rb-accent: #4e3cb8;
+  --rb-on-accent: #ffffff;
+  --rb-surface: #ffffff;
+  --rb-danger: #a3405e;
+  --rb-ok: #1f7a4d;
+  --rb-line: color-mix(in srgb, var(--rb-ink) 16%, transparent);
+  --rb-track: color-mix(in srgb, var(--rb-ink) 7%, transparent);
+  --rb-hover: color-mix(in srgb, var(--rb-accent) 10%, transparent);
+  position: relative;
+  width: min(680px, calc(100vw - 24px));
+  max-height: min(660px, calc(100vh - 24px));
   display: flex;
   flex-direction: column;
-  position: relative;
   overflow: hidden;
+  border: 1px solid var(--rb-line);
+  border-radius: 16px;
+  background: var(--rb-surface);
+  color: var(--rb-ink);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+.auth-theme.pastel_theme .report-betail-modal {
+  --rb-ink: #4a2435;
+  --rb-soft: #7a4f63;
+  --rb-accent: #a8386f;
+  --rb-surface: #fffafc;
+}
+
+.auth-theme.multicolor_theme .report-betail-modal {
+  --rb-ink: #35204b;
+  --rb-soft: #62507a;
+  --rb-accent: #5a3fc0;
+  --rb-surface: #fdfbff;
+}
+
+.auth-theme.dark_theme .report-betail-modal,
+.auth-theme.galactic_theme .report-betail-modal {
+  --rb-ink: #e8eefb;
+  --rb-soft: #a8b5cc;
+  --rb-accent: #8db3ff;
+  --rb-on-accent: #0f1a2e;
+  --rb-surface: #181d2b;
+  --rb-danger: #ff9db7;
+  --rb-ok: #7fdcab;
+  --rb-line: color-mix(in srgb, var(--rb-ink) 18%, transparent);
+  --rb-track: color-mix(in srgb, var(--rb-ink) 9%, transparent);
+}
+
+.auth-theme.galactic_theme .report-betail-modal {
+  --rb-surface: #1c263c;
+}
+
+/* ---------- En-tête ---------- */
+
+.report-betail-header {
+  padding: 16px 96px 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 1px solid var(--rb-line);
+  background: color-mix(in srgb, var(--rb-accent) 6%, var(--rb-surface));
+}
+
+.report-betail-milo {
+  width: 48px;
+  height: 48px;
+  flex: none;
+  object-fit: contain;
+}
+
+.report-betail-header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--rb-ink);
+}
+
+.report-betail-header p {
+  margin: 2px 0 0;
+  font-size: 0.9rem;
+  color: var(--rb-soft);
 }
 
 .report-betail-top-actions {
   position: absolute;
-  top: 9px;
+  top: 10px;
   right: 10px;
-  z-index: 3;
-  display: inline-flex;
+  z-index: 2;
+  display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px;
 }
 
-.report-betail-close {
-  position: relative;
-  width: 30px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--report-text);
-  font-size: 25px;
+.report-betail-close,
+.report-betail-visibility-toggle {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--rb-soft);
+  font-size: 1.6rem;
   line-height: 1;
   cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: color 0.16s ease, transform 0.16s ease;
+  transition: background-color 0.15s ease;
 }
 
-.report-betail-close:hover {
-  color: #ff4d4f;
-  transform: translateY(-1px);
-}
-
-.report-betail-visibility-toggle {
-  position: relative;
-  width: 30px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 0;
-  padding: 0;
-  transition: filter 0.16s ease, transform 0.16s ease;
-}
-
-.report-betail-visibility-toggle svg {
-  display: block;
-  transform: translateY(2px);
+.report-betail-close:hover,
+.report-betail-visibility-toggle:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--rb-hover);
 }
 
 .report-betail-visibility-toggle.is-visible {
-  color: #1f9c63;
+  color: var(--rb-ok);
 }
 
 .report-betail-visibility-toggle.is-hidden {
-  color: #d94747;
-}
-
-.report-betail-visibility-toggle:hover {
-  filter: brightness(0.9);
-  transform: translateY(-1px) scale(1.06);
+  color: var(--rb-danger);
 }
 
 .report-betail-visibility-toggle:disabled {
@@ -102,114 +144,62 @@
   cursor: progress;
 }
 
-.report-betail-visibility-toggle::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  right: -4px;
-  top: calc(100% + 8px);
-  white-space: nowrap;
-  pointer-events: none;
-  opacity: 0;
-  transform: translateY(-4px);
-  transition: opacity 0.16s ease, transform 0.16s ease;
-  background: rgba(30, 33, 45, 0.94);
-  color: #ffffff;
-  border-radius: 8px;
-  padding: 6px 8px;
-  font-size: 0.72rem;
-  font-weight: 700;
-  z-index: 6;
+.report-betail-close:focus-visible,
+.report-betail-visibility-toggle:focus-visible,
+.report-betail-back-reasons:focus-visible,
+.report-betail-cancel:focus-visible,
+.report-betail-submit:focus-visible,
+.report-betail-other-wrap textarea:focus-visible,
+.report-betail-reason:focus-within {
+  outline: 2px solid var(--rb-accent);
+  outline-offset: 2px;
 }
 
-.report-betail-visibility-toggle:hover::after,
-.report-betail-visibility-toggle:focus-visible::after {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.report-betail-header {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
-  align-items: center;
-  padding: 14px 46px 10px 14px;
-  background: linear-gradient(160deg, var(--report-panel-soft), transparent 70%);
-  border-bottom: 1px solid var(--report-border);
-}
-
-.report-betail-milo {
-  width: 58px;
-  height: 58px;
-  object-fit: contain;
-  filter: drop-shadow(0 6px 10px rgba(12, 14, 24, 0.22));
-}
-
-.report-betail-eyebrow {
-  margin: 0 0 2px;
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--report-accent);
-}
-
-.report-betail-header h2 {
-  margin: 0;
-  font-size: 1.2rem;
-}
-
-.report-betail-header p {
-  margin: 2px 0 0;
-  color: var(--report-text-soft);
-  font-size: 0.86rem;
-}
+/* ---------- Corps ---------- */
 
 .report-betail-form {
   min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  flex: 1;
 }
 
 .report-betail-layout {
-  flex: 1;
   min-height: 0;
+  flex: 1;
   display: grid;
-  grid-template-columns: minmax(205px, 240px) 1fr;
-  gap: 8px;
-  padding: 10px 12px 8px;
-  overflow: hidden;
+  grid-template-columns: minmax(190px, 230px) minmax(0, 1fr);
+  gap: 24px;
+  padding: 18px;
+  overflow-y: auto;
 }
 
 .report-betail-summary {
-  background: var(--report-panel);
-  border: 1px solid var(--report-border);
-  border-radius: 12px;
-  padding: 10px;
   display: grid;
+  gap: 14px;
   align-content: start;
-  gap: 8px;
-  align-self: start;
+  min-width: 0;
 }
 
 .report-betail-summary-head {
-  display: grid;
-  grid-template-columns: 62px 1fr;
-  gap: 8px;
+  display: flex;
   align-items: center;
+  gap: 12px;
+  min-width: 0;
 }
 
 .report-betail-avatar {
-  width: 62px;
-  height: 62px;
-  border-radius: 999px;
-  border: 2px solid var(--report-border);
-  background: var(--report-panel-soft);
-  overflow: hidden;
+  width: 56px;
+  height: 56px;
+  flex: none;
   display: grid;
   place-items: center;
-  font-size: 1.45rem;
-  font-weight: 800;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--rb-track);
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--rb-soft);
 }
 
 .report-betail-avatar img {
@@ -220,21 +210,23 @@
 
 .report-betail-summary-head h3 {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: 1rem;
+  line-height: 1.25;
+  font-weight: 700;
+  overflow-wrap: anywhere;
 }
 
 .report-betail-summary-head p {
-  margin: 4px 0 0;
-  color: var(--report-accent);
-  font-size: 0.76rem;
-  font-weight: 700;
+  margin: 2px 0 0;
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--rb-soft);
 }
 
 .report-betail-meta {
   margin: 0;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  display: grid;
+  gap: 8px;
 }
 
 .report-betail-meta div {
@@ -243,97 +235,75 @@
 }
 
 .report-betail-meta dt {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--report-text-soft);
-  font-weight: 800;
+  font-size: 0.85rem;
+  color: var(--rb-soft);
 }
 
 .report-betail-meta dd {
   margin: 0;
-  font-weight: 700;
-  font-size: 0.92rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .report-betail-comment {
-  background: var(--report-panel-soft);
-  border: 1px solid var(--report-border);
-  border-radius: 10px;
-  padding: 8px;
-}
-
-.report-betail-comment-text {
-  max-height: 112px;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 2px;
-}
-
-.report-betail-comment-text::-webkit-scrollbar {
-  width: 8px;
-}
-
-.report-betail-comment-text::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: rgba(106, 75, 221, 0.42);
-}
-
-.report-betail-comment-text::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.report-betail-comment-label {
-  margin: 0 0 6px;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 800;
-  color: var(--report-text-soft);
+  padding-top: 12px;
+  border-top: 1px solid var(--rb-line);
 }
 
 .report-betail-comment p {
   margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.4;
-  color: var(--report-text-soft);
 }
+
+.report-betail-comment .report-betail-comment-label {
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+  color: var(--rb-soft);
+}
+
+.report-betail-comment-text {
+  max-height: 120px;
+  overflow-y: auto;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Motifs ---------- */
 
 .report-betail-reasons {
   min-width: 0;
   display: grid;
+  gap: 10px;
   align-content: start;
-  gap: 8px;
 }
 
 .report-betail-step {
   margin: 0;
+  font-size: 1rem;
   font-weight: 700;
-  font-size: 0.86rem;
-  color: var(--report-text-soft);
 }
 
 .report-betail-reason-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  gap: 8px;
 }
 
 .report-betail-reason {
-  border: 1px solid var(--report-border);
-  border-radius: 10px;
-  background: var(--report-panel);
-  padding: 8px;
+  position: relative;
+  min-height: 44px;
+  padding: 8px 10px;
   display: flex;
   align-items: center;
+  gap: 10px;
+  border: 1px solid var(--rb-line);
+  border-radius: 8px;
   cursor: pointer;
-  transition: border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
-  min-height: 42px;
+  transition: border-color 0.15s ease;
 }
 
 .report-betail-reason:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 16px rgba(19, 22, 36, 0.1);
+  border-color: color-mix(in srgb, var(--rb-ink) 34%, transparent);
 }
 
 .report-betail-reason input {
@@ -342,152 +312,164 @@
   pointer-events: none;
 }
 
+.report-betail-reason-dot {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--rb-soft);
+  border-radius: 50%;
+  background: transparent;
+}
+
 .report-betail-reason.is-selected {
-  border-color: rgba(106, 75, 221, 0.55);
-  box-shadow: 0 0 0 1px rgba(106, 75, 221, 0.34);
-  background: var(--report-accent-soft);
+  border-color: var(--rb-accent);
+}
+
+.report-betail-reason.is-selected .report-betail-reason-dot {
+  border-color: var(--rb-accent);
+  background: radial-gradient(circle, var(--rb-accent) 0 38%, transparent 42%);
 }
 
 .report-betail-reason-title {
-  font-weight: 800;
-  font-size: 0.82rem;
-  line-height: 1.2;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
 
 .report-betail-selected-hint {
   margin: 0;
-  min-height: 36px;
-  border-radius: 10px;
-  border: 1px dashed var(--report-border);
-  background: var(--report-panel-soft);
-  padding: 8px 10px;
-  font-size: 0.78rem;
-  line-height: 1.3;
-  color: var(--report-text-soft);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  color: var(--rb-soft);
 }
 
 .report-betail-other-view {
   display: grid;
-  gap: 8px;
+  gap: 10px;
 }
 
 .report-betail-back-reasons {
   justify-self: start;
-  border: 1px solid var(--report-border);
-  background: var(--report-panel);
-  color: var(--report-text);
-  border-radius: 999px;
-  height: 32px;
-  padding: 0 12px;
-  font-size: 0.8rem;
-  font-weight: 700;
+  min-height: 40px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--rb-accent);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
 .report-betail-back-reasons:hover {
-  background: var(--report-panel-soft);
+  border-color: transparent;
 }
 
 .report-betail-other-wrap {
   display: grid;
-  gap: 4px;
-  min-height: 0;
-  align-content: start;
+  gap: 6px;
 }
 
 .report-betail-other-wrap label {
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: var(--report-text-soft);
+  font-size: 0.92rem;
+  font-weight: 600;
 }
 
 .report-betail-other-wrap textarea {
   width: 100%;
-  resize: none;
-  min-height: 74px;
-  max-height: 74px;
-  border-radius: 10px;
-  border: 1px solid var(--report-border);
-  background: var(--report-panel);
-  color: var(--report-text);
+  min-height: 96px;
   padding: 10px;
-  font-size: 0.92rem;
-  font-family: inherit;
-}
-
-.report-betail-other-wrap textarea:focus,
-.report-betail-reason:focus-within,
-.report-betail-cancel:focus,
-.report-betail-submit:focus,
-.report-betail-close:focus {
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(106, 75, 221, 0.35);
+  resize: vertical;
+  border: 1px solid var(--rb-line);
+  border-radius: 8px;
+  background: var(--rb-surface);
+  color: var(--rb-ink);
+  font: inherit;
+  font-size: 0.95rem;
+  box-sizing: border-box;
 }
 
 .report-betail-other-foot {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  color: var(--report-text-soft);
-  font-size: 0.76rem;
+  gap: 12px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--rb-soft);
 }
 
 .report-betail-other-foot .is-warning {
-  color: var(--report-danger);
-  font-weight: 700;
+  color: var(--rb-danger);
+  font-weight: 600;
 }
 
 .report-betail-error {
   margin: 0;
-  color: var(--report-danger);
-  font-size: 0.82rem;
-  font-weight: 700;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--rb-danger);
 }
 
+/* ---------- Actions ---------- */
+
 .report-betail-actions {
+  padding: 12px 18px;
   display: flex;
-  justify-content: flex-end;
   align-items: center;
-  gap: 10px;
-  padding: 10px 12px 12px;
-  border-top: 1px solid var(--report-border);
-  background: var(--report-panel);
+  justify-content: flex-end;
+  gap: 18px;
+  border-top: 1px solid var(--rb-line);
 }
 
 .report-betail-cancel,
 .report-betail-submit {
-  height: 40px;
-  border-radius: 999px;
-  border: 1px solid var(--report-border);
-  padding: 0 16px;
+  min-height: 44px;
+  font: inherit;
   font-weight: 700;
   cursor: pointer;
 }
 
 .report-betail-cancel {
-  background: var(--report-panel-soft);
-  color: var(--report-text);
+  padding: 0 2px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--rb-accent);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.report-betail-cancel:hover {
+  border-color: transparent;
 }
 
 .report-betail-submit {
-  border: 0;
-  background: linear-gradient(135deg, #8d72ff, var(--report-accent));
-  color: #ffffff;
-  box-shadow: 0 10px 18px rgba(106, 75, 221, 0.34);
+  padding: 0 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--rb-accent);
+  color: var(--rb-on-accent);
+  transition: background-color 0.15s ease;
+}
+
+.report-betail-submit:hover:not(:disabled) {
+  border-color: transparent;
+  background: color-mix(in srgb, var(--rb-accent) 85%, var(--rb-ink));
 }
 
 .report-betail-submit:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  box-shadow: none;
 }
 
+/* ---------- Confirmation ---------- */
+
 .report-betail-success {
-  margin: 16px;
-  padding: 18px;
-  border-radius: 14px;
-  border: 1px solid var(--report-border);
-  background: var(--report-panel);
+  padding: 20px 18px;
   display: grid;
   gap: 8px;
   justify-items: start;
@@ -495,132 +477,57 @@
 
 .report-betail-success h3 {
   margin: 0;
+  font-size: 1.1rem;
 }
 
 .report-betail-success p {
-  margin: 0;
-  color: var(--report-text-soft);
+  margin: 0 0 8px;
+  max-width: 52ch;
   line-height: 1.45;
+  color: var(--rb-soft);
 }
 
-.auth-theme.dark_theme .report-betail-modal {
-  --report-bg: rgba(20, 22, 36, 0.98);
-  --report-panel: rgba(24, 26, 40, 0.98);
-  --report-panel-soft: rgba(28, 32, 52, 0.95);
-  --report-text: #eef0ff;
-  --report-text-soft: rgba(230, 226, 255, 0.72);
-  --report-border: rgba(122, 91, 255, 0.34);
-  --report-accent: #9f8bff;
-  --report-accent-soft: rgba(122, 91, 255, 0.22);
-  --report-danger: #ff8096;
-}
+/* ---------- Mobile ---------- */
 
-.auth-theme.pastel_theme .report-betail-modal {
-  --report-bg: rgba(255, 247, 252, 0.98);
-  --report-panel: rgba(255, 251, 254, 0.98);
-  --report-panel-soft: rgba(255, 241, 249, 0.95);
-  --report-text: #4a2435;
-  --report-text-soft: rgba(74, 36, 53, 0.72);
-  --report-border: rgba(245, 138, 198, 0.35);
-  --report-accent: #d85b9d;
-  --report-accent-soft: rgba(245, 138, 198, 0.2);
-  --report-danger: #cc4b70;
-}
-
-.auth-theme.galactic_theme .report-betail-modal {
-  --report-bg: rgba(24, 32, 50, 0.98);
-  --report-panel: rgba(30, 40, 62, 0.98);
-  --report-panel-soft: rgba(35, 47, 72, 0.95);
-  --report-text: #edf3ff;
-  --report-text-soft: rgba(214, 228, 255, 0.76);
-  --report-border: rgba(141, 179, 255, 0.34);
-  --report-accent: #8db3ff;
-  --report-accent-soft: rgba(141, 179, 255, 0.2);
-  --report-danger: #ff8ea1;
-}
-
-.auth-theme.multicolor_theme .report-betail-modal {
-  --report-bg: rgba(247, 241, 255, 0.98);
-  --report-panel: rgba(255, 255, 255, 0.98);
-  --report-panel-soft: rgba(244, 238, 255, 0.95);
-  --report-text: #35204b;
-  --report-text-soft: rgba(53, 32, 75, 0.72);
-  --report-border: rgba(162, 128, 255, 0.34);
-  --report-accent: #6a4bdd;
-  --report-accent-soft: rgba(162, 128, 255, 0.2);
-  --report-danger: #cf4f73;
-}
-
-@media (max-width: 860px) {
+@media (max-width: 720px) {
   .report-betail-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .report-betail-reason-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .report-betail-summary {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-    align-items: start;
-  }
-
-  .report-betail-summary-head {
-    grid-column: 1 / -1;
-  }
-
-  .report-betail-comment {
-    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
   }
 }
 
 @media (max-width: 540px) {
   .report-betail-overlay {
     padding: 8px;
-    align-items: start;
     place-items: start center;
-    overflow-y: auto;
   }
 
   .report-betail-modal {
-    width: min(700px, 100%);
+    width: 100%;
     max-height: calc(100svh - 16px);
-    border-radius: 16px;
-  }
-
-  .report-betail-form,
-  .report-betail-layout,
-  .report-betail-reasons {
-    min-height: 0;
-  }
-
-  .report-betail-form {
-    overflow: hidden;
-  }
-
-  .report-betail-layout {
-    overflow-y: auto;
-    overscroll-behavior: contain;
-    padding-bottom: 10px;
-  }
-
-  .report-betail-reasons {
-    align-content: start;
-    padding-bottom: 2px;
   }
 
   .report-betail-header {
-    grid-template-columns: 1fr;
-    padding-right: 42px;
+    padding: 14px 92px 12px 14px;
   }
 
-  .report-betail-milo {
-    width: 62px;
-    height: 62px;
+  .report-betail-layout {
+    padding: 14px;
+    overscroll-behavior: contain;
   }
 
   .report-betail-reason-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .report-betail-actions {
+    padding: 10px 14px;
+    flex-direction: column-reverse;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .report-betail-cancel {
+    text-align: center;
   }
 }

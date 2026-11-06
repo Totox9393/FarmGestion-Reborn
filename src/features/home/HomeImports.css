@@ -1,0 +1,238 @@
+/* Carrousel "Dernières importations" (voir DESIGN_ANTI_IA.md). Utilise les tokens --hw-* de HomeWelcome.css. */
+
+.home-imports {
+  --hi-visible: 4;
+  position: relative;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 24px 28px 28px;
+  border: 1px solid var(--hw-line);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--hw-accent) 5%, var(--hw-surface));
+  color: var(--hw-ink);
+}
+
+.home-imports__header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.home-imports__heading {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.home-imports__title {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.4vw, 1.6rem);
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--hw-ink);
+}
+
+.home-imports__hint {
+  max-width: 62ch;
+  font-size: 0.92rem;
+  line-height: 1.4;
+  color: var(--hw-soft);
+}
+
+.home-imports__controls {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.home-imports__count {
+  margin-right: 8px;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--hw-soft);
+  white-space: nowrap;
+}
+
+.home-imports__nav {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--hw-line);
+  border-radius: 0;
+  background: none;
+  color: var(--hw-ink);
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.home-imports__nav:hover:not(:disabled) {
+  background: var(--hw-track);
+  border-color: var(--hw-accent);
+}
+
+.home-imports__nav:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.home-imports__nav:focus-visible,
+.home-imports__like:focus-visible,
+.home-imports__card:focus-visible {
+  outline: 2px solid var(--hw-accent);
+  outline-offset: -2px;
+}
+
+.home-imports__viewport {
+  overflow: hidden;
+  border-top: 1px solid var(--hw-line);
+  border-bottom: 1px solid var(--hw-line);
+}
+
+.home-imports__track {
+  display: flex;
+  transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-imports__card {
+  flex: 0 0 calc(100% / var(--hi-visible));
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.home-imports__card + .home-imports__card {
+  border-left: 1px solid var(--hw-line);
+}
+
+.home-imports__card:hover {
+  background: var(--hw-track);
+}
+
+/* Le recadrage/zoom choisi par le joueur est DÉJÀ intégré dans le fichier (PNG 512x512, voir REGLES_DE_BASE.md).
+   On affiche l'image entière dans un cercle 1:1 : aucun zoom, décalage ni object-position ici. */
+.home-imports__media {
+  position: relative;
+  flex: none;
+  width: min(100%, 132px);
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--hw-line);
+  background-color: var(--hw-track);
+}
+
+.home-imports__media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: none;
+  -webkit-user-drag: none;
+  user-select: none;
+}
+
+.home-imports__body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.home-imports__text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.home-imports__name {
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.25;
+  font-weight: 700;
+  color: var(--hw-ink);
+  overflow-wrap: anywhere;
+}
+
+.home-imports__matricule {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--hw-accent);
+}
+
+.home-imports__author {
+  font-size: 0.85rem;
+  color: var(--hw-soft);
+  overflow-wrap: anywhere;
+}
+
+.home-imports__like {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--hw-soft);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.home-imports__like:hover:not(:disabled) {
+  background: var(--hw-track);
+  color: var(--hw-danger);
+}
+
+.home-imports__like.is-liked {
+  color: var(--hw-danger);
+}
+
+.home-imports__like:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (max-width: 640px) {
+  .home-imports {
+    padding: 18px 16px 20px;
+  }
+
+  .home-imports__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .home-imports__controls {
+    justify-content: flex-end;
+  }
+
+  .home-imports__count {
+    margin-right: auto;
+  }
+
+  .home-imports__media {
+    width: 112px;
+  }
+}

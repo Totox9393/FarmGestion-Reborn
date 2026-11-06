@@ -455,6 +455,40 @@
   box-shadow: 0 12px 28px rgba(35, 26, 70, 0.14);
 }
 
+.betail-card.is-newly-arrived {
+  animation: betail-arrival-pop 620ms cubic-bezier(0.2, 0.72, 0.22, 1) both;
+}
+
+.betail-card.is-newly-arrived .betail-card-surface {
+  animation: betail-arrival-glow 760ms ease-out both;
+}
+
+@keyframes betail-arrival-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(0.96);
+  }
+  62% {
+    opacity: 1;
+    transform: translateY(-3px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes betail-arrival-glow {
+  0% {
+    border-color: rgba(122, 91, 255, 0.34);
+    box-shadow: 0 16px 34px rgba(88, 65, 168, 0.22);
+  }
+  100% {
+    border-color: rgba(72, 52, 130, 0.12);
+    box-shadow: 0 8px 20px rgba(35, 26, 70, 0.08);
+  }
+}
+
 .betail-card-surface {
   position: relative;
   inset: 0;

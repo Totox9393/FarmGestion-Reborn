@@ -15,6 +15,7 @@ import { supabase } from '../authentification/supabaseClient'
 import ReportBetailModal from '../signalement/ReportBetailModal'
 import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio'
 import useMobileScrollLock from '../utils/useMobileScrollLock'
+import { formatMatricule } from '../utils/formatMatricule'
 import './BetailsListPage.css'
 import betailSampleImage from '../../assets/betail_sample.png'
 import purchaseSound from '../../assets/sounds/SeResourceStdSystem_00000198_unlock_speed.wav'
@@ -136,6 +137,7 @@ function BetailCard({
   onToggleLike,
   onSelect,
   isRecommended = false,
+  isNewlyArrived = false,
 }) {
   const handleSelect = () => {
     onSelect?.(betail.id)
@@ -150,7 +152,7 @@ function BetailCard({
 
   return (
     <article
-      className={`betail-card ${isSelected ? 'is-selected' : ''} ${isPurchasing ? 'is-purchasing' : ''} ${isRecommended ? 'is-recommended' : ''}`}
+      className={`betail-card ${isSelected ? 'is-selected' : ''} ${isPurchasing ? 'is-purchasing' : ''} ${isRecommended ? 'is-recommended' : ''} ${isNewlyArrived ? 'is-newly-arrived' : ''}`}
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       role="button"
@@ -197,7 +199,7 @@ function BetailCard({
           <h3 className="betail-name">
             <OverflowAutoScrollText text={betail.name} />
           </h3>
-          <p className="betail-matricule">#{betail.matricule}</p>
+          <p className="betail-matricule">{formatMatricule(betail.matricule)}</p>
           <p className="betail-race">{betail.age ?? '—'} ans</p>
           <p className="betail-race">Par {authorName}</p>
         </div>
@@ -217,7 +219,12 @@ function BetailsListPageQuery() {
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
   const [reportBetailVisible, setReportBetailVisible] = useState(true)
   const [recommendationNow, setRecommendationNow] = useState(() => Date.now())
+  const [newlyArrivedIds, setNewlyArrivedIds] = useState(() => new Set())
   const shouldPlayRecommendationSoundRef = useRef(false)
+  const knownBetailIdsRef = useRef(new Set())
+  const hasRegisteredFirstListRef = useRef(false)
+  const clearNewlyArrivedTimerRef = useRef(0)
+  const shouldAnimateRealtimeArrivalsRef = useRef(false)
   const queryClient = useQueryClient()
   const purchaseAudio = useMemo(() => createSafeAudio(purchaseSound), [])
   const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), [])
@@ -450,6 +457,55 @@ function BetailsListPageQuery() {
     () => data?.pages.flatMap((page) => page.items) ?? [],
     [data],
   )
+
+  useEffect(() => {
+    const currentIds = new Set(
+      (betails || []).map((item) => String(item?.id || '')).filter(Boolean),
+    )
+
+    if (!hasRegisteredFirstListRef.current) {
+      knownBetailIdsRef.current = currentIds
+      hasRegisteredFirstListRef.current = true
+      return
+    }
+
+    const newlyAdded = []
+    currentIds.forEach((id) => {
+      if (!knownBetailIdsRef.current.has(id)) {
+        newlyAdded.push(id)
+      }
+    })
+
+    knownBetailIdsRef.current = currentIds
+
+    if (!shouldAnimateRealtimeArrivalsRef.current || newlyAdded.length === 0) {
+      shouldAnimateRealtimeArrivalsRef.current = false
+      return
+    }
+
+    setNewlyArrivedIds((previous) => {
+      const next = new Set(previous)
+      newlyAdded.forEach((id) => next.add(id))
+      return next
+    })
+
+    if (clearNewlyArrivedTimerRef.current) {
+      window.clearTimeout(clearNewlyArrivedTimerRef.current)
+    }
+    clearNewlyArrivedTimerRef.current = window.setTimeout(() => {
+      setNewlyArrivedIds(new Set())
+      clearNewlyArrivedTimerRef.current = 0
+    }, 900)
+    shouldAnimateRealtimeArrivalsRef.current = false
+  }, [betails])
+
+  useEffect(() => {
+    return () => {
+      if (clearNewlyArrivedTimerRef.current) {
+        window.clearTimeout(clearNewlyArrivedTimerRef.current)
+      }
+    }
+  }, [])
   const betailIds = useMemo(
     () => Array.from(new Set((betails || []).map((item) => String(item?.id || '')).filter(Boolean))).sort(),
     [betails],
@@ -592,6 +648,78 @@ function BetailsListPageQuery() {
     recommendationMutation.mutate()
   }
 
+  useEffect(() => {
+    const rowMatchesPublicRegister = (row) => {
+      if (!row || typeof row !== 'object') return true
+      return row.visible !== false && row.farm_id == null && row.owner_id == null
+    }
+
+    const shouldRefreshRegistry = (payload) => {
+      const eventType = String(payload?.eventType || '').toUpperCase()
+      if (eventType === 'DELETE') return true
+      if (eventType === 'INSERT') return rowMatchesPublicRegister(payload?.new)
+      if (eventType === 'UPDATE') {
+        const nextRow = payload?.new
+        const previousRow = payload?.old
+        const nextPublic = rowMatchesPublicRegister(nextRow)
+        const previousPublic = rowMatchesPublicRegister(previousRow)
+        return nextPublic || previousPublic
+      }
+      return true
+    }
+
+    const getAdaptiveRefreshDelay = (count) => {
+      if (count >= 20) return 1800
+      if (count >= 10) return 1200
+      if (count >= 4) return 700
+      return 280
+    }
+
+    let invalidateTimerId = 0
+    let batchCount = 0
+    let batchStartedAt = 0
+    const scheduleRefresh = () => {
+      const now = Date.now()
+      if (!batchStartedAt) batchStartedAt = now
+      batchCount += 1
+
+      const targetDelay = getAdaptiveRefreshDelay(batchCount)
+      const elapsed = now - batchStartedAt
+      const remaining = Math.max(80, targetDelay - elapsed)
+
+      if (invalidateTimerId) {
+        window.clearTimeout(invalidateTimerId)
+      }
+
+      invalidateTimerId = window.setTimeout(() => {
+        invalidateTimerId = 0
+        batchCount = 0
+        batchStartedAt = 0
+        shouldAnimateRealtimeArrivalsRef.current = true
+        queryClient.invalidateQueries({ queryKey: ['betails', 'list'] })
+        if (selectedBetailId) {
+          queryClient.invalidateQueries({ queryKey: ['betails', 'selected-route', selectedBetailId] })
+          queryClient.invalidateQueries({ queryKey: ['betails', 'detail', selectedBetailId] })
+        }
+      }, remaining)
+    }
+
+    const channel = supabase
+      .channel(`betails-register-live-${user?.id || 'anon'}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'betails' }, (payload) => {
+        if (!shouldRefreshRegistry(payload)) return
+        scheduleRefresh()
+      })
+      .subscribe()
+
+    return () => {
+      if (invalidateTimerId) {
+        window.clearTimeout(invalidateTimerId)
+      }
+      supabase.removeChannel(channel)
+    }
+  }, [queryClient, selectedBetailId, user?.id])
+
   const handleToggleLike = (betail, currentlyLiked) => {
     if (!betail?.id || toggleLikeMutation.isPending) return
     toggleLikeMutation.mutate({
@@ -729,6 +857,11 @@ function BetailsListPageQuery() {
   }, [selectedBetail])
 
   useEffect(() => {
+    // Arrivée sur le registre : on repart du haut (sinon on garde le scroll de la page précédente).
+    window.scrollTo(0, 0)
+  }, [])
+
+  useEffect(() => {
     document.title = selectedBetailTitle ? `FG - ${selectedBetailTitle}` : 'FG - Registre'
   }, [selectedBetailTitle])
 
@@ -804,6 +937,7 @@ function BetailsListPageQuery() {
                       : 'Recommandez-moi un bétail'}
               </button>
             </div>
+
           </section>
 
           {hasError && <p className="betails-error">{errorMessage}</p>}
@@ -828,6 +962,7 @@ function BetailsListPageQuery() {
                 onToggleLike={handleToggleLike}
                 onSelect={handleSelectBetail}
                 isRecommended
+                isNewlyArrived={newlyArrivedIds.has(String(activeRecommendedBetail?.id || ''))}
               />
             </section>
           ) : null}
@@ -856,6 +991,7 @@ function BetailsListPageQuery() {
                       isPurchasing={purchasingId === betail.id && purchaseMutation.isPending}
                       onToggleLike={handleToggleLike}
                       onSelect={handleSelectBetail}
+                      isNewlyArrived={newlyArrivedIds.has(String(betail?.id || ''))}
                     />
                   ))}
                 </div>
@@ -956,7 +1092,7 @@ function BetailsListPageQuery() {
                           decoding="async"
                         />
                       )}
-                      <p className="betail-matricule betail-matricule--panel">{selectedBetail.matricule}</p>
+                      <p className="betail-matricule betail-matricule--panel">{formatMatricule(selectedBetail.matricule)}</p>
                     </div>
 
                     <div className="betail-panel-meta" aria-label="Informations du bétail">

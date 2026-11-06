@@ -28,6 +28,7 @@ import { supabase } from '../authentification/supabaseClient';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges';
 import { MAX_BETAIL_COMMENT_LENGTH, sanitizeBetailComment } from './betailCommentLimits';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
+import { formatMatricule } from '../utils/formatMatricule';
 
 const ADMIN_BADGES_PAGE_SIZE = 8;
 const ADMIN_BADGE_ALLOWED_RARITIES = ['0_auto', '1_common', '2_rare', '3_epic', '4_legendary'];
@@ -1890,7 +1891,7 @@ function AdminBetailMaker({ onExitAdmin }) {
               </div>
               <div className="recap-row">
                 <span className="recap-label">Matricule :</span>
-                <span className="recap-matricule">{matricule}</span>
+                <span className="recap-matricule">{formatMatricule(matricule)}</span>
               </div>
               <div className="recap-row">
                 <span className="recap-label">Commentaire :</span>
@@ -1948,7 +1949,7 @@ function AdminBetailMaker({ onExitAdmin }) {
             </div>
             <h2 className="step-title">Bétail admin enregistré</h2>
             <p className="quality-subtitle">
-              Aucun gain d&apos;argent n&apos;a été attribué. Matricule final: <strong>{successMatricule || matricule}</strong>.
+              Aucun gain d&apos;argent n&apos;a été attribué. Matricule final: <strong>{formatMatricule(successMatricule || matricule)}</strong>.
             </p>
             <Link to="/betail-register" className="registry-link">
               Voir le registre du bétail

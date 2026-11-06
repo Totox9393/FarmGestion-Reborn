@@ -42,12 +42,19 @@ export default function ProfileAvatarImage({ avatarUrl, alt = '', onError, ...im
   const [failure, setFailure] = useState({ source, index: 0 });
   const candidateIndex = failure.source === source ? failure.index : 0;
   const src = candidates[candidateIndex] || defaultProfileUser;
+  const { style, ...restImageProps } = imageProps;
 
   return (
     <img
-      {...imageProps}
+      {...restImageProps}
       src={src}
       alt={alt}
+      style={{
+        display: 'block',
+        objectFit: 'cover',
+        objectPosition: 'center',
+        ...style,
+      }}
       onError={(event) => {
         if (candidateIndex < candidates.length - 1) {
           setFailure({ source, index: candidateIndex + 1 });

@@ -57,7 +57,7 @@ function HomeWelcomeHelpPurchaseSection({
                 decoding="async"
               />
               <p className="home-help-purchase-card-name">Gul</p>
-              <p className="home-help-purchase-card-matricule">18689</p>
+              <p className="home-help-purchase-card-matricule">#18689</p>
             </article>
             <article className="home-help-purchase-card is-selected">
               <img
@@ -68,7 +68,7 @@ function HomeWelcomeHelpPurchaseSection({
                 decoding="async"
               />
               <p className="home-help-purchase-card-name">Melanie</p>
-              <p className="home-help-purchase-card-matricule">73584</p>
+              <p className="home-help-purchase-card-matricule">#73584</p>
               <span className="home-help-purchase-card-tag">Sélectionné</span>
             </article>
             <article className="home-help-purchase-card">
@@ -80,7 +80,7 @@ function HomeWelcomeHelpPurchaseSection({
                 decoding="async"
               />
               <p className="home-help-purchase-card-name">Azra</p>
-              <p className="home-help-purchase-card-matricule">74594</p>
+              <p className="home-help-purchase-card-matricule">#74594</p>
             </article>
           </div>
         ),
@@ -113,7 +113,7 @@ function HomeWelcomeHelpPurchaseSection({
               />
               <div className="home-help-purchase-drawer-meta">
                 <p><strong>Nom:</strong> {SELECTED_BETAIL_EXAMPLE.name}</p>
-                <p><strong>Matricule:</strong> {SELECTED_BETAIL_EXAMPLE.matricule}</p>
+                <p><strong>Matricule:</strong> #{SELECTED_BETAIL_EXAMPLE.matricule}</p>
                 <p><strong>Âge:</strong> {SELECTED_BETAIL_EXAMPLE.age}</p>
               </div>
             </article>
@@ -147,7 +147,7 @@ function HomeWelcomeHelpPurchaseSection({
             />
             <div className="home-help-purchase-drawer-meta">
               <p><strong>Nom :</strong> {SELECTED_BETAIL_EXAMPLE.name}</p>
-              <p><strong>Matricule :</strong> {SELECTED_BETAIL_EXAMPLE.matricule}</p>
+              <p><strong>Matricule :</strong> #{SELECTED_BETAIL_EXAMPLE.matricule}</p>
               <p><strong>Âge:</strong> {SELECTED_BETAIL_EXAMPLE.age}</p>
             </div>
             <button type="button" className="home-help-purchase-buy is-pressing">

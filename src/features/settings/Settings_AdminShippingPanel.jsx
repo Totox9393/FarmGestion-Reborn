@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCcw } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
 import { createSafeAudio, playAudioSafely } from '../utils/safeAudio';
+import { formatMatricule } from '../utils/formatMatricule';
 import cancelConfirmedSound from '../../assets/sounds/00111 - WAV_111_GUESS_BNK_SE_COMMON.wav';
 
 const PAGE_SIZE = 8;
@@ -386,7 +387,7 @@ function Settings_AdminShippingPanel({ isActive, isAdmin }) {
                   <div className="settings-admin-shipping-info">
                     <p className="settings-admin-shipping-title">{row.name}</p>
                     <p className="settings-admin-shipping-meta">
-                      Matricule: {row.matricule} · Owner: {row.owner}
+                      Matricule: {formatMatricule(row.matricule)} · Owner: {row.owner}
                     </p>
                     <p className="settings-admin-shipping-meta">
                       Prévu le {formatShippingDate(row.scheduledFor)} · Reste: {formatRemainingLabel(row.remainingDays)}
