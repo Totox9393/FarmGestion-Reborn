@@ -66,8 +66,8 @@ const fetchMatchingProfileIds = async (searchTerm) => {
 
   const { data, error } = await runWithRetry(
     () => supabase
-      .from('users_profiles')
-      .select('id')
+      .rpc('get_public_profiles_reborn')
+      .select('id, username')
       .ilike('username', `%${searchTerm}%`)
       .limit(SEARCH_USER_LIMIT),
     { throwOnError: false, fallbackData: [] },
@@ -118,7 +118,7 @@ export const fetchActiveUserIdsThisMonth = async () => {
   const { data: spotlightProfiles } = spotlightIds.length
     ? await runWithRetry(
         () => supabase
-          .from('users_profiles')
+          .rpc('get_public_profiles_reborn')
           .select('id, username, avatar_url')
           .in('id', spotlightIds),
         { throwOnError: false, fallbackData: [] },
@@ -194,7 +194,7 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
   const { data: profileRows } = ownerIds.length
     ? await runWithRetry(
         () => supabase
-          .from('users_profiles')
+          .rpc('get_public_profiles_reborn')
           .select('id, username, avatar_url')
           .in('id', ownerIds),
         { throwOnError: false, fallbackData: [] },
@@ -231,7 +231,7 @@ export const fetchCommunityPage = async ({ page = 0, searchTerm = '', activeUser
   if (searchPattern) {
     const { data: matchingProfiles } = await runWithRetry(
       () => supabase
-        .from('users_profiles')
+        .rpc('get_public_profiles_reborn')
         .select('id, username, avatar_url, farm_id')
         .ilike('username', searchPattern)
         .limit(12),
@@ -285,8 +285,8 @@ export const fetchCommunityStats = async () => {
         .eq('visible', true), { throwOnError: false, fallbackData: null }),
     runWithRetry(() =>
       supabase
-        .from('users_profiles')
-        .select('id', { count: 'planned', head: true }), { throwOnError: false, fallbackData: null }),
+        .rpc('get_public_profiles_reborn', {}, { count: 'exact', head: true })
+        .select('id'), { throwOnError: false, fallbackData: null }),
   ]);
 
   return {

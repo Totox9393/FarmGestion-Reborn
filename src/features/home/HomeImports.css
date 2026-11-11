@@ -2,6 +2,7 @@
 
 .home-imports {
   --hi-visible: 4;
+  --hi-gap: 12px;
   position: relative;
   width: 100%;
   max-width: 1120px;
@@ -91,33 +92,34 @@
 
 .home-imports__viewport {
   overflow: hidden;
-  border-top: 1px solid var(--hw-line);
-  border-bottom: 1px solid var(--hw-line);
+  margin: 0 -2px;
+  padding: 2px;
 }
 
 .home-imports__track {
   display: flex;
+  gap: var(--hi-gap);
   transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .home-imports__card {
-  flex: 0 0 calc(100% / var(--hi-visible));
+  flex: 0 0 calc((100% - (var(--hi-visible) - 1) * var(--hi-gap)) / var(--hi-visible));
   min-width: 0;
   box-sizing: border-box;
-  padding: 14px;
+  padding: 16px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  border: 1px solid var(--hw-line);
+  border-radius: 12px;
+  background: var(--hw-surface);
   cursor: pointer;
-  transition: background-color 0.15s ease;
-}
-
-.home-imports__card + .home-imports__card {
-  border-left: 1px solid var(--hw-line);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
 }
 
 .home-imports__card:hover {
-  background: var(--hw-track);
+  border-color: var(--hw-accent);
+  background: color-mix(in srgb, var(--hw-accent) 6%, var(--hw-surface));
 }
 
 /* Le recadrage/zoom choisi par le joueur est DÉJÀ intégré dans le fichier (PNG 512x512, voir REGLES_DE_BASE.md).
@@ -125,13 +127,20 @@
 .home-imports__media {
   position: relative;
   flex: none;
-  width: min(100%, 132px);
+  width: min(100%, 124px);
   aspect-ratio: 1 / 1;
   margin: 0 auto;
   border-radius: 50%;
   overflow: hidden;
-  border: 2px solid var(--hw-line);
+  border: 2px solid var(--hw-surface);
+  outline: 2px solid var(--hw-line);
+  outline-offset: 2px;
   background-color: var(--hw-track);
+  transition: outline-color 0.15s ease;
+}
+
+.home-imports__card:hover .home-imports__media {
+  outline-color: var(--hw-accent);
 }
 
 .home-imports__media img {
@@ -183,14 +192,37 @@
   overflow-wrap: anywhere;
 }
 
-.home-imports__like {
-  flex: none;
+.home-imports__age {
+  margin-top: 4px;
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 8px;
-  border: 0;
-  border-radius: 0;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--hw-soft);
+}
+
+.home-imports__age.is-new {
+  color: var(--hw-accent);
+  font-weight: 600;
+}
+
+.home-imports__age.is-new::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.home-imports__like {
+  flex: none;
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: none;
   color: var(--hw-soft);
   font: inherit;
@@ -201,17 +233,37 @@
 }
 
 .home-imports__like:hover:not(:disabled) {
-  background: var(--hw-track);
+  border-color: transparent;
+  background: color-mix(in srgb, var(--hw-danger) 10%, transparent);
   color: var(--hw-danger);
 }
 
 .home-imports__like.is-liked {
+  background: color-mix(in srgb, var(--hw-danger) 10%, transparent);
   color: var(--hw-danger);
 }
 
 .home-imports__like:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Position de la fenêtre visible dans la liste */
+.home-imports__progress {
+  position: relative;
+  height: 4px;
+  margin-top: 16px;
+  border-radius: 2px;
+  background: var(--hw-track);
+}
+
+.home-imports__progress-thumb {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  background: var(--hw-accent);
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (max-width: 640px) {

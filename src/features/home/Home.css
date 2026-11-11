@@ -131,6 +131,46 @@ body.fg-auth-flow-open .home {
   animation: fadeIn 1s ease-out 0.3s both;
 }
 
+.home-description--emphasis {
+  font-weight: 700;
+  color: #4a3da1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.home-introduction {
+  max-width: 46ch;
+  margin: 0;
+  color: var(--home-introduction-color, #5d576f);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
+/* The landing keeps its original backgrounds, characters and animations.
+   These rules only arrange the game introduction within the existing hero. */
+.home-hero-layout {
+  position: relative;
+  z-index: 1;
+  width: min(1120px, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 5vw, 72px);
+  padding: 64px 0 100px;
+}
+
+.home-hero-layout .home-container { gap: 18px; }
+.home-hero-layout .home-logo { width: 100%; max-width: 500px; }
+.home-hero-layout .home-description { font-size: 1.05rem; margin: 0 0 6px; }
+.home-hero-promise { margin: 0; color: #2f1f58; font-size: clamp(1.8rem, 2.7vw, 2.6rem); font-weight: 700; line-height: 1.25; }
+.home-hero-layout .home-auth-actions { margin-top: 8px; }
+.home-hero-layout .home-auth-button--primary { background: #4e3cb8; border-color: #4e3cb8; color: #fff; }
+.home-hero-layout .home-auth-button--primary:hover { background: #40309b; }
+.home-hero-links { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #5d576f; font-size: 0.8rem; }
+.home .home-text-link { min-height: 44px; padding: 8px 0; border: 0; border-radius: 3px; background: transparent; color: #4e3cb8; font-size: 0.9rem; font-weight: 600; text-decoration: underline; text-underline-offset: 4px; transition: color 0.15s; }
+.home .home-text-link:hover { color: #332479; }
+.home .home-text-link:focus-visible, .home .home-auth-button:focus-visible { outline: 2px solid currentColor; outline-offset: 4px; }
+.home-quickstart > .home-text-link { align-self: center; }
+
 .home-auth-actions {
   display: flex;
   gap: 16px;
@@ -607,6 +647,10 @@ body.fg-auth-flow-open .home {
   .home {
     scroll-snap-type: y proximity;
   }
+
+  .home-hero-layout { grid-template-columns: 1fr; width: min(520px, 100%); gap: 30px; padding-block: 44px 100px; }
+  .home-hero-layout .home-logo { max-width: min(380px, 80vw); }
+  .home-hero-layout .home-container { max-width: none; }
 
   .home-quickstart {
     gap: 22px;

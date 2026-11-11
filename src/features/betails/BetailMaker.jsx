@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Fingerprint, ChevronsRight, CircleHelp, Info, X, ShieldCheck, Upload, Link2, Search, Lightbulb, ArrowLeft } from 'lucide-react';
+import { Fingerprint, ChevronsRight, CircleHelp, ShieldCheck, Upload, Link2, Search, Lightbulb, ArrowLeft } from 'lucide-react';
 import './BetailMaker.css';
+import BetailCreationHelp from './BetailCreationHelp';
 import './AdminBetailMaker.css';
 import './BetailInspiration.css';
 import miloImage from '../../assets/betail_sample.png';
@@ -1570,54 +1571,7 @@ function BetailMaker() {
           </span>
         </div>
       )}
-      {isHelpOpen && (
-        <div
-          className="help-modal-overlay"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Informations sur l'enregistrement"
-          onClick={() => setIsHelpOpen(false)}
-        >
-          <div className="help-modal" onClick={(event) => event.stopPropagation()}>
-            <div className="help-modal-header">
-              <Info size={24} className="help-modal-icon" aria-hidden="true" />
-              <div>
-                <p className="help-modal-eyebrow">Besoin d'un coup de pouce ?</p>
-                <h3>Informations sur l'enregistrement</h3>
-              </div>
-              <button
-                type="button"
-                className="help-close"
-                aria-label="Fermer l'aide"
-                onClick={() => setIsHelpOpen(false)}
-              >
-                <X size={18} strokeWidth={2.3} aria-hidden="true" />
-              </button>
-            </div>
-            <ul className="help-list">
-              <li>
-                <span className="help-pill positive">Public</span>
-                Le bétail sera ajouté au registre public et pourra être acheté par d'autres mères.
-              </li>
-              <li>
-                <span className="help-pill warning">Restriction</span>
-                Vous ne pourrez pas acheter votre propre bétail créé.
-              </li>
-            </ul>
-            <p className="help-warning">
-              En enregistrant un bétail, vous confirmez avoir pris connaissance et accepter le{' '}
-              <Link
-                to="/rules"
-                className="help-link"
-                onClick={() => setIsHelpOpen(false)}
-              >
-                règlement de FarmGestion
-              </Link>
-              .
-            </p>
-          </div>
-        </div>
-      )}
+      {isHelpOpen && <BetailCreationHelp onClose={() => setIsHelpOpen(false)} />}
     </div>
   );
 }

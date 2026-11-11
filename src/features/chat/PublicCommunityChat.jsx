@@ -662,7 +662,7 @@ export default function PublicCommunityChat({ avatarProfiles = [] }) {
     const loadAvatars = async () => {
       const userIds = Array.from(new Set(channel.state.messages.map((message) => message.user?.id).filter(Boolean)));
       if (!userIds.length) return;
-      const { data } = await supabase.from('users_profiles').select('id,username,avatar_url').in('id', userIds);
+      const { data } = await supabase.rpc('get_public_profiles_reborn').select('id,username,avatar_url').in('id', userIds);
       if (!active || !data) return;
       setMessageAuthorProfiles(data.map((profile) => ({
         id: profile.id,

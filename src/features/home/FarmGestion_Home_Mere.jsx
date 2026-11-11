@@ -11,6 +11,7 @@ import { getFullVersionLabel } from '../utils/appVersion';
 import { formatMatricule } from '../utils/formatMatricule';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import HomeAuctionBanner from './HomeAuctionBanner';
+import { useAuctionsEnabled } from '../betails/useAuctionsEnabled';
 import './FarmGestionHome.css';
 import './HomeWelcome.css';
 import './HomeImports.css';
@@ -113,6 +114,18 @@ const normalizeSettingBetailIds = (value) => {
   return Array.from(new Set(parsed.filter((item) => typeof item === 'string' && item.trim().length > 0).map((item) => item.trim())));
 };
 
+const formatImportAge = (createdAt) => {
+  const time = createdAt ? new Date(createdAt).getTime() : NaN;
+  if (Number.isNaN(time)) return null;
+  const minutes = Math.max(0, Math.floor((Date.now() - time) / 60000));
+  if (minutes < 60) return { label: minutes <= 1 ? 'À l\'instant' : `Il y a ${minutes} min`, isNew: true };
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return { label: `Il y a ${hours} h`, isNew: true };
+  const days = Math.floor(hours / 24);
+  if (days < 30) return { label: `Il y a ${days} j`, isNew: false };
+  return { label: new Date(time).toLocaleDateString('fr-FR'), isNew: false };
+};
+
 const mockBetails = [
   { id: 1, name: 'Marguerite', matricule: '17539', race: '⭐ Premium', img: betail1, likes: 24 },
   { id: 2, name: 'Belle', matricule: '22814', race: 'Standard', img: betail2, likes: 12 },
@@ -126,6 +139,7 @@ const mockBetails = [
 
 function FarmGestion_Home_Mere() {
   const { user } = useAuth();
+  const { enabled: auctionsEnabled } = useAuctionsEnabled();
   const navigate = useNavigate();
   const likeConfirmAudio = useMemo(() => createSafeAudio(likeConfirmSound), []);
   const lastConfettiAtRef = useRef(0);
@@ -199,35 +213,19 @@ function FarmGestion_Home_Mere() {
         let betailMap = new Map();
         if (betailIds.length) {
           const { data: betailsRows, error: betailsError } = await supabase
-            .from('betails')
-            .select('id, name, avatar_url, owner_id, farm_id')
-            .in('id', betailIds);
+            .rpc('get_shipping_betails_reborn', { p_betail_ids: betailIds });
 
           if (!betailsError && Array.isArray(betailsRows)) {
             betailMap = new Map(betailsRows.map((row) => [row.id, row]));
           }
         }
 
-        const farmIds = [...new Set(Array.from(betailMap.values()).map((row) => row?.farm_id).filter(Boolean))];
-        let farmMap = new Map();
-        if (farmIds.length) {
-          const { data: farmsRows, error: farmsError } = await supabase
-            .from('farms_list')
-            .select('id, visible')
-            .in('id', farmIds);
-
-          if (!farmsError && Array.isArray(farmsRows)) {
-            farmMap = new Map(farmsRows.map((row) => [row.id, row]));
-          }
-        }
-
+        // Expeditions stay public even when the farm page is private.
         const visibleRows = shippingRows.filter((row) => {
           const betail = betailMap.get(row.betail_id);
-          const farm = betail?.farm_id ? farmMap.get(betail.farm_id) : null;
           const isOwner = Boolean(betail?.owner_id) && betail.owner_id === user.id;
-          const shouldHidePrivateFarm = farm?.visible === false && !isOwner;
           const shouldHideArchived = isOwner && archivedBetailSet.has(String(betail?.id || row.betail_id || ''));
-          return !shouldHidePrivateFarm && !shouldHideArchived;
+          return !shouldHideArchived;
         });
 
         const groupedByDay = new Map();
@@ -411,7 +409,7 @@ function FarmGestion_Home_Mere() {
     }
 
     const { data: authorsData, error: authorsError } = await supabase
-      .from('users_profiles')
+      .rpc('get_public_profiles_reborn')
       .select('id, username, avatar_url')
       .in('id', authorIds);
 
@@ -554,6 +552,7 @@ function FarmGestion_Home_Mere() {
       name: betail.name,
       matricule: betail.matricule,
       author: authorMap[betail.author_id]?.username || 'Auteur inconnu',
+      age: formatImportAge(betail.created_at),
       img: normalizeAvatar(betail.avatar_url),
       likes: betail.like_count ?? 0,
       likedByMe: Boolean(betail.liked_by_me) || likedIdsSet.has(String(betail.id || '')),
@@ -947,7 +946,7 @@ function FarmGestion_Home_Mere() {
   return (
     <>
       <div className="home-shell">
-      <HomeAuctionBanner />
+      {auctionsEnabled ? <HomeAuctionBanner /> : null}
       <section
         className="home-welcome"
         aria-labelledby="home-welcome-title"
@@ -1072,7 +1071,7 @@ function FarmGestion_Home_Mere() {
         <div className="home-imports__viewport">
           <div
             className="home-imports__track"
-            style={{ transform: `translateX(-${carouselIndex * (100 / visibleBetails)}%)` }}
+            style={{ transform: `translateX(calc(${carouselIndex} * (100% + var(--hi-gap)) / ${visibleBetails} * -1))` }}
             onTouchStart={handleCarouselTouchStart}
             onTouchEnd={handleCarouselTouchEnd}
             onTouchCancel={handleCarouselTouchEnd}
@@ -1095,6 +1094,9 @@ function FarmGestion_Home_Mere() {
                     <h3 className="home-imports__name">{betail.name}</h3>
                     <span className="home-imports__matricule">{formatMatricule(betail.matricule)}</span>
                     <span className="home-imports__author">Par {betail.author || 'Auteur inconnu'}</span>
+                    {betail.age ? (
+                      <span className={`home-imports__age ${betail.age.isNew ? 'is-new' : ''}`}>{betail.age.label}</span>
+                    ) : null}
                   </div>
                   <button
                     type="button"
@@ -1112,6 +1114,17 @@ function FarmGestion_Home_Mere() {
             ))}
           </div>
         </div>
+        {carouselBetails.length > visibleBetails ? (
+          <div className="home-imports__progress" aria-hidden="true">
+            <span
+              className="home-imports__progress-thumb"
+              style={{
+                width: `${(visibleBetails / carouselBetails.length) * 100}%`,
+                left: `${(carouselIndex / carouselBetails.length) * 100}%`,
+              }}
+            />
+          </div>
+        ) : null}
       </div>
 
       <section className="home-ranking" aria-labelledby="home-ranking-title">

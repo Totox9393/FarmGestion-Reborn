@@ -1,0 +1,46 @@
+.betail-creation-help {
+  --creation-help-bg: #fff;
+  --creation-help-ink: #2a2438;
+  --creation-help-soft: #5d576f;
+  --creation-help-line: rgba(42, 36, 56, .16);
+  --creation-help-accent: #4e3cb8;
+  width: min(480px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  border: 1px solid var(--creation-help-line);
+  border-radius: 16px;
+  background: var(--creation-help-bg);
+  color: var(--creation-help-ink);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  text-align: left;
+}
+
+:is(.auth-theme.dark_theme, .auth-theme.galactic_theme) .betail-creation-help {
+  --creation-help-bg: #20293a;
+  --creation-help-ink: #e8eefb;
+  --creation-help-soft: #b4bfd2;
+  --creation-help-line: rgba(190, 210, 245, .18);
+  --creation-help-accent: #8db3ff;
+}
+
+.betail-creation-help::backdrop { background: rgba(8, 12, 20, .6); }
+.betail-creation-help__content { padding: 24px; }
+.betail-creation-help__header { display: flex; align-items: flex-start; gap: 12px; }
+.betail-creation-help__header h2 { flex: 1; margin: 6px 0 20px; color: var(--creation-help-ink); font-size: 1.25rem; line-height: 1.35; font-weight: 650; }
+.betail-creation-help__close { display: grid; place-items: center; flex: 0 0 40px; width: 40px; height: 40px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--creation-help-soft); cursor: pointer; }
+.betail-creation-help__close:hover { background: var(--creation-help-line); color: var(--creation-help-ink); }
+.betail-creation-help__facts { margin: 0; }
+.betail-creation-help__facts > div { padding: 16px 0; border-top: 1px solid var(--creation-help-line); }
+.betail-creation-help__facts dt { margin: 0 0 4px; color: var(--creation-help-ink); font-size: .95rem; font-weight: 600; }
+.betail-creation-help__facts dd { margin: 0; color: var(--creation-help-soft); font-size: .9rem; line-height: 1.6; }
+.betail-creation-help__footer { padding-top: 16px; border-top: 1px solid var(--creation-help-line); }
+.betail-creation-help__footer p { margin: 0; color: var(--creation-help-soft); font-size: .8rem; line-height: 1.6; }
+.betail-creation-help__footer a { display: inline-flex; align-items: center; min-height: 40px; color: var(--creation-help-accent); font-size: .9rem; text-decoration: underline; text-underline-offset: 3px; }
+.betail-creation-help :is(button, a):focus-visible { outline: 2px solid var(--creation-help-accent); outline-offset: 3px; }
+
+@media (max-width: 400px) {
+  .betail-creation-help__content { padding: 20px; }
+  .betail-creation-help__header h2 { font-size: 1.15rem; }
+}

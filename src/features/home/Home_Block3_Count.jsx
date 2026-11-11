@@ -105,7 +105,7 @@ const POSITION_PRESETS = [
   { x: '16%', y: '54%', size: '58px', delay: '1.5s' },
 ];
 
-function HomeBlock3Count() {
+function HomeBlock3Count({ onRegister }) {
   const containerRef = useRef(null);
   const [value, setValue] = useState(0);
   const [isVisible, setIsVisible] = useState(false);
@@ -114,11 +114,9 @@ function HomeBlock3Count() {
   const { data: countData } = useQuery({
     queryKey: ['betails-total-count'],
     queryFn: async () => {
-      const { count } = await supabase
-        .from('betails')
-        .select('id', { count: 'exact', head: true })
-        .eq('visible', true);
-      return count || 0;
+      const { data, error } = await supabase.rpc('get_visible_betails_count_reborn');
+      if (error) throw error;
+      return Number(data || 0);
     },
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
@@ -146,7 +144,6 @@ function HomeBlock3Count() {
 
   useEffect(() => {
     if (!isVisible) {
-      setValue(0);
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -154,7 +151,6 @@ function HomeBlock3Count() {
     }
 
     const startTime = performance.now();
-    setValue(0);
 
     const tick = (now) => {
       const progress = Math.min((now - startTime) / duration, 1);
@@ -174,19 +170,19 @@ function HomeBlock3Count() {
         cancelAnimationFrame(animationRef.current);
       }
     };
-  }, [isVisible]);
+  }, [isVisible, targetValue]);
 
   const digits = useMemo(() => {
-    return String(value).padStart(6, '0').split('');
-  }, [value]);
+    return String(isVisible ? value : 0).padStart(6, '0').split('');
+  }, [isVisible, value]);
 
   return (
     <div className={`home-block3 ${isVisible ? 'is-visible' : ''}`} ref={containerRef}>
       <div className="home-block3-header">
-        <p className="home-block3-eyebrow">Statistiques de FarmGestion</p>
-        <h2 className="home-block3-title">Total de bétail</h2>
+        <p className="home-block3-eyebrow">Créés par la communauté</p>
+        <h2 className="home-block3-title">Et si le prochain venait de vous ?</h2>
         <p className="home-block3-subtitle">
-          Un aperçu en temps réel du nombre de bétails recensés sur la plateforme.
+          Chaque bétail a son créateur. Chaque ferme, sa collection.
         </p>
       </div>
 
@@ -234,6 +230,7 @@ function HomeBlock3Count() {
           </div>
         </div>
       </div>
+      {onRegister && <button type="button" className="home-text-link" onClick={onRegister}>Rejoindre les fermiers</button>}
     </div>
   );
 }

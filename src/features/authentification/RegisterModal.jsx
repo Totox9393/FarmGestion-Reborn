@@ -21,16 +21,13 @@ const checkUsernameAvailability = async (pseudoValue) => {
   if (!normalizedPseudo) return { available: false, error: 'Le pseudo est requis.' };
 
   const { data, error } = await supabase
-    .from('users_profiles')
-    .select('id')
-    .ilike('username', normalizedPseudo)
-    .limit(1);
+    .rpc('is_username_available_reborn', { p_username: normalizedPseudo });
 
-  if (error) {
+  if (error || typeof data !== 'boolean') {
     return { available: false, error: 'Impossible de vérifier la disponibilité du pseudo.' };
   }
 
-  return { available: !Array.isArray(data) || data.length === 0, error: '' };
+  return { available: data === true, error: '' };
 };
 
 function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
@@ -112,13 +109,8 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
     // Ajout dans users_profiles
     const user = data.user;
     if (user) {
-      const now = new Date().toISOString();
-      const { error: profileError } = await supabase.from('users_profiles').insert({
-        id: user.id,
-        username: normalizedPseudo,
-        email,
-        created_at: now,
-        updated_at: now
+      const { error: profileError } = await supabase.rpc('create_my_profile_reborn', {
+        p_username: normalizedPseudo,
       });
       if (profileError) {
         const isUsernameConflict = profileError?.code === '23505'

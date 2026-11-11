@@ -25,6 +25,7 @@ import milo18 from '../../assets/img/milo_emotions/milo18.png';
 import miloInterogation from '../../assets/milo_interogation.png';
 import HomeBlock3Count from './Home_Block3_Count';
 import HomeBlock4Farm from './Home_Block4_Farm';
+import HomeGamePreview from './HomeGamePreview';
 import AuthFlowManager from '../authentification/AuthFlowManager';
 import { supabase } from '../authentification/supabaseClient';
 import { getShortVersionLabel } from '../utils/appVersion';
@@ -63,19 +64,19 @@ function Home() {
   const quickStartSteps = [
     {
       title: 'Créez votre ferme',
-      text: 'Choisissez son nom et son style visuel pour poser les bases de votre identité.',
+      text: 'Donnez-lui un nom, choisissez ses couleurs et son image centrale. Ce sera votre espace dans le jeu.',
     },
     {
       title: 'Créez du bétail',
-      text: 'La clé de FarmGestion c\'est le bétail, créez des produits personnalisés et uniques.',
+      text: 'Choisissez un nom, une photo et une description. Votre création rejoint le registre pour les autres joueurs.',
     },
     {
-      title: 'Agrémentez votre ferme',
-      text: 'Depuis le registre, achetez tous les bétails qui vous font envie pour enrichir votre ferme.',
+      title: 'Composez votre collection',
+      text: 'Achetez les bétails créés par les autres joueurs. Ils prennent place dans les six sites de votre ferme.',
     },
     {
       title: 'Planifiez les expéditions',
-      text: 'Sur FarmGestion, vous devez expédier vos marchandises afin de gagner des 💸',
+      text: 'Gardez vos favoris et expédiez les autres. La monnaie gagnée vous permet d’acheter des badges.',
     },
   ];
 
@@ -211,6 +212,7 @@ function Home() {
             />
           ))}
         </div>
+        <div className="home-hero-layout">
         <div className="home-container">
           <div className="logo-container">
             <img
@@ -221,22 +223,28 @@ function Home() {
             />
             <span className="home-version-badge">{versionBadgeLabel}</span>
           </div>
-          <p className="home-description">
-            Vous gerez ce qu'ils ne doivent pas savoir...
+          <p className="home-description home-description--emphasis">
+            Vous gérez ce qu’ils ne doivent pas savoir…
+          </p>
+          <h1 className="home-hero-promise">Créez vos bétails.<br />Composez votre collection.</h1>
+          <p className="home-introduction">
+            Une ferme à votre image, les créations des autres joueurs
+            et des expéditions dont vous décidez le sort.
           </p>
           <div className="home-auth-actions">
-            <button className="home-auth-button" onClick={handleOpenRegister}>
-              Créer un compte
+            <button className="home-auth-button home-auth-button--primary" onClick={handleOpenRegister}>
+              Commencer à jouer
             </button>
             <button className="home-auth-button" onClick={handleOpenLogin}>
               Se connecter
             </button>
-            <button className="home-info-button" onClick={() => navigate('/rules')}>
-              Consulter le règlement
-            </button>
           </div>
-
-          <AuthFlowManager ref={authFlowRef} />
+          <div className="home-hero-links">
+            <span>Un jeu communautaire dans votre navigateur.</span>
+            <button type="button" className="home-text-link" onClick={() => navigate('/rules')}>Consulter le règlement</button>
+          </div>
+        </div>
+        <HomeGamePreview />
         </div>
 
         <button
@@ -262,9 +270,9 @@ function Home() {
           <div className="home-quickstart-header">
             <img src={miloInterogation} alt="Milo interrogation" className="home-quickstart-milo" />
             <p className="home-quickstart-eyebrow">Prise en main rapide</p>
-            <h2 className="home-quickstart-title">FarmGestion en 4 etapes</h2>
+            <h2 className="home-quickstart-title">Votre première ferme en 4 étapes</h2>
             <p className="home-quickstart-subtitle">
-              Une boucle simple a comprendre, avec juste ce qu il faut pour bien demarrer.
+              Créez pour les autres. Collectionnez pour vous. Faites grandir votre ferme.
             </p>
           </div>
 
@@ -277,6 +285,7 @@ function Home() {
               </article>
             ))}
           </div>
+          <button type="button" className="home-text-link" onClick={handleOpenRegister}>Créer mon compte et commencer</button>
         </div>
       </section>
 
@@ -324,7 +333,7 @@ function Home() {
           sectionRefs.current[3] = el;
         }}
       >
-        <HomeBlock3Count />
+        <HomeBlock3Count onRegister={handleOpenRegister} />
       </section>
 
       <section
@@ -333,10 +342,10 @@ function Home() {
           sectionRefs.current[4] = el;
         }}
       >
-        <HomeBlock4Farm />
+        <HomeBlock4Farm onRegister={handleOpenRegister} />
       </section>
 
-      <AuthFlowManager />
+      <AuthFlowManager ref={authFlowRef} />
     </div>
   );
 }

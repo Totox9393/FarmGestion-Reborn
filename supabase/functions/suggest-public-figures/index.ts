@@ -30,6 +30,7 @@ const normalizeSecret = (value: string | undefined) => {
 const THEMES = [
   "présentateurs et journalistes de télévision francophones",
   "acteurs et actrices de cinéma français",
+  "personnages de l'animé Death Note",
   "chanteurs et chanteuses de la scène française actuelle",
   "footballeurs et footballeuses de renommée mondiale",
   "athlètes olympiques et sportifs de haut niveau",
@@ -38,9 +39,9 @@ const THEMES = [
   "stars hollywoodiennes",
   "chanteurs et chanteuses internationaux",
   "animateurs télé et radio",
-  "chefs cuisiniers et personnalités de la gastronomie",
+  "personnages de l'animé Sword Art Online",
   "écrivains, penseurs et scientifiques célèbres",
-  "pilotes de F1, tennismen et sportifs de sports individuels",
+  "personnages de l'animé Naruto",
   "acteurs de séries télévisées célèbres",
   "personnalités historiques célèbres du XXe siècle",
   "rappeurs et rappeuses francophones",
@@ -52,7 +53,7 @@ const CHARACTER_THEMES = [
   "personnages d'animes et de mangas célèbres",
   "personnages de dessins animés français et européens",
   "personnages de jeux vidéo cultes",
-  "personnages de dessins animés modernes (Pixar, séries animées pour adultes, Cartoon Network)",
+  "personnages de dessins animés modernes (Pixar, séries animées pour adultes, Cartoon Network, Disney Channel)",
   "super-héros et méchants de comics",
   "personnages de films d'animation (Ghibli, DreamWorks, Pixar)",
 ];

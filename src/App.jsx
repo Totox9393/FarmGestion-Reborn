@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { CheckCircle2, AlertTriangle, XCircle } from 'lucide-react';
 import Home from './features/home/Home';
 import BetailMaker from './features/betails/BetailMaker';
@@ -23,6 +23,7 @@ import CommunityPage from './features/community/CommunityPage';
 import CommunityProfilePage from './features/community/CommunityProfilePage';
 import Settings_CentralePage from './features/settings/Settings_CentralePage';
 import AuctionsPage from './features/betails/AuctionsPage';
+import { useAuctionsEnabled } from './features/betails/useAuctionsEnabled';
 import { useAuth } from './features/authentification/AuthContext';
 import { supabase } from './features/authentification/supabaseClient';
 import { ChatDockProvider } from './features/chat/ChatDockProvider';
@@ -86,6 +87,13 @@ const getStaticPageTitle = (pathname) => {
       return 'FarmGestion FR';
   }
 };
+
+function AuctionsRouteGuard({ children }) {
+  const { enabled, isLoading } = useAuctionsEnabled();
+  if (isLoading) return null;
+  if (!enabled) return <Navigate to="/home" replace />;
+  return children;
+}
 
 function AppRoutes() {
   const location = useLocation();
@@ -514,9 +522,11 @@ function AppRoutes() {
           path="/encheres"
           element={
             <PrivateRoute>
-              <AuthenticatedLayout>
-                <AuctionsPage />
-              </AuthenticatedLayout>
+              <AuctionsRouteGuard>
+                <AuthenticatedLayout>
+                  <AuctionsPage />
+                </AuthenticatedLayout>
+              </AuctionsRouteGuard>
             </PrivateRoute>
           }
         />

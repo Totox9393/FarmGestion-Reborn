@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Ban, CalendarClock, Gavel, Settings2, Sparkles, Timer } from 'lucide-react';
 import { supabase } from '../authentification/supabaseClient';
+import { AUCTIONS_ENABLED_QUERY_KEY } from '../betails/useAuctionsEnabled';
 import './Settings_AdminAuctionsPanel.css';
 
 const AUCTION_CONFIG_QUERY_KEY = ['settings', 'admin', 'auctions-config'];
@@ -84,6 +85,7 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
     durationHours: 8,
   });
   const [feedback, setFeedback] = useState(emptyFeedback);
+  const [systemFeedback, setSystemFeedback] = useState(emptyFeedback);
   const [nowTick, setNowTick] = useState(() => Date.now());
 
   const configQuery = useQuery({
@@ -324,7 +326,43 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
     onError: (error) => setFeedback({ type: 'error', message: error?.message || 'Impossible de masquer le bandeau.' }),
   });
 
+  const toggleSystemMutation = useMutation({
+    mutationFn: async (nextEnabled) => {
+      const payload = { system_enabled: nextEnabled, updated_at: new Date().toISOString() };
+      if (currentUserId) {
+        payload.updated_by = currentUserId;
+      }
+      const { data, error } = await supabase
+        .from('auction_config_reborn')
+        .update(payload)
+        .eq('id', true)
+        .select('*')
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (data) => {
+      if (data) queryClient.setQueryData(AUCTION_CONFIG_QUERY_KEY, data);
+      queryClient.invalidateQueries({ queryKey: AUCTIONS_ENABLED_QUERY_KEY });
+      setSystemFeedback({
+        type: 'success',
+        message: data?.system_enabled === false ? 'Enchères mises en veille.' : 'Enchères réactivées.',
+      });
+    },
+    onError: (error) => {
+      const raw = String(error?.message || '');
+      let message = raw || 'Impossible de modifier l\u2019état des enchères.';
+      if (raw.includes('ACTIVE_SESSION_EXISTS')) {
+        message = 'Annule ou clôture la session en cours avant la mise en veille.';
+      } else if (raw.includes('system_enabled')) {
+        message = 'Exécute auctions_master_switch.sql dans Supabase.';
+      }
+      setSystemFeedback({ type: 'error', message });
+    },
+  });
+
   const activeSession = activeSessionQuery.data?.session || null;
+  const systemEnabled = configQuery.data ? configQuery.data.system_enabled !== false : true;
   const activeStatus = getStatusDetails(activeSession, nowTick);
   const winnerAnnouncement = winnerAnnouncementQuery.data?.active ? winnerAnnouncementQuery.data : null;
   const schedulerStatus = schedulerStatusQuery.data || null;
@@ -350,6 +388,7 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
     forceOpenMutation.isPending ||
     forceCloseMutation.isPending ||
     cancelSessionMutation.isPending ||
+    toggleSystemMutation.isPending ||
     hideWinnerAnnouncementMutation.isPending;
 
   const canSave = useMemo(() => {
@@ -366,6 +405,46 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
         Supervise le roulement automatique, la session en cours et les réglages depuis un seul tableau de bord.
       </p>
       <div className="settings-list">
+        <div className="settings-item settings-item--stacked">
+          <div className="settings-item-row">
+            <div>
+              <p className="settings-item-title">Système d'enchères</p>
+              <p className="settings-item-subtitle">
+                {systemEnabled
+                  ? 'Actif : page, lien du menu et bandeau d\u2019accueil visibles.'
+                  : 'En veille : page, menu et bandeau masqués, aucune session ni mise possible. Les données sont conservées.'}
+              </p>
+            </div>
+            <label className={`settings-switch ${isBusy ? 'is-busy' : ''}`}>
+              <input
+                type="checkbox"
+                checked={systemEnabled}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  if (!next && activeSession) {
+                    setSystemFeedback({
+                      type: 'error',
+                      message: 'Annule ou clôture la session en cours avant la mise en veille.',
+                    });
+                    return;
+                  }
+                  setSystemFeedback(emptyFeedback);
+                  toggleSystemMutation.mutate(next);
+                }}
+                disabled={!configQuery.data || isBusy}
+              />
+              <span className="settings-slider" />
+            </label>
+          </div>
+          {systemFeedback.message ? (
+            <p className={`settings-admin-auctions__feedback ${systemFeedback.type === 'error' ? 'is-error' : 'is-success'}`}>
+              {systemFeedback.message}
+            </p>
+          ) : null}
+        </div>
+
+        {systemEnabled ? (
+        <>
         <div className="settings-admin-auctions__overview">
           <article className={`settings-admin-auctions__summary-card ${schedulerIsHealthy ? 'is-healthy' : 'is-warning'}`}>
             <div className="settings-admin-auctions__summary-heading">
@@ -733,6 +812,8 @@ function Settings_AdminAuctionsPanel({ isActive, isAdmin, currentUserId }) {
             </p>
           ) : null}
         </div>
+        </>
+        ) : null}
       </div>
     </div>
   );

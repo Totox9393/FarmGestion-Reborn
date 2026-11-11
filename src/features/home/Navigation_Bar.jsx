@@ -10,6 +10,7 @@ import defaultProfileUser from '../../assets/defaut_profile_user.png';
 import SettingsModal from '../settings/SettingsModal';
 import HomeWelcomeGuidesModal from './HomeWelcomeHelpModal';
 import { useChatDock } from '../chat/chatDockContext';
+import { useAuctionsEnabled } from '../betails/useAuctionsEnabled';
 import {
   acceptFriendRequestById,
   declineFriendRequestById,
@@ -96,6 +97,7 @@ const formatPendingBadgeValue = (count) => {
 
 function Navigation_Bar() {
   const { user } = useAuth();
+  const { enabled: auctionsEnabled } = useAuctionsEnabled();
   const {
     friendConversations,
     unreadMessagesCount,
@@ -459,7 +461,9 @@ function Navigation_Bar() {
                     <button className="nav-dropdown-item" onClick={() => go('/betail-maker')}><BabyIcon size={16} /> Créer un bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/betail-register')}><ShoppingCart size={16} /> Registre du bétail</button>
                     <button className="nav-dropdown-item" onClick={() => go('/mes-betails')}><ListChecks size={16} /> Mes bétails</button>
-                    <button className="nav-dropdown-item" onClick={() => go('/encheres')}><Gavel size={16} /> Enchères</button>
+                    {auctionsEnabled ? (
+                      <button className="nav-dropdown-item" onClick={() => go('/encheres')}><Gavel size={16} /> Enchères</button>
+                    ) : null}
                   </Popover.Panel>
                 </Transition>
               </>

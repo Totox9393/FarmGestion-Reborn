@@ -175,7 +175,7 @@ const fetchCommunityProfile = async (handleRaw) => {
   const handle = decodeURIComponent(String(handleRaw || '')).trim();
   if (!handle) return null;
   const response = await supabase
-    .from('users_profiles')
+    .rpc('get_public_profiles_reborn')
     .select('id, username, avatar_url, created_at, farm_id, role_ingame')
     .ilike('username', handle)
     .maybeSingle();

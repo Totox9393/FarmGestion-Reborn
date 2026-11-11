@@ -396,7 +396,7 @@ const runCentralSearch = async ({ query, filters }) => {
   let profileMap = new Map();
   if (ids.length) {
     const { data: profileRows, error: profileError } = await supabase
-      .from('users_profiles')
+      .rpc('get_public_profiles_reborn')
       .select('id,username,avatar_url')
       .in('id', ids);
 

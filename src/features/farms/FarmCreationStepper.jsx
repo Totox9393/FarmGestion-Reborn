@@ -84,29 +84,33 @@ function FarmCreationStepper({ isOpen = true, onClose, onComplete }) {
 
   // Debounce pour le nom de ferme
   useEffect(() => {
+    let cancelled = false;
+    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     if (!farmName) {
       setFarmNameError('');
+      setCheckingName(false);
       return;
     }
     setFarmNameError('');
     setCheckingName(true);
-    if (debounceTimeout.current) clearTimeout(debounceTimeout.current);
     debounceTimeout.current = setTimeout(async () => {
-      const { data, error } = await supabase
-        .from('farms_list')
-        .select('id')
-        .eq('name', farmName)
-        .maybeSingle();
-      if (error) {
+      const { data, error } = await supabase.rpc('is_farm_name_available_reborn', {
+        p_name: farmName,
+      });
+      if (cancelled) return;
+      if (error || typeof data !== 'boolean') {
         setFarmNameError('Erreur lors de la vérification.');
-      } else if (data) {
+      } else if (!data) {
         setFarmNameError('Ce nom de ferme est déjà pris.');
       } else {
         setFarmNameError('');
       }
       setCheckingName(false);
     }, 500);
-    return () => clearTimeout(debounceTimeout.current);
+    return () => {
+      cancelled = true;
+      clearTimeout(debounceTimeout.current);
+    };
   }, [farmName]);
 
   useEffect(() => {
@@ -399,7 +403,9 @@ function FarmCreationStepper({ isOpen = true, onClose, onComplete }) {
       center_style: { type: centerType, value: centerValue },
     }).select().maybeSingle();
     if (farmError || !farm) {
-      setFarmNameError('Erreur lors de la création de la ferme.');
+      setFarmNameError(farmError?.code === '23505'
+        ? 'Ce nom de ferme est déjà pris.'
+        : 'Erreur lors de la création de la ferme.');
       setSaving(false);
       return;
     }

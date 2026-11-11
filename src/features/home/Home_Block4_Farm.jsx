@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import './Home_Block4_Farm.css';
 import farmCenterExample from '../../assets/img/farmcenterexample.png';
 import farmCenterExample2 from '../../assets/img/farmcenterexample2.png';
@@ -47,36 +47,49 @@ const createTrianglePoints = (cx, cy, radius, siteIndex) => {
   return `${cx},${cy} ${x1},${y1} ${x2},${y2}`;
 };
 
-function HomeBlock4Farm() {
+function HomeBlock4Farm({ onRegister }) {
   const [palette, setPalette] = useState(() => createRandomPalette());
   const [center, setCenter] = useState(() => createRandomCenter());
   const [centerKey, setCenterKey] = useState(0);
+  const [isAutomatic, setIsAutomatic] = useState(true);
+
+  const changeDesign = useCallback(() => {
+    setPalette(createRandomPalette());
+    setCenter(createRandomCenter());
+    setCenterKey((prev) => prev + 1);
+  }, []);
 
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setPalette(createRandomPalette());
-      setCenter(createRandomCenter());
-      setCenterKey((prev) => prev + 1);
-    }, 3000);
+    if (!isAutomatic) return undefined;
+    const intervalId = setInterval(changeDesign, 3000);
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [changeDesign, isAutomatic]);
 
   return (
     <div className="home-farm-block">
       <div className="home-farm-text">
-        <p className="home-farm-eyebrow">Comprendre les fermes</p>
-        <h2 className="home-farm-title">Une ferme est représentée par un hexagone</h2>
+        <p className="home-farm-eyebrow">Votre ferme, votre identité</p>
+        <h2 className="home-farm-title">Six sites. Des possibilités bien à vous.</h2>
         <p className="home-farm-description">
-          Ici, la ferme est un hexagone. Chaque quartier représente un site où le bétail
-          est réparti pour garder l’équilibre. Tout est pensé pour organiser, surveiller et
-          contrôler efficacement votre exploitation.
+          Votre ferme prend la forme d’un hexagone. Ses six quartiers accueillent
+          les bétails de votre collection. Au centre, une image ou un emoji vous représente.
         </p>
         <p className="home-farm-description">
-          Chaque ferme est unique et personnalisable, le centre, la couleur de
-          chaque site, et même le nom de la ferme.
+          Choisissez son nom, composez sa palette et équipez vos badges.
+          Les autres fermiers pourront visiter votre ferme si vous la rendez publique.
         </p>
         <p className="home-farm-note">Vous êtes maître de votre ferme.</p>
+        <div className="home-farm-demo-controls">
+          <span>Exemples de personnalisation</span>
+          <div>
+            <button type="button" className="home-text-link" onClick={() => { setIsAutomatic(false); changeDesign(); }}>Essayer une autre apparence</button>
+            <button type="button" className="home-text-link" aria-pressed={isAutomatic} onClick={() => setIsAutomatic((current) => !current)}>
+              {isAutomatic ? 'Mettre en pause' : 'Reprendre le défilement'}
+            </button>
+          </div>
+        </div>
+        {onRegister && <button type="button" className="home-auth-button home-farm-register" onClick={onRegister}>Créer ma ferme</button>}
       </div>
 
       <div className="home-farm-visual" aria-hidden="true">

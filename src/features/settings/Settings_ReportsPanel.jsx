@@ -192,8 +192,8 @@ const fetchMatchingUserIds = async (normalizedSearch) => {
   if (!normalizedSearch) return [];
 
   const { data, error } = await supabase
-    .from('users_profiles')
-    .select('id')
+    .rpc('get_public_profiles_reborn')
+    .select('id, username')
     .ilike('username', `%${normalizedSearch}%`)
     .limit(100);
 
@@ -313,7 +313,7 @@ const fetchReportsPage = async ({ page, searchTerm, view }) => {
   const peopleIds = Array.from(new Set([...reporterIds, ...farmOwnerIds, ...handledByIds]));
   const { data: usersData } = peopleIds.length
     ? await supabase
-      .from('users_profiles')
+      .rpc('get_public_profiles_reborn')
       .select('id, username')
       .in('id', peopleIds)
     : { data: [] };
@@ -450,25 +450,18 @@ function Settings_ReportsPanel({ isActive, canAccessAdministration, currentUserI
 
       if (actionType === MODERATION_ACTIONS.REPLACE_PHOTO) {
         const standardAvatarUrl = await uploadModerationDefaultAvatar();
-        const betailPayload = {
-          avatar_url: standardAvatarUrl,
-        };
-
-        const { error: betailError } = await supabase
-          .from('betails')
-          .update(betailPayload)
-          .eq('id', betailId);
+        const { error: betailError } = await supabase.rpc('moderate_betail_content_reborn', {
+          p_betail_id: betailId,
+          p_action: 'replace_photo',
+          p_avatar_url: standardAvatarUrl,
+        });
 
         if (betailError) throw betailError;
       } else if (actionType === MODERATION_ACTIONS.REMOVE_COMMENT) {
-        const betailPayload = {
-          comments: null,
-        };
-
-        const { error: betailError } = await supabase
-          .from('betails')
-          .update(betailPayload)
-          .eq('id', betailId);
+        const { error: betailError } = await supabase.rpc('moderate_betail_content_reborn', {
+          p_betail_id: betailId,
+          p_action: 'remove_comment',
+        });
 
         if (betailError) throw betailError;
       } else if (actionType === MODERATION_ACTIONS.HIDE_BETAIL) {

@@ -75,7 +75,7 @@ const fetchProfilesByIds = async (ids) => {
   if (!uniqueIds.length) return [];
 
   const { data, error } = await supabase
-    .from('users_profiles')
+    .rpc('get_public_profiles_reborn')
     .select('id, username, avatar_url, role_ingame')
     .in('id', uniqueIds);
 

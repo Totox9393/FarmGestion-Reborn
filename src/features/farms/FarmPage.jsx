@@ -289,8 +289,8 @@ const fetchUserFarmId = async (userId) => {
 
 const fetchUsername = async (userId) => {
   const { data, error } = await supabase
-    .from('users_profiles')
-    .select('username')
+    .rpc('get_public_profiles_reborn')
+    .select('id, username')
     .eq('id', userId)
     .maybeSingle();
   if (error) throw error;

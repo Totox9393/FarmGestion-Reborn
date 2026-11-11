@@ -438,9 +438,7 @@ const fetchShippingCalendarRows = async () => {
   }
 
   const { data: betailsRows, error: betailsError } = await supabase
-    .from('betails')
-    .select('id, name, matricule, avatar_url, premium, age, farm_id, owner_id')
-    .in('id', betailIds)
+    .rpc('get_shipping_betails_reborn', { p_betail_ids: betailIds })
 
   const safeBetailsRows = betailsError ? [] : (betailsRows || [])
   if (DEBUG_GCE) {
@@ -455,10 +453,10 @@ const fetchShippingCalendarRows = async () => {
 
   let farmById = new Map()
   if (farmIds.length) {
-    const { data: farmsRows, error: farmsError } = await supabase
-      .from('farms_list')
-      .select('id, visible, name')
-      .in('id', farmIds)
+    // Only names associated with expeditions are exposed, including private farms.
+    const { data: farmsRows, error: farmsError } = await supabase.rpc('get_shipping_farm_names_reborn', {
+      p_farm_ids: farmIds,
+    })
 
     if (!farmsError) {
       farmById = new Map((farmsRows || []).map((row) => [row.id, row]))
@@ -475,19 +473,15 @@ const fetchShippingCalendarRows = async () => {
     .map((shipping) => {
       const betail = betailById.get(shipping.betail_id)
       const farm = betail?.farm_id ? farmById.get(betail.farm_id) : null
-      const isFarmPrivate = farm?.visible === false
       const isOwner = Boolean(currentUserId) && Boolean(betail?.owner_id) && betail.owner_id === currentUserId
 
       const shouldHideArchived = isOwner && archivedBetailSet.has(String(betail?.id || shipping.betail_id || ''))
-      const shouldHidePrivateFarm = isFarmPrivate && !isOwner
-      if (shouldHideArchived || shouldHidePrivateFarm) {
+      if (shouldHideArchived) {
         if (DEBUG_GCE) {
           console.debug('[GCE] row filtered out', {
             shippingId: shipping.id,
             betailId: shipping.betail_id,
             shouldHideArchived,
-            shouldHidePrivateFarm,
-            farmVisible: farm?.visible,
             archivedByUserSetting: shouldHideArchived,
             betailOwnerId: betail?.owner_id || null,
             currentUserId,

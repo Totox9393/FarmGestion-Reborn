@@ -787,7 +787,7 @@ export const fetchAuthorsByIds = async (ids) => {
   }
 
   const { data, error } = await supabase
-    .from('users_profiles')
+    .rpc('get_public_profiles_reborn')
     .select('id, username')
     .in('id', ids)
 

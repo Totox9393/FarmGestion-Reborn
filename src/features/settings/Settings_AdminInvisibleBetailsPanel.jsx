@@ -38,8 +38,8 @@ const fetchMatchingOwnerIds = async (normalizedSearch) => {
   if (!normalizedSearch) return [];
 
   const { data, error } = await supabase
-    .from('users_profiles')
-    .select('id')
+    .rpc('get_public_profiles_reborn')
+    .select('id, username')
     .ilike('username', `%${normalizedSearch}%`)
     .limit(100);
 
@@ -96,7 +96,7 @@ const fetchAdminBetailsPage = async ({ page, searchTerm }) => {
   let ownerById = new Map();
   if (ownerIds.length) {
     const { data: ownerRows, error: ownerError } = await supabase
-      .from('users_profiles')
+      .rpc('get_public_profiles_reborn')
       .select('id, username')
       .in('id', ownerIds);
 

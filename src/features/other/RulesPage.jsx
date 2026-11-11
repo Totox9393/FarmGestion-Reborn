@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, Hexagon, Info, Users, Ban, MessageCircle, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../authentification/AuthContext';
 import { supabase } from '../authentification/supabaseClient';
 import AuthenticatedLayout from '../home/AuthenticatedLayout';
@@ -10,30 +9,30 @@ import './RulesPage.css';
 
 const generalRules = [
   {
-    title: '1. Respect mutuel',
+    title: 'Respect mutuel',
     description: "Les utilisateurs doivent faire preuve de respect les uns envers les autres. Aucune forme de harcèlement, d'intimidation ou de comportement abusif ne sera tolérée.",
   },
   {
-    title: '2. Contenu approprié',
+    title: 'Contenu approprié',
     description: 'Le contenu partagé sur la plateforme doit rester approprié et ne pas contenir d’éléments offensants, violents, à caractère sexuel ou discriminatoires.',
   },
   {
-    title: '3. Informations personnelles',
+    title: 'Informations personnelles',
     description: "Il est interdit de partager des informations personnelles d'autres utilisateurs sans leur consentement explicite.",
   },
 ];
 
 const registrationRules = [
   {
-    title: '1. Images appropriées',
+    title: 'Images appropriées',
     description: 'Les images utilisées pour représenter le bétail doivent respecter les directives de contenu. Les visuels obscènes, violents ou inappropriés seront retirés.',
   },
   {
-    title: '2. Noms et descriptions',
+    title: 'Noms et descriptions',
     description: 'Les noms et descriptions doivent rester appropriés. Les références offensantes, discriminatoires ou à caractère sexuel sont interdites.',
   },
   {
-    title: '3. Fraude et manipulation',
+    title: 'Fraude et manipulation',
     description: "Il est interdit d'exploiter des failles techniques ou de manipuler le système d'évaluation pour obtenir des avantages injustes.",
   },
 ];
@@ -46,7 +45,6 @@ const sanctions = [
 ];
 
 function RulesPage() {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const onboardingQuery = useQuery({
     queryKey: ['rules', 'onboarding', user?.id],
@@ -94,121 +92,85 @@ function RulesPage() {
   }, [isAuthenticated]);
 
   const content = (
-    <div className="rules-wrapper">
+    <main className="rules-wrapper">
       {!isAuthenticated && (
-        <div className="rules-guest-actions">
-          <button
-            type="button"
-            className="rules-back-button"
-            onClick={() => navigate('/')}
-          >
-            ← Retour à l'accueil
-          </button>
-        </div>
+        <Link className="rules-back-link" to="/">Retour à l’accueil</Link>
       )}
-      <div>
-        <div className="rules-hero">
-          <h1>Règlement de FarmGestion</h1>
-          <p>Directives et règles à respecter sur la plateforme</p>
+      <header className="rules-header">
+        <h1>Règlement de FarmGestion</h1>
+        <p>Ce règlement s’applique à tous les utilisateurs de FarmGestion.</p>
+        <div className="rules-meta">
+          <span>Version 1.1</span>
+          <span>Mis à jour le <time dateTime="2026-11-08">8 Novembre 2026</time></span>
         </div>
+      </header>
 
-        <div className="rules-card">
-          <div className="rules-card__header">
-            <div className="rules-card__title">
-              <Hexagon className="rules-card__icon" />
-              <div>
-                <p className="rules-card__eyebrow">Document officiel</p>
-                <h2>Règlement général</h2>
-              </div>
-            </div>
-            <span className="rules-card__badge">Version 1.0</span>
-          </div>
-          <p className="rules-card__subtitle">Ce règlement s'applique à tous les utilisateurs de FarmGestion.</p>
+      <div className="rules-layout">
+        <nav className="rules-contents" aria-label="Sommaire du règlement">
+          <h2>Dans cette page</h2>
+          <a href="#rules-general">Règles générales</a>
+          <a href="#rules-creation">Création de bétail</a>
+          <a href="#rules-sanctions">Sanctions</a>
+          <a href="#rules-contact">Contact</a>
+          <a href="#rules-commitment">Notre engagement</a>
+        </nav>
 
-          <div className="rules-alert">
-            <AlertTriangle className="rules-alert__icon" />
-            <div>
-              <h3>Important</h3>
-              <p>
-                L'inscription et l'utilisation de FarmGestion impliquent l'acceptation pleine et entière du présent règlement.
-                Le non-respect de ces règles peut entraîner des sanctions allant jusqu'à la suspension définitive du compte.
-              </p>
-            </div>
-          </div>
+        <div className="rules-document">
+          <p className="rules-introduction">
+            L'inscription et l'utilisation de FarmGestion impliquent l'acceptation pleine et entière du présent règlement.
+            Le non-respect de ces règles peut entraîner des sanctions allant jusqu'à la suspension définitive du compte.
+          </p>
 
-          <section>
-            <h3 className="rules-section__title">
-              <Info className="rules-section__icon info" />
-              Règles générales
-            </h3>
-            <div className="rules-grid">
+          <section id="rules-general" className="rules-section" aria-labelledby="rules-general-title" tabIndex={-1}>
+            <h2 id="rules-general-title">Règles générales</h2>
+            <dl className="rules-list">
               {generalRules.map(rule => (
-                <article key={rule.title} className="rules-tile">
-                  <h4>{rule.title}</h4>
-                  <p>{rule.description}</p>
-                </article>
+                <div key={rule.title}>
+                  <dt>{rule.title}</dt>
+                  <dd>{rule.description}</dd>
+                </div>
               ))}
-            </div>
+            </dl>
           </section>
 
-          <section>
-            <h3 className="rules-section__title">
-              <Users className="rules-section__icon users" />
-              Règles d'enregistrement du bétail
-            </h3>
-            <div className="rules-grid">
+          <section id="rules-creation" className="rules-section" aria-labelledby="rules-creation-title" tabIndex={-1}>
+            <h2 id="rules-creation-title">Création de bétail</h2>
+            <dl className="rules-list">
               {registrationRules.map(rule => (
-                <article key={rule.title} className="rules-tile">
-                  <h4>{rule.title}</h4>
-                  <p>{rule.description}</p>
-                </article>
+                <div key={rule.title}>
+                  <dt>{rule.title}</dt>
+                  <dd>{rule.description}</dd>
+                </div>
               ))}
-            </div>
+            </dl>
           </section>
 
-          <section>
-            <h3 className="rules-section__title">
-              <Ban className="rules-section__icon ban" />
-              Sanctions
-            </h3>
-            <div className="rules-sanctions">
-              <p>En cas de non-respect, les administrateurs peuvent appliquer :</p>
-              <ul>
-                {sanctions.map(item => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </div>
+          <section id="rules-sanctions" className="rules-section" aria-labelledby="rules-sanctions-title" tabIndex={-1}>
+            <h2 id="rules-sanctions-title">Sanctions</h2>
+            <p>En cas de non-respect, les administrateurs peuvent appliquer :</p>
+            <ul className="rules-sanctions-list">
+              {sanctions.map(item => <li key={item}>{item}</li>)}
+            </ul>
           </section>
 
-          <section>
-            <h3 className="rules-section__title">
-              <MessageCircle className="rules-section__icon contact" />
-              Contact
-            </h3>
-            <div className="rules-contact">
-              <p>
-                Pour toute question ou pour signaler un comportement inapproprié, contactez Totox via le formulaire ou à
-                <a href="mailto:contact@totox.fr">contact@totox.fr</a>.
-              </p>
-            </div>
+          <section id="rules-contact" className="rules-section" aria-labelledby="rules-contact-title" tabIndex={-1}>
+            <h2 id="rules-contact-title">Contact</h2>
+            <p>
+              Pour toute question ou pour signaler un comportement inapproprié, contactez Totox via l'adresse {' '}
+              <a href="mailto:contact@totox.fr">contact@totox.fr</a>.
+            </p>
           </section>
 
-          <div className="rules-conclusion">
-            <ShieldCheck className="rules-conclusion__icon" />
-            <div>
-              <h3>Engagement de la communauté</h3>
-              <p>
-                FarmGestion s'engage à offrir une expérience positive et sécurisée à tous ses utilisateurs. Nous comptons sur
-                la collaboration de chacun pour maintenir une communauté respectueuse et bienveillante.
-              </p>
-            </div>
-          </div>
-
-          <p className="rules-updated">Dernière mise à jour : 15 septembre 2025</p>
+          <section id="rules-commitment" className="rules-section" aria-labelledby="rules-commitment-title" tabIndex={-1}>
+            <h2 id="rules-commitment-title">Engagement de la communauté</h2>
+            <p>
+              FarmGestion s'engage à offrir une expérience positive et sécurisée à tous ses utilisateurs. Nous comptons sur
+              la collaboration de chacun pour maintenir une communauté respectueuse et bienveillante.
+            </p>
+          </section>
         </div>
       </div>
-    </div>
+    </main>
   );
 
   if (isAuthenticated) {
