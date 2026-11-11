@@ -405,34 +405,10 @@ serve(async (req) => {
     }
 
     if (action === "delete") {
-      const userId = String(payload.userId || "").trim();
-      if (!userId) return jsonResponse(400, { ok: false, error: "missing_user_id" });
-
-      const settingsDelete = await supabase.from("user_settings").delete().eq("user_id", userId);
-      if (settingsDelete.error) {
-        return jsonResponse(500, {
-          ok: false,
-          error: `Failed to delete user settings: ${settingsDelete.error.message}`,
-        });
-      }
-
-      const profileDelete = await supabase.from("users_profiles").delete().eq("id", userId);
-      if (profileDelete.error) {
-        return jsonResponse(500, {
-          ok: false,
-          error: `Failed to delete profile row: ${profileDelete.error.message}`,
-        });
-      }
-
-      const authDelete = await supabase.auth.admin.deleteUser(userId);
-      if (authDelete.error) {
-        return jsonResponse(500, {
-          ok: false,
-          error: `Failed to delete auth user: ${authDelete.error.message}`,
-        });
-      }
-
-      return jsonResponse(200, { ok: true, userId });
+      return jsonResponse(410, {
+        ok: false,
+        error: "legacy_delete_disabled_use_admin_delete_user",
+      });
     }
 
     return jsonResponse(400, { ok: false, error: "Unsupported action" });

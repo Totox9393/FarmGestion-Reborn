@@ -5,6 +5,17 @@ import './LoginModal.css';
 import miloHello from '../../assets/img/milo_hello2.png';
 import { readInitialSurpriseCode, saveSurpriseCode } from './surpriseCode';
 
+const loginErrorMessage = (error) => {
+  if (error?.name === 'AbortError' || error?.isAcquireTimeout) {
+    return 'La session est bloquée dans le navigateur. Fermez les autres onglets FarmGestion, puis rechargez cette page.';
+  }
+  const message = error?.message || '';
+  if (message.toLowerCase().includes('invalid login credentials')) {
+    return 'Email ou mot de passe incorrect. Veuillez réessayer.';
+  }
+  return message || 'Erreur de connexion. Veuillez réessayer.';
+};
+
 function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLoginSuccess }) {
   const emailInputRef = useRef(null);
   const [email, setEmail] = useState('');
@@ -47,17 +58,15 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
     e.preventDefault();
     setLoading(true);
     setError('');
-    const { error } = await signInWithEmail(email, password);
-    setLoading(false);
-    if (error) {
-      let msg = error.message;
-      if (msg && msg.toLowerCase().includes('invalid login credentials')) {
-        msg = 'Email ou mot de passe incorrect. Veuillez réessayer.';
-      }
-      setError(msg || 'Erreur de connexion');
-    } else {
+    try {
+      const { error } = await signInWithEmail(email, password);
+      if (error) throw error;
       onClose?.();
       if (onLoginSuccess) await onLoginSuccess();
+    } catch (error) {
+      setError(loginErrorMessage(error));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,9 +75,12 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
     setError('');
     saveSurpriseCode(readInitialSurpriseCode());
     const redirectTo = `${window.location.origin}/home`;
-    const { error: oauthError } = await signInWithProvider('google', { redirectTo });
-    if (oauthError) {
-      setError(oauthError.message || 'Erreur de connexion Google.');
+    try {
+      const { error: oauthError } = await signInWithProvider('google', { redirectTo });
+      if (oauthError) throw oauthError;
+    } catch (error) {
+      setError(loginErrorMessage(error));
+    } finally {
       setLoading(false);
     }
   };
@@ -78,9 +90,12 @@ function LoginModal({ isOpen, onClose, onOpenRegister, onForgotPassword, onLogin
     setError('');
     saveSurpriseCode(readInitialSurpriseCode());
     const redirectTo = `${window.location.origin}/home`;
-    const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
-    if (oauthError) {
-      setError(oauthError.message || 'Erreur de connexion Discord.');
+    try {
+      const { error: oauthError } = await signInWithProvider('discord', { redirectTo });
+      if (oauthError) throw oauthError;
+    } catch (error) {
+      setError(loginErrorMessage(error));
+    } finally {
       setLoading(false);
     }
   };

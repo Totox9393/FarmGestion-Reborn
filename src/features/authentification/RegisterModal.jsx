@@ -89,9 +89,8 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
       return;
     }
 
-    const { available, error: availabilityError } = await checkUsernameAvailability(normalizedPseudo);
-    if (!available) {
-      setError(availabilityError || 'Ce pseudo est déjà utilisé.');
+    if (password.length < 8) {
+      setError('Le mot de passe doit contenir au moins 8 caractères.');
       return;
     }
 
@@ -99,6 +98,13 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
       setError('Les mots de passe ne correspondent pas.');
       return;
     }
+
+    const { available, error: availabilityError } = await checkUsernameAvailability(normalizedPseudo);
+    if (!available) {
+      setError(availabilityError || 'Ce pseudo est déjà utilisé.');
+      return;
+    }
+
     setLoading(true);
     const { data, error: signUpError } = await signUpWithEmail(email, password);
     if (signUpError) {
@@ -311,11 +317,11 @@ function RegisterModal({ isOpen, onClose, onOpenLogin, onRegisterSuccess }) {
             </label>
             <label className="register-modal-field">
               <span>Mot de passe</span>
-              <input type="password" placeholder="Votre mot de passe" value={password} onChange={e => setPassword(e.target.value)} required />
+              <input type="password" placeholder="8 caractères minimum" value={password} onChange={e => setPassword(e.target.value)} minLength={8} autoComplete="new-password" required />
             </label>
             <label className="register-modal-field">
               <span>Confirmer le mot de passe</span>
-              <input type="password" placeholder="Confirmez votre mot de passe" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required />
+              <input type="password" placeholder="Confirmez votre mot de passe" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} minLength={8} autoComplete="new-password" required />
             </label>
             <div className="register-modal-surprise-wrap">
               <button

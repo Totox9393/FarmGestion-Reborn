@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Search, ScanSearch, X } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Search, ScanSearch, Trash2, X } from 'lucide-react';
 import defaultProfileUser from '../../assets/defaut_profile_user.png';
+import deletePromptIntro from '../../assets/sounds/Ask_suppr1.wav';
+import deletePromptLoop from '../../assets/sounds/Ask_Suppr2loop.wav';
+import deleteSuccessSound from '../../assets/sounds/Ask_Suppr3.wav';
 import { supabase } from '../authentification/supabaseClient';
+import { useAuth } from '../authentification/AuthContext';
 import { BADGE_RARITY_LABELS, getBadgeImageUrl } from '../badges/badgeUtils';
+import { createSafeAudio, restartAudioSafely } from '../utils/safeAudio';
 import { createHexagonPoints, createTrianglePoints } from '../utils/FarmDesign/farmDesignUtils';
 import { formatMatricule } from '../utils/formatMatricule';
 import Settings_AdminDuplicateBetailsPanel from './Settings_AdminDuplicateBetailsPanel';
@@ -13,6 +18,66 @@ import './Settings_CentralePage.css';
 const RESULT_LIMIT = 30;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const NUMERIC_PATTERN = /^\d+$/;
+
+const ADMIN_ROLE_OPTIONS = [
+  { value: 'STANDARD', label: 'Standard' },
+  { value: 'MODERATION', label: 'Modérateur' },
+  { value: 'ADMIN', label: 'Administrateur' },
+];
+
+const EMPTY_DELETE_FLOW = {
+  phase: 'idle',
+  target: null,
+  confirmation: '',
+  progress: 0,
+  error: '',
+  result: null,
+};
+
+const ACCOUNT_DELETE_CONSEQUENCES = [
+  'Le compte, le profil, la ferme et les réglages seront supprimés.',
+  'Les expéditions en cours disparaîtront du calendrier.',
+  'Les enchères et mises actives seront annulées.',
+  'Les bétails retourneront au registre public avec leurs attributs et leurs badges.',
+  'Les badges de ferme et d’inventaire issus de la boutique retourneront en stock.',
+  'Les likes, relations et blocages du joueur seront supprimés.',
+  'Les historiques terminés resteront consultables sous « Compte supprimé ».',
+  'Le pseudo sera immédiatement disponible.',
+];
+
+const cleanupDeletedUserAvatarFiles = async (userId) => {
+  const prefixes = [userId, `farm-centers/${userId}`];
+  const paths = [];
+  let warning = false;
+
+  for (const prefix of prefixes) {
+    const { data, error } = await supabase.storage.from('avatars').list(prefix, { limit: 1000 });
+    if (error) {
+      warning = true;
+      continue;
+    }
+    (data || []).forEach((item) => {
+      if (item?.name) paths.push(`${prefix}/${item.name}`);
+    });
+  }
+
+  if (paths.length) {
+    const { error } = await supabase.storage.from('avatars').remove(paths);
+    if (error) warning = true;
+  }
+
+  return {
+    avatar_files_deleted: warning ? 0 : paths.length,
+    avatar_cleanup_warning: warning,
+  };
+};
+
+const normalizeAdminRole = (userRow) => {
+  const roles = `${userRow?.role || ''} ${userRow?.role_ingame || ''}`.toUpperCase();
+  if (roles.includes('ADMIN')) return 'ADMIN';
+  if (roles.includes('MODERATION') || roles.includes('MODERATOR')) return 'MODERATION';
+  return 'STANDARD';
+};
 
 const buildAvatarCandidates = (value, supabaseUrl) => {
   const raw = String(value || '').trim();
@@ -250,7 +315,7 @@ const runCentralSearch = async ({ query, filters }) => {
       farmMap: new Map(),
       badgeCatalogMap: new Map(),
       badgeCatalogByFilenameMap: new Map(),
-    };
+    });
   }
 
   const safeLike = sanitizeForIlike(term);
@@ -475,6 +540,7 @@ const runCentralSearch = async ({ query, filters }) => {
 
 function Settings_CentralePage() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
   const [searchInput, setSearchInput] = useState('');
   const [submittedQuery, setSubmittedQuery] = useState('');
@@ -483,6 +549,19 @@ function Settings_CentralePage() {
   const [aiAvailability, setAiAvailability] = useState('checking');
   const [selectedBetail, setSelectedBetail] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [moneyDraft, setMoneyDraft] = useState('');
+  const [roleDraft, setRoleDraft] = useState('STANDARD');
+  const [roleMenuOpen, setRoleMenuOpen] = useState(false);
+  const [savingUserField, setSavingUserField] = useState('');
+  const [userActionFeedback, setUserActionFeedback] = useState(null);
+  const [deleteFlow, setDeleteFlow] = useState(EMPTY_DELETE_FLOW);
+  const roleMenuRef = useRef(null);
+  const deletePhaseRef = useRef('idle');
+  const deleteIntroAudioRef = useRef(null);
+  const deleteLoopAudioRef = useRef(null);
+  const deleteFinalAudioRef = useRef(null);
+  const deleteProgressTimerRef = useRef(null);
+  const deleteSuccessTimerRef = useRef(null);
   const [filters, setFilters] = useState({
     betails: true,
     farms: true,
@@ -517,6 +596,32 @@ function Settings_CentralePage() {
     };
     void checkAiAvailability();
     return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!roleMenuOpen) return undefined;
+    const handlePointerDown = (event) => {
+      if (!roleMenuRef.current?.contains(event.target)) setRoleMenuOpen(false);
+    };
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') setRoleMenuOpen(false);
+    };
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [roleMenuOpen]);
+
+  useEffect(() => () => {
+    [deleteIntroAudioRef, deleteLoopAudioRef, deleteFinalAudioRef].forEach((audioRef) => {
+      if (!audioRef.current) return;
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+    });
+    if (deleteProgressTimerRef.current) window.clearInterval(deleteProgressTimerRef.current);
+    if (deleteSuccessTimerRef.current) window.clearInterval(deleteSuccessTimerRef.current);
   }, []);
 
   const results = searchQuery.data || {
@@ -574,10 +679,214 @@ function Settings_CentralePage() {
     }));
   };
 
+  const openUserModal = (userRow) => {
+    setSelectedUser(userRow);
+    setMoneyDraft(String(userRow?.money ?? 0));
+    setRoleDraft(normalizeAdminRole(userRow));
+    setRoleMenuOpen(false);
+    setUserActionFeedback(null);
+  };
+
+  const closeUserModal = () => {
+    if (deletePhaseRef.current !== 'idle') return;
+    setSelectedUser(null);
+    setRoleMenuOpen(false);
+    setUserActionFeedback(null);
+  };
+
+  const stopDeleteSounds = () => {
+    [deleteIntroAudioRef, deleteLoopAudioRef, deleteFinalAudioRef].forEach((audioRef) => {
+      if (!audioRef.current) return;
+      audioRef.current.pause();
+      audioRef.current.onended = null;
+      try {
+        audioRef.current.currentTime = 0;
+      } catch {
+        // Le navigateur peut refuser le seek avant le chargement des metadonnees.
+      }
+    });
+  };
+
+  const openDeleteConfirmation = () => {
+    if (!selectedUser || selectedUser.id === user?.id) {
+      setUserActionFeedback({ type: 'error', message: 'Tu ne peux pas supprimer ton propre compte.' });
+      return;
+    }
+
+    stopDeleteSounds();
+    const target = { ...selectedUser };
+    deletePhaseRef.current = 'warning';
+    setDeleteFlow({ ...EMPTY_DELETE_FLOW, phase: 'warning', target });
+
+    const introAudio = createSafeAudio(deletePromptIntro, { preload: 'auto' });
+    const loopAudio = createSafeAudio(deletePromptLoop, { preload: 'auto' });
+    loopAudio.loop = true;
+    deleteIntroAudioRef.current = introAudio;
+    deleteLoopAudioRef.current = loopAudio;
+    introAudio.onended = () => {
+      if (deletePhaseRef.current === 'warning') void restartAudioSafely(loopAudio);
+    };
+    void restartAudioSafely(introAudio);
+  };
+
+  const closeDeleteFlow = () => {
+    if (deletePhaseRef.current === 'deleting' || deletePhaseRef.current === 'finalizing') return;
+    stopDeleteSounds();
+    if (deleteProgressTimerRef.current) window.clearInterval(deleteProgressTimerRef.current);
+    if (deleteSuccessTimerRef.current) window.clearInterval(deleteSuccessTimerRef.current);
+    deletePhaseRef.current = 'idle';
+    setDeleteFlow(EMPTY_DELETE_FLOW);
+  };
+
+  const startFinalDeleteSound = async () => {
+    const finalAudio = createSafeAudio(deleteSuccessSound, { preload: 'auto' });
+    deleteFinalAudioRef.current = finalAudio;
+    await restartAudioSafely(finalAudio);
+    return finalAudio;
+  };
+
+  const waitForFinalDeleteSoundCue = (audio) => new Promise((resolve) => {
+    const fallbackStartedAt = performance.now();
+    deleteSuccessTimerRef.current = window.setInterval(() => {
+      const audioReachedCue = Number(audio?.currentTime || 0) >= 5.3;
+      const fallbackReached = performance.now() - fallbackStartedAt >= 7000;
+      if (!audioReachedCue && !fallbackReached) return;
+      window.clearInterval(deleteSuccessTimerRef.current);
+      deleteSuccessTimerRef.current = null;
+      resolve();
+    }, 25);
+  });
+
+  const handleDeleteAccount = async () => {
+    const target = deleteFlow.target;
+    const expectedUsername = String(target?.username || '').trim();
+    if (!target || deleteFlow.confirmation.trim() !== expectedUsername) return;
+    if (target.id === user?.id) {
+      setDeleteFlow((current) => ({ ...current, error: 'Ton propre compte ne peut pas être supprimé.' }));
+      return;
+    }
+
+    deleteIntroAudioRef.current?.pause();
+    deleteLoopAudioRef.current?.pause();
+    const finalAudio = await startFinalDeleteSound();
+    const finalSoundCue = waitForFinalDeleteSoundCue(finalAudio);
+    deletePhaseRef.current = 'deleting';
+    setDeleteFlow((current) => ({ ...current, phase: 'deleting', progress: 7, error: '' }));
+
+    deleteProgressTimerRef.current = window.setInterval(() => {
+      setDeleteFlow((current) => {
+        if (current.phase !== 'deleting') return current;
+        const increment = current.progress < 55 ? 7 : current.progress < 78 ? 3 : 1;
+        return { ...current, progress: Math.min(88, current.progress + increment) };
+      });
+    }, 420);
+
+    try {
+      const { data, error } = await supabase.rpc('admin_delete_user_account_reborn', {
+        p_user_id: target.id,
+      });
+      if (error || !data?.success) {
+        throw new Error(data?.reason || error?.message || 'DELETE_FAILED');
+      }
+
+      const avatarCleanup = await cleanupDeletedUserAvatarFiles(target.id);
+      const completedResult = { ...data, ...avatarCleanup };
+
+      if (deleteProgressTimerRef.current) window.clearInterval(deleteProgressTimerRef.current);
+      deletePhaseRef.current = 'finalizing';
+      setDeleteFlow((current) => ({
+        ...current,
+        phase: 'finalizing',
+        progress: 92,
+        result: completedResult,
+      }));
+
+      await finalSoundCue;
+      deletePhaseRef.current = 'success';
+      setDeleteFlow((current) => ({ ...current, phase: 'success', progress: 100 }));
+      setSelectedUser(null);
+      void searchQuery.refetch();
+    } catch (error) {
+      if (deleteProgressTimerRef.current) window.clearInterval(deleteProgressTimerRef.current);
+      if (deleteSuccessTimerRef.current) window.clearInterval(deleteSuccessTimerRef.current);
+      deleteFinalAudioRef.current?.pause();
+      deletePhaseRef.current = 'error';
+      const rawMessage = String(error?.message || '');
+      const message = rawMessage.includes('SELF_DELETE_FORBIDDEN')
+        ? 'Ton propre compte ne peut pas être supprimé.'
+        : 'La suppression a échoué. Aucune modification n’a été conservée.';
+      setDeleteFlow((current) => ({ ...current, phase: 'error', progress: 0, error: message }));
+    }
+  };
+
   const openSelectedUserProfile = () => {
     const username = String(selectedUser?.username || '').trim();
     if (!username) return;
     navigate(`/community/profile/${encodeURIComponent(username)}`);
+  };
+
+  const applySelectedUserPatch = (patch) => {
+    setSelectedUser((current) => (current ? { ...current, ...patch } : current));
+    void searchQuery.refetch();
+  };
+
+  const handleSaveMoney = async (event) => {
+    event.preventDefault();
+    const rawMoney = moneyDraft.trim();
+    const nextMoney = Number(rawMoney);
+    if (!/^\d+$/.test(rawMoney) || !Number.isSafeInteger(nextMoney) || nextMoney > 2147483647) {
+      setUserActionFeedback({ type: 'error', message: 'Saisis un solde entier compris entre 0 et 2 147 483 647.' });
+      return;
+    }
+
+    setSavingUserField('money');
+    setUserActionFeedback(null);
+    try {
+      const { data, error } = await supabase.rpc('admin_set_user_money_reborn', {
+        p_user_id: selectedUser.id,
+        p_money: nextMoney,
+      });
+      if (error || !data?.success) throw error || new Error('Invalid response');
+
+      const savedMoney = Number(data.money ?? nextMoney);
+      setMoneyDraft(String(savedMoney));
+      applySelectedUserPatch({ money: savedMoney, updated_at: data.updated_at || selectedUser.updated_at });
+      setUserActionFeedback({ type: 'success', message: 'Le solde a été mis à jour.' });
+    } catch {
+      setUserActionFeedback({ type: 'error', message: 'Le solde n’a pas pu être modifié.' });
+    } finally {
+      setSavingUserField('');
+    }
+  };
+
+  const handleSaveRole = async (event) => {
+    event.preventDefault();
+    if (selectedUser.id === user?.id) {
+      setUserActionFeedback({ type: 'error', message: 'Tu ne peux pas modifier ton propre rôle.' });
+      return;
+    }
+
+    setSavingUserField('role');
+    setUserActionFeedback(null);
+    try {
+      const { data, error } = await supabase.rpc('admin_set_user_role_reborn', {
+        p_user_id: selectedUser.id,
+        p_role: roleDraft,
+      });
+      if (error || !data?.success) throw error || new Error('Invalid response');
+
+      applySelectedUserPatch({
+        role: data.role ?? null,
+        role_ingame: null,
+        updated_at: data.updated_at || selectedUser.updated_at,
+      });
+      setRoleDraft(data.role || 'STANDARD');
+      setUserActionFeedback({ type: 'success', message: 'Le rôle a été mis à jour.' });
+    } catch {
+      setUserActionFeedback({ type: 'error', message: 'Le rôle n’a pas pu être modifié.' });
+    } finally {
+      setSavingUserField('');
+    }
   };
 
   const openDuplicateBetail = async (betailId) => {
@@ -800,7 +1109,7 @@ function Settings_CentralePage() {
                         key={`u-${row.id}`}
                         type="button"
                         className="centrale-card centrale-card--user centrale-card--interactive"
-                        onClick={() => setSelectedUser(row)}
+                        onClick={() => openUserModal(row)}
                         aria-label={`Ouvrir les détails de l'utilisateur ${row.username || 'sans nom'}`}
                       >
                         <div className="centrale-card-head">
@@ -970,14 +1279,14 @@ function Settings_CentralePage() {
       ) : null}
 
       {selectedUser ? (
-        <div className="centrale-modal-overlay" onClick={() => setSelectedUser(null)}>
-          <article className="centrale-modal" onClick={(event) => event.stopPropagation()}>
+        <div className="centrale-modal-overlay" onClick={closeUserModal}>
+          <article className="centrale-modal centrale-user-modal" onClick={(event) => event.stopPropagation()}>
             <header className="centrale-modal-head">
-              <h3>Détails utilisateur</h3>
+              <h3>Fiche utilisateur</h3>
               <button
                 type="button"
                 className="centrale-modal-close"
-                onClick={() => setSelectedUser(null)}
+                onClick={closeUserModal}
                 aria-label="Fermer"
               >
                 <X size={16} />
@@ -985,42 +1294,267 @@ function Settings_CentralePage() {
             </header>
 
             <div className="centrale-modal-body">
-              <div className="centrale-modal-hero">
+              <div className="centrale-modal-hero centrale-user-modal__identity">
                 <div className="centrale-modal-avatar centrale-modal-avatar--user">
                   <AvatarMedia avatarUrl={selectedUser.avatar_url} alt={selectedUser.username || 'Utilisateur'} />
                 </div>
-                <div>
+                <div className="centrale-user-modal__identity-copy">
                   <p className="centrale-modal-title">{selectedUser.username || 'Utilisateur sans nom'}</p>
                   <p className="centrale-modal-sub">{selectedUser.email || '-'}</p>
                 </div>
+                <button
+                  type="button"
+                  className="centrale-user-modal__profile-link"
+                  onClick={openSelectedUserProfile}
+                  disabled={!String(selectedUser.username || '').trim()}
+                >
+                  Voir le profil public
+                </button>
               </div>
 
-              <div className="centrale-modal-kpis" aria-hidden="true">
-                <span className="centrale-modal-kpi">Role: {getRoleLabel(selectedUser)}</span>
-                <span className="centrale-modal-kpi">Money: {selectedUser.money ?? 0}</span>
-                <span className="centrale-modal-kpi">Ferme: {getFarmName(selectedUser.farm_id)}</span>
-              </div>
+              <section className="centrale-user-modal__section" aria-labelledby="centrale-user-account-title">
+                <h4 id="centrale-user-account-title">Informations du compte</h4>
+                <dl className="centrale-user-modal__details">
+                  <div><dt>Rôle</dt><dd>{getRoleLabel(selectedUser)}</dd></div>
+                  <div><dt>Solde</dt><dd className="centrale-user-modal__number">{Number(selectedUser.money ?? 0).toLocaleString('fr-FR')}</dd></div>
+                  <div><dt>Ferme liée</dt><dd>{getFarmName(selectedUser.farm_id)}</dd></div>
+                  <div><dt>Inscription</dt><dd>{formatDate(selectedUser.created_at)}</dd></div>
+                  <div><dt>Profil mis à jour</dt><dd>{formatDate(selectedUser.updated_at)}</dd></div>
+                </dl>
+              </section>
 
-              <dl className="centrale-modal-grid centrale-modal-grid--compact">
-                <div><dt>ID</dt><dd>{selectedUser.id}</dd></div>
-                <div><dt>Role</dt><dd>{getRoleLabel(selectedUser)}</dd></div>
-                <div><dt>Date d'inscription</dt><dd>{formatDate(selectedUser.created_at)}</dd></div>
-                <div><dt>Dernière connexion</dt><dd>{formatDate(selectedUser.updated_at)}</dd></div>
-                <div><dt>Money</dt><dd>{selectedUser.money ?? 0}</dd></div>
-                <div><dt>Ferme liée</dt><dd>{getFarmName(selectedUser.farm_id)}</dd></div>
-              </dl>
+              <section className="centrale-user-modal__section" aria-labelledby="centrale-user-actions-title">
+                <h4 id="centrale-user-actions-title">Gestion du compte</h4>
+
+                <form className="centrale-user-modal__setting" onSubmit={handleSaveMoney}>
+                  <div className="centrale-user-modal__setting-copy">
+                    <label htmlFor="centrale-user-money">Solde</label>
+                    <span>Remplace le solde actuel du joueur.</span>
+                  </div>
+                  <div className="centrale-user-modal__setting-control">
+                    <input
+                      id="centrale-user-money"
+                      type="number"
+                      min="0"
+                      max="2147483647"
+                      step="1"
+                      inputMode="numeric"
+                      value={moneyDraft}
+                      onChange={(event) => setMoneyDraft(event.target.value)}
+                      disabled={Boolean(savingUserField)}
+                    />
+                    <button type="submit" disabled={Boolean(savingUserField)}>
+                      {savingUserField === 'money' ? 'Enregistrement…' : 'Enregistrer'}
+                    </button>
+                  </div>
+                </form>
+
+                <form className="centrale-user-modal__setting" onSubmit={handleSaveRole}>
+                  <div className="centrale-user-modal__setting-copy">
+                    <span className="centrale-user-modal__setting-label">Rôle</span>
+                    <span>Standard ne stocke aucun rôle en base.</span>
+                  </div>
+                  <div className="centrale-user-modal__setting-control">
+                    <div className="centrale-user-modal__combobox" ref={roleMenuRef}>
+                      <button
+                        type="button"
+                        className="centrale-user-modal__combobox-trigger"
+                        aria-haspopup="listbox"
+                        aria-expanded={roleMenuOpen}
+                        onClick={() => setRoleMenuOpen((open) => !open)}
+                        disabled={Boolean(savingUserField) || selectedUser.id === user?.id}
+                      >
+                        <span>{ADMIN_ROLE_OPTIONS.find((option) => option.value === roleDraft)?.label || 'Standard'}</span>
+                        <ChevronDown size={16} aria-hidden="true" />
+                      </button>
+                      {roleMenuOpen ? (
+                        <div className="centrale-user-modal__combobox-menu" role="listbox" aria-label="Rôle du joueur">
+                          {ADMIN_ROLE_OPTIONS.map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              role="option"
+                              aria-selected={roleDraft === option.value}
+                              className={roleDraft === option.value ? 'is-selected' : ''}
+                              onClick={() => {
+                                setRoleDraft(option.value);
+                                setRoleMenuOpen(false);
+                              }}
+                            >
+                              <span>{option.label}</span>
+                              {roleDraft === option.value ? <Check size={15} aria-hidden="true" /> : null}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                    <button type="submit" disabled={Boolean(savingUserField) || selectedUser.id === user?.id}>
+                      {savingUserField === 'role' ? 'Enregistrement…' : 'Enregistrer'}
+                    </button>
+                  </div>
+                  {selectedUser.id === user?.id ? (
+                    <span className="centrale-user-modal__self-note">Ton propre rôle ne peut pas être modifié ici.</span>
+                  ) : null}
+                </form>
+
+                {userActionFeedback ? (
+                  <div className={`centrale-user-modal__feedback is-${userActionFeedback.type}`} role="status">
+                    {userActionFeedback.message}
+                  </div>
+                ) : null}
+              </section>
+
+              <section className="centrale-user-modal__section" aria-labelledby="centrale-user-future-actions-title">
+                <h4 id="centrale-user-future-actions-title">Autres actions</h4>
+                <div className="centrale-user-modal__future-actions">
+                  <button type="button" disabled>
+                    <span>Réinitialiser la photo de profil</span><small>À venir</small>
+                  </button>
+                  <button type="button" disabled>
+                    <span>Envoyer un lien de réinitialisation du mot de passe</span><small>À venir</small>
+                  </button>
+                  <button type="button" className="is-danger" disabled>
+                    <span>Bannir le compte</span><small>À venir</small>
+                  </button>
+                  <button
+                    type="button"
+                    className="is-danger"
+                    onClick={openDeleteConfirmation}
+                    disabled={selectedUser.id === user?.id}
+                  >
+                    <span>Supprimer définitivement le compte</span>
+                    <small>{selectedUser.id === user?.id ? 'Indisponible sur votre compte' : 'Irréversible'}</small>
+                  </button>
+                </div>
+              </section>
+
+              <section className="centrale-user-modal__technical" aria-labelledby="centrale-user-technical-title">
+                <h4 id="centrale-user-technical-title">Identifiant technique</h4>
+                <code>{selectedUser.id}</code>
+              </section>
             </div>
+          </article>
+        </div>
+      ) : null}
 
-            <footer className="centrale-modal-actions centrale-modal-actions--sticky">
-              <button
-                type="button"
-                className="centrale-modal-action"
-                onClick={openSelectedUserProfile}
-                disabled={!String(selectedUser.username || '').trim()}
-              >
-                Voir profil
-              </button>
-            </footer>
+      {deleteFlow.phase !== 'idle' ? (
+        <div
+          className="centrale-modal-overlay centrale-delete-overlay"
+          onClick={deleteFlow.phase === 'warning' || deleteFlow.phase === 'error' || deleteFlow.phase === 'success' ? closeDeleteFlow : undefined}
+        >
+          <article
+            className="centrale-delete-modal"
+            role={deleteFlow.phase === 'warning' ? 'alertdialog' : 'dialog'}
+            aria-modal="true"
+            aria-labelledby="centrale-delete-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {deleteFlow.phase === 'warning' ? (
+              <>
+                <header className="centrale-delete-modal__head">
+                  <span className="centrale-delete-modal__icon" aria-hidden="true"><AlertTriangle size={20} /></span>
+                  <div>
+                    <h3 id="centrale-delete-title">Supprimer définitivement ce compte ?</h3>
+                    <p>Cette action est immédiate et ne pourra pas être annulée.</p>
+                  </div>
+                  <button type="button" className="centrale-modal-close" onClick={closeDeleteFlow} aria-label="Fermer">
+                    <X size={16} />
+                  </button>
+                </header>
+
+                <div className="centrale-delete-modal__target">
+                  <AvatarMedia avatarUrl={deleteFlow.target?.avatar_url} alt="" />
+                  <div>
+                    <strong>{deleteFlow.target?.username || 'Utilisateur sans nom'}</strong>
+                    <span>{deleteFlow.target?.email || deleteFlow.target?.id}</span>
+                  </div>
+                </div>
+
+                <div className="centrale-delete-modal__consequences">
+                  <h4>Conséquences de la suppression</h4>
+                  <ul>
+                    {ACCOUNT_DELETE_CONSEQUENCES.map((item) => <li key={item}>{item}</li>)}
+                  </ul>
+                </div>
+
+                <label className="centrale-delete-modal__confirmation" htmlFor="centrale-delete-confirmation">
+                  <span>Écris <strong>{deleteFlow.target?.username}</strong> pour confirmer</span>
+                  <input
+                    id="centrale-delete-confirmation"
+                    type="text"
+                    value={deleteFlow.confirmation}
+                    onChange={(event) => setDeleteFlow((current) => ({ ...current, confirmation: event.target.value }))}
+                    autoComplete="off"
+                    spellCheck="false"
+                    autoFocus
+                  />
+                </label>
+
+                {deleteFlow.error ? <p className="centrale-delete-modal__error" role="alert">{deleteFlow.error}</p> : null}
+
+                <footer className="centrale-delete-modal__actions">
+                  <button type="button" className="is-secondary" onClick={closeDeleteFlow}>Annuler</button>
+                  <button
+                    type="button"
+                    className="is-danger"
+                    onClick={handleDeleteAccount}
+                    disabled={deleteFlow.confirmation.trim() !== String(deleteFlow.target?.username || '').trim()}
+                  >
+                    <Trash2 size={16} aria-hidden="true" />
+                    Supprimer le compte
+                  </button>
+                </footer>
+              </>
+            ) : null}
+
+            {deleteFlow.phase === 'deleting' || deleteFlow.phase === 'finalizing' ? (
+              <div className="centrale-delete-modal__progress-view">
+                <div className="centrale-delete-modal__progress-icon" aria-hidden="true"><Trash2 size={22} /></div>
+                <h3 id="centrale-delete-title">
+                  {deleteFlow.phase === 'deleting' ? 'Suppression du compte…' : 'Finalisation…'}
+                </h3>
+                <p>Ne ferme pas cette page pendant l’opération.</p>
+                <div
+                  className="centrale-delete-modal__progress"
+                  role="progressbar"
+                  aria-label="Progression de la suppression"
+                  aria-valuemin="0"
+                  aria-valuemax="100"
+                  aria-valuenow={deleteFlow.progress}
+                >
+                  <span style={{ width: `${deleteFlow.progress}%` }} />
+                </div>
+                <strong className="centrale-delete-modal__progress-value">{deleteFlow.progress} %</strong>
+              </div>
+            ) : null}
+
+            {deleteFlow.phase === 'error' ? (
+              <div className="centrale-delete-modal__result is-error">
+                <span className="centrale-delete-modal__icon" aria-hidden="true"><AlertTriangle size={20} /></span>
+                <h3 id="centrale-delete-title">Suppression interrompue</h3>
+                <p>{deleteFlow.error}</p>
+                <button type="button" onClick={closeDeleteFlow}>Fermer</button>
+              </div>
+            ) : null}
+
+            {deleteFlow.phase === 'success' ? (
+              <div className="centrale-delete-modal__result is-success">
+                <span className="centrale-delete-modal__success-icon" aria-hidden="true"><Check size={22} /></span>
+                <h3 id="centrale-delete-title">Compte supprimé</h3>
+                <p>Le compte de <strong>{deleteFlow.target?.username}</strong> a été supprimé définitivement.</p>
+                <dl>
+                  <div><dt>Bétails libérés</dt><dd>{deleteFlow.result?.betails_released ?? 0}</dd></div>
+                  <div><dt>Expéditions retirées</dt><dd>{deleteFlow.result?.shipping_deleted ?? 0}</dd></div>
+                  <div><dt>Badges conservés sur les bétails</dt><dd>{deleteFlow.result?.badges_kept_on_betails ?? 0}</dd></div>
+                </dl>
+                {deleteFlow.result?.avatar_cleanup_warning ? (
+                  <p className="centrale-delete-modal__cleanup-warning">
+                    Le compte est supprimé, mais certains anciens fichiers d’avatar devront être nettoyés manuellement.
+                  </p>
+                ) : null}
+                <button type="button" onClick={closeDeleteFlow}>Fermer</button>
+              </div>
+            ) : null}
           </article>
         </div>
       ) : null}

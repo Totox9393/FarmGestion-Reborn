@@ -29,6 +29,7 @@ declare
   v_reward_badge_id uuid;
   v_inventory_insert_id uuid;
   v_free_slot integer;
+  v_orphan_equip record;
 begin
   if v_user_id is null then
     raise exception 'not_authenticated';
@@ -101,13 +102,46 @@ begin
     and coalesce(b.visible, true) = true
     and b.owner_id is null
     and b.farm_id is null
-    and b.author_id <> v_user_id
+    and b.author_id is distinct from v_user_id
   returning b.id, b.farm_id, b.owner_id, b.farm_site, coalesce(b.admin_reward_badge_ids, '[]'::jsonb)
   into v_betail_id, v_farm_id, v_owner_id, v_farm_site, v_reward_badges;
 
   if v_betail_id is null then
     raise exception 'already_sold_or_invalid';
   end if;
+
+  -- Reprendre les badges restes sur un betail libere apres suppression de compte.
+  for v_orphan_equip in
+    select e.id, e.badge_id
+    from public.badges_equips_reborn e
+    where e.betail_id = v_betail_id
+      and e.user_id is null
+    order by e.slot, e.equipped_at, e.id
+  loop
+    insert into public.badges_inventory_reborn (
+      user_id, badge_id, purchase_price, purchased_at, source
+    )
+    values (
+      v_user_id, v_orphan_equip.badge_id, 0, now(), 'betail_transfer'
+    )
+    on conflict (user_id, badge_id) do nothing;
+
+    if exists (
+      select 1
+      from public.badges_equips_reborn existing_equip
+      where existing_equip.user_id = v_user_id
+        and existing_equip.badge_id = v_orphan_equip.badge_id
+        and existing_equip.id <> v_orphan_equip.id
+    ) then
+      -- Un meme badge ne peut pas etre equipe deux fois par le meme joueur.
+      delete from public.badges_equips_reborn
+      where id = v_orphan_equip.id;
+    else
+      update public.badges_equips_reborn
+      set user_id = v_user_id
+      where id = v_orphan_equip.id;
+    end if;
+  end loop;
 
   if jsonb_typeof(v_reward_badges) = 'array' then
     for v_reward_badge_text in
@@ -139,8 +173,8 @@ begin
       end if;
 
       v_inventory_insert_id := null;
-      insert into public.badges_inventory_reborn (user_id, badge_id, purchase_price, purchased_at)
-      values (v_user_id, v_reward_badge_id, 0, now())
+      insert into public.badges_inventory_reborn (user_id, badge_id, purchase_price, purchased_at, source)
+      values (v_user_id, v_reward_badge_id, 0, now(), 'betail_reward')
       on conflict (user_id, badge_id) do nothing
       returning id into v_inventory_insert_id;
 

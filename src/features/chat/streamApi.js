@@ -8,16 +8,33 @@ const invokeAuthenticatedFunction = async (name, body) => {
     sessionData = refreshResult.data;
     sessionError = refreshResult.error;
   }
-  const accessToken = sessionData?.session?.access_token;
+  let accessToken = sessionData?.session?.access_token;
 
   if (sessionError || !accessToken) {
     throw new Error('Votre session a expiré. Reconnectez-vous.');
   }
 
-  const { data, error } = await supabase.functions.invoke(name, {
+  const invokeWithToken = (token) => supabase.functions.invoke(name, {
     body,
-    headers: { Authorization: `Bearer ${accessToken}` },
+    headers: { Authorization: `Bearer ${token}` },
   });
+
+  let response = await invokeWithToken(accessToken);
+
+  // getSession lit d'abord le cache local. Si le serveur rejette ce JWT entre-temps,
+  // renouveler réellement la session puis rejouer une seule fois la requête.
+  if (Number(response.error?.context?.status || 0) === 401) {
+    const refreshResult = await supabase.auth.refreshSession();
+    const refreshedToken = refreshResult.data?.session?.access_token;
+    if (refreshResult.error || !refreshedToken) {
+      await supabase.auth.signOut({ scope: 'local' }).catch(() => {});
+      throw new Error('Votre session a expiré. Reconnectez-vous.');
+    }
+    accessToken = refreshedToken;
+    response = await invokeWithToken(accessToken);
+  }
+
+  const { data, error } = response;
 
   if (error) {
     let message = error.message || 'Le service de messagerie est indisponible.';

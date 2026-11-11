@@ -400,6 +400,32 @@
   --friend-action-color: var(--community-profile-icon-danger-color);
 }
 
+.community-profile-friend-btn--text-action {
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--community-profile-icon-action-color);
+  padding: 7px 8px;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.4;
+  transition: background-color 0.16s ease;
+}
+
+.community-profile-friend-btn--text-danger {
+  color: var(--community-profile-icon-danger-color);
+}
+
+.community-profile-friend-btn--text-action:hover:not(:disabled) {
+  background-color: var(--community-profile-chip-bg);
+}
+
+.community-profile-friend-btn--text-action:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 2px;
+}
+
 .community-profile-message-btn {
   border-color: rgba(92, 75, 190, 0.4);
   color: #fff;

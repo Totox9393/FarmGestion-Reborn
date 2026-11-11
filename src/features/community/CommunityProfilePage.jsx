@@ -806,14 +806,14 @@ function CommunityProfilePage() {
                 <p className="community-profile-role">Inscrit le : {profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Date inconnue'}</p>
               </div>
               {!isOwnProfile ? (
-                <div className={`community-profile-friend-actions${isFriend ? ' community-profile-friend-actions--icon-row' : ''}`}>
+                <div className={`community-profile-friend-actions${(isFriend || (!isIncomingPending && !isOutgoingPending && !isBlockedByCurrentUser && !isBlockedByOtherUser && !isFriendRequestsDisabledByUser)) ? ' community-profile-friend-actions--icon-row' : ''}`}>
                   {relationQuery.isLoading || allowFriendRequestsQuery.isLoading ? (
                     <span className="community-profile-friend-hint">Chargement relation...</span>
                   ) : isIncomingPending ? (
                     <>
                       <button
                         type="button"
-                        className="community-profile-add-friend"
+                        className="community-profile-friend-btn community-profile-friend-btn--text-action"
                         disabled={isFriendActionBusy}
                         onClick={() => acceptMutation.mutate()}
                       >
@@ -821,7 +821,7 @@ function CommunityProfilePage() {
                       </button>
                       <button
                         type="button"
-                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        className="community-profile-friend-btn community-profile-friend-btn--text-action community-profile-friend-btn--text-danger"
                         disabled={isFriendActionBusy}
                         onClick={() => declineMutation.mutate()}
                       >
@@ -908,19 +908,23 @@ function CommunityProfilePage() {
                     <>
                       <button
                         type="button"
-                        className="community-profile-add-friend"
+                        className="community-profile-friend-btn community-profile-friend-btn--icon"
                         disabled={isFriendActionBusy}
                         onClick={() => sendRequestMutation.mutate()}
+                        aria-label="Ajouter en ami"
                       >
-                        <UserPlus size={16} /> Ajouter en ami
+                        <UserPlus size={18} />
+                        <span>Ajouter en ami</span>
                       </button>
                       <button
                         type="button"
-                        className="community-profile-friend-btn community-profile-friend-btn--danger"
+                        className="community-profile-friend-btn community-profile-friend-btn--icon community-profile-friend-btn--icon-danger"
                         disabled={isFriendActionBusy}
                         onClick={handleBlockUser}
+                        aria-label={confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
                       >
-                        <ShieldBan size={16} /> {confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}
+                        <ShieldBan size={18} />
+                        <span>{confirmAction === 'block' ? 'Confirmer blocage' : 'Bloquer'}</span>
                       </button>
                     </>
                   )}
