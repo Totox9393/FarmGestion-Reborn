@@ -3306,11 +3306,35 @@
     left: 8px;
     right: 8px;
     top: calc(var(--nav-h, 58px) + 8px);
-    bottom: max(8px, env(safe-area-inset-bottom));
+    bottom: auto;
     width: auto;
-    height: auto;
-    max-height: none;
+    height: calc(100vh - var(--nav-h, 58px) - 16px);
+    height: calc(100dvh - var(--nav-h, 58px) - 16px);
+    max-height: calc(100vh - var(--nav-h, 58px) - 16px);
+    max-height: calc(100dvh - var(--nav-h, 58px) - 16px);
+    display: flex;
+    flex-direction: column;
+    overflow-x: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     transform: translateY(16px);
+  }
+
+  .my-betail-panel .betail-details-header {
+    flex: 0 0 auto;
+    position: sticky;
+    top: 0;
+    z-index: 3;
+    background: inherit;
+  }
+
+  .my-betail-panel .betail-details-body {
+    min-height: auto;
+    flex: 0 0 auto;
+    overflow: visible;
+    padding-bottom: max(36px, calc(20px + env(safe-area-inset-bottom)));
   }
 
   .my-betail-panel.is-open {
