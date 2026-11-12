@@ -211,6 +211,7 @@ function CommunityProfilePage() {
   const confirmResetTimerRef = useRef(null);
   const [flippedBetailIds, setFlippedBetailIds] = useState(() => new Set());
   const [confirmAction, setConfirmAction] = useState('');
+  const [isRemoveFriendConfirmOpen, setIsRemoveFriendConfirmOpen] = useState(false);
   const [showAllBadges, setShowAllBadges] = useState(false);
   const [isMobileBadgesLayout, setIsMobileBadgesLayout] = useState(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
@@ -360,6 +361,7 @@ function CommunityProfilePage() {
   const removeFriendMutation = useMutation({
     mutationFn: () => removeFriendRelationById(relation.id),
     onSuccess: () => {
+      setIsRemoveFriendConfirmOpen(false);
       refreshRelations();
       dispatchToast('Ami supprimé.', 'success');
     },
@@ -442,9 +444,24 @@ function CommunityProfilePage() {
 
   const handleRemoveFriend = () => {
     if (!relation?.id) return;
-    if (!window.confirm('Supprimer cet ami ?')) return;
+    setIsRemoveFriendConfirmOpen(true);
+  };
+
+  const handleConfirmRemoveFriend = () => {
+    if (!relation?.id || removeFriendMutation.isPending) return;
     removeFriendMutation.mutate();
   };
+
+  useEffect(() => {
+    if (!isRemoveFriendConfirmOpen) return undefined;
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape' && !removeFriendMutation.isPending) {
+        setIsRemoveFriendConfirmOpen(false);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isRemoveFriendConfirmOpen, removeFriendMutation.isPending]);
 
   const handleOpenChat = async () => {
     if (!isFriend || !profile?.id) return;
@@ -1112,6 +1129,51 @@ function CommunityProfilePage() {
           </article>
         )}
       </section>
+
+      {isRemoveFriendConfirmOpen ? (
+        <div
+          className="community-confirm-overlay"
+          role="presentation"
+          onMouseDown={() => {
+            if (!removeFriendMutation.isPending) setIsRemoveFriendConfirmOpen(false);
+          }}
+        >
+          <section
+            className="community-confirm-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="remove-friend-title"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <div className="community-confirm-dialog__mark" aria-hidden="true">
+              <UserMinus size={21} />
+            </div>
+            <div>
+              <p className="community-confirm-dialog__eyebrow">Relation amicale</p>
+              <h2 id="remove-friend-title">Retirer {profile?.username || 'cet ami'} ?</h2>
+              <p>Vous ne serez plus amis. Une nouvelle demande sera nécessaire pour reprendre contact.</p>
+            </div>
+            <div className="community-confirm-dialog__actions">
+              <button
+                type="button"
+                className="community-confirm-dialog__cancel"
+                disabled={removeFriendMutation.isPending}
+                onClick={() => setIsRemoveFriendConfirmOpen(false)}
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                className="community-confirm-dialog__confirm"
+                disabled={removeFriendMutation.isPending}
+                onClick={handleConfirmRemoveFriend}
+              >
+                <UserMinus size={16} /> {removeFriendMutation.isPending ? 'Suppression…' : 'Retirer l’ami'}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

@@ -465,6 +465,103 @@
   background: rgba(230, 230, 230, 0.88);
 }
 
+.community-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2400;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(21, 18, 39, 0.48);
+}
+
+.community-confirm-dialog {
+  width: min(460px, 100%);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 14px;
+  border: 1px solid rgba(135, 47, 47, 0.35);
+  border-radius: 16px;
+  background: #fff;
+  color: #241c40;
+  padding: 22px;
+  box-shadow: 0 18px 42px rgba(27, 20, 54, 0.22);
+}
+
+.community-confirm-dialog__mark {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(135, 47, 47, 0.35);
+  border-radius: 50%;
+  color: #872f2f;
+  background: #fff5f5;
+}
+
+.community-confirm-dialog__eyebrow {
+  margin: 1px 0 5px;
+  color: #7a5a62;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.community-confirm-dialog h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #241c40;
+}
+
+.community-confirm-dialog p:not(.community-confirm-dialog__eyebrow) {
+  grid-column: 2;
+  margin: -6px 0 0;
+  color: var(--community-profile-muted);
+  line-height: 1.45;
+}
+
+.community-confirm-dialog__actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(83, 66, 149, 0.16);
+}
+
+.community-confirm-dialog__actions button {
+  min-height: 38px;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-weight: 750;
+}
+
+.community-confirm-dialog__cancel {
+  border: 1px solid rgba(83, 66, 149, 0.28);
+  background: #fff;
+  color: #3b2d84;
+}
+
+.community-confirm-dialog__confirm {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #a84242;
+  background: #a84242;
+  color: #fff;
+}
+
+.community-confirm-dialog__actions button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.community-confirm-dialog__actions button:disabled {
+  opacity: 0.62;
+  cursor: wait;
+}
+
 .community-profile-actions {
   margin-top: 16px;
   display: flex;
@@ -1099,6 +1196,37 @@
   background: rgba(18, 24, 40, 0.78);
 }
 
+.auth-theme.dark_theme .community-confirm-dialog,
+.auth-theme.galactic_theme .community-confirm-dialog {
+  border-color: rgba(255, 157, 183, 0.38);
+  background: #171b2b;
+  color: #f2f5ff;
+}
+
+.auth-theme.dark_theme .community-confirm-dialog h2,
+.auth-theme.galactic_theme .community-confirm-dialog h2 {
+  color: #f2f5ff;
+}
+
+.auth-theme.dark_theme .community-confirm-dialog__mark,
+.auth-theme.galactic_theme .community-confirm-dialog__mark {
+  border-color: rgba(255, 157, 183, 0.38);
+  background: rgba(136, 45, 65, 0.28);
+  color: #ffb5c8;
+}
+
+.auth-theme.dark_theme .community-confirm-dialog__actions,
+.auth-theme.galactic_theme .community-confirm-dialog__actions {
+  border-color: rgba(177, 168, 255, 0.2);
+}
+
+.auth-theme.dark_theme .community-confirm-dialog__cancel,
+.auth-theme.galactic_theme .community-confirm-dialog__cancel {
+  border-color: rgba(177, 168, 255, 0.35);
+  background: transparent;
+  color: #dce7ff;
+}
+
 .auth-theme.dark_theme .community-profile-friend-card__name,
 .auth-theme.galactic_theme .community-profile-friend-card__name {
   color: #e8f0ff;
@@ -1358,6 +1486,17 @@
 
   .community-profile-actions {
     gap: 8px;
+  }
+
+  .community-confirm-dialog {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 18px;
+  }
+
+  .community-confirm-dialog p:not(.community-confirm-dialog__eyebrow) {
+    grid-column: auto;
+    margin: 0;
   }
 }
 
